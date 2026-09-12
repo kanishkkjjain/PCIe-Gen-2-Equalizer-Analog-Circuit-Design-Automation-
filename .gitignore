@@ -1,0 +1,26 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+.Python
+*.egg-info/
+
+# --- SPICE / simulation artifacts (regenerated on every run) ---
+*.dat
+*.raw
+*.out
+.spiceinit
+spinit
+
+# ngspice writes netlists here when driven from xschem
+*.spice.bak
+
+# --- generated plots ---
+*.png
+*.svg
+*.pdf
+
+# --- editor / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store

@@ -80,6 +80,13 @@ Peaking 3–12 dB · peak in 1.25–2.5 GHz · HD3 < −30 dB · input noise < 1
 power < 15 mW · area < 0.05 mm² · eye > 0.4 UI and > 100 mV · bias validity
 (input pair **and** real tail device in saturation).
 
+## Version control
+
+Git initialised; identity set **repo-local** (`kanishk` /
+`f20230748@pilani.bits-pilani.ac.in`) so nothing global was touched. SPICE dumps
+and plots are gitignored; the 60-corner PVT results in `results/` are tracked as
+evidence. No remote configured. See `HANDOVER.md` §12b.
+
 ## Setup
 
 ```bash

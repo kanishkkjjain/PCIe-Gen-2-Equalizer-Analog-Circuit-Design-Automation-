@@ -16,8 +16,9 @@ The fastest check that nothing is broken. The pure tier needs no PDK and no
 ngspice, so it runs anywhere in under a second:
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 64 tests, < 1 s
-python3 -m pytest tests/ -q                      # + 15 ngspice tests, ~3 min
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 108 tests, ~5 s, no PDK
+python3 -m pytest tests/ -q                      # all 135, ~70 s with the PDK
+#                                                 3 currently FAIL -- HANDOVER 11
 ```
 
 Two of those tests are worth reading on their own, because they pin device-model
@@ -206,8 +207,16 @@ ngspice -b eq_tb.spice
 
 ```bash
 # eye diagram (closed-loop DFE, real XSPICE slicer + 1 UI latch)
-python3 scripts/plot_eye.py --igf 50e-6  -o /tmp/eye_small_tap.png
-python3 scripts/plot_eye.py --igf 300e-6 -o /tmp/eye_big_tap.png
+# ⚠️ BROKEN -- see HANDOVER 11 defect D2. `Igf` is a read-only property of
+# `tap_pct` now, so these raise
+#     TypeError: CtleParams.__init__() got an unexpected keyword argument 'Igf'
+# The flag should be --tap-pct. Left here unfixed and labelled rather than
+# quietly corrected, because the same staleness also breaks 3 tests.
+python3 scripts/plot_eye.py --igf 50e-6  -o /tmp/eye_small_tap.png   # FAILS
+python3 scripts/plot_eye.py --igf 300e-6 -o /tmp/eye_big_tap.png     # FAILS
+
+# what does work today:
+python3 scripts/plot_eye.py -o /tmp/eye.png
 
 # any wrdata dump; auto-detects AC vs transient
 python3 scripts/plot_wave.py /tmp/eqrl_smoke/ac.dat   --open
@@ -479,7 +488,31 @@ python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel \
         --pop 48 --iters 15 --seed 0
 ```
 
-Then check the exported deck reproduces its own report:
+Then check the exported deck reproduces its own report.
+
+⚠️ **This check is insufficient, and that is how defect D1 shipped.** It
+compares only `ctle_final.sp` (AC). `ac()` divides out `vdb(vinp,vinn)`, so
+peaking and `f_peak` are channel-invariant *by construction* — the AC deck
+agrees to 0.000 % whether or not it contains the channel, so it **cannot**
+detect a missing one. The eye deck can, and does:
+
+```bash
+cd results && ngspice -b ctle_final_eye.sp && python3 -c "
+import numpy as np, json
+from pathlib import Path; import sys; sys.path.insert(0,'..')
+from eqrl import dfe
+d=np.loadtxt('eye.dat')
+e=dfe.eye_from_waveform(d[:,0], d[:,1], 200e-12)
+r=json.load(open('report.json'))['typ_metrics']
+print('deck  ', round(e.height_v*1e3,1),'mV', round(e.width_ui,3),'UI')
+print('report', round(r['eye_height_v']*1e3,1),'mV', round(r['eye_width_ui'],3),'UI')"
+```
+
+Measured today: deck **591.8 mV × 0.750 UI** against report **189.0 mV ×
+0.547 UI** — 3.1× optimistic, because the exported deck has no channel
+(HANDOVER §11 D1). Until that is fixed, this comparison is expected to fail.
+
+The AC comparison below still holds:
 
 ```bash
 cd results && ngspice -b ctle_final.sp && python3 -c "

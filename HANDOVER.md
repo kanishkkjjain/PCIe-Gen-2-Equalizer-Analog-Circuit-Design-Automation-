@@ -122,7 +122,7 @@ reference design, which labels them "(Ideal)" too.
 
 ```bash
 cd ~/pcie_eq_rl
-python3 -m pytest tests/ -q                              # 108 tests
+python3 -m pytest tests/ -q                              # 135 tests (3 FAIL, §11)
 python3 scripts/smoke_test.py                            # SPICE layer sanity
 python3 scripts/build_trimlib.py --grid spec             # 5.7x less model text
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
@@ -913,6 +913,92 @@ do. See §16.
 
 ## 11. Known issues / open items
 
+### Open defects found in review (2026-09-13) — NOT yet fixed
+
+These were found by a reviewer reading the shipped artifacts, after this file
+already claimed they had been verified. They are recorded rather than fixed so
+the record is honest; the fixes are deliberate follow-up work.
+
+**D1. `results/ctle_final_eye.sp` has no channel — it does not reproduce the
+report.**
+
+`design.py::_export_eye_deck()` writes the PRBS sources straight onto
+`vinp`/`vinn`. When the framework runs an eye with the channel enabled,
+`spice.py::_assemble()` instead retargets those sources to
+`chsrc_p`/`chsrc_n`, appends `nl.channel_netlist()`, **and** adds
+`.options abstol=1e-10 vntol=1e-6`. The exporter does none of it, and the run
+that produced `report.json` had `channel: true`.
+
+```
+results/ctle_final_eye.sp   591.8 mV x 0.750 UI
+report.json typ_metrics     189.0 mV x 0.547 UI      -> 3.1x optimistic
+```
+
+The failure direction is the bad one: the deck **exits 0**, logs nothing worse
+than a benign `m=xx` warning, and hands a reviewer a *better* eye than this
+project claims. A fix must add the channel **and** the `abstol` option — with
+80 inductors and the default 1e-12, the deck would die with "timestep too
+small".
+
+`ctle_final.sp` (AC) is missing the channel too, but `ac()` divides out
+`vdb(vinp,vinn)`, so peaking and `f_peak` are **channel-invariant by
+construction** — the AC deck agrees with the report to 0.000 % and therefore
+cannot expose this. **VERIFY.md §14 cross-checks only that deck**, i.e. the one
+whose metric cannot fail. That is why the defect shipped.
+
+Root cause: when the channel was added, `use_channel` was threaded through
+`Simulator`, `Objective`, `env._eval_task`, `run_design` and the CLI — but not
+the two exporters, which take `(params, corner, path)` and cannot know. Same
+family as bugs 16 and 17: **two code paths building the same thing, one
+patched.** The fix should route the exporters through `Simulator._assemble`
+(forcing `use_trimmed=False`, since a trimmed library is not portable) rather
+than adding a third copy of the deck-building logic.
+
+**D2. `Igf` is no longer settable — three call sites still try, and three tests
+fail.**
+
+`Igf`/`Wgf` became read-only properties of `tap_pct` (§7). Three sites were
+missed:
+
+| site | symptom |
+|---|---|
+| `scripts/plot_eye.py:25` | `TypeError: CtleParams.__init__() got an unexpected keyword argument 'Igf'` |
+| `tests/test_spice.py:240-241` | same TypeError — `test_an_oversized_tap_closes_the_eye` never runs |
+
+and two further tests encode **stale assertion bounds** from when the default
+tap was ~34 % rather than today's 5 %:
+
+| test | asserts | actual | why |
+|---|---|---|---|
+| `test_tap_weight_is_realised` | `tap_frac_of_main > 0.05` | 0.0397 | a 5 % tap injects ~4 % of the main path — correct |
+| `test_measured_tap_ratio_is_sane` | `0.1 < tap_ratio` | 0.0462 | `gmF/gm1` ≈ 0.046 for a 5 % tap — correct |
+
+**All three failures are test staleness, not circuit defects.** The measured
+values are exactly what a 5 % tap should produce.
+
+`plot_eye.py`'s flag should be `--tap-pct`. Note also that its
+`if a.igf else {}` treats `0` as "not supplied", so `--tap-pct 0` would be
+silently ignored; it wants `is not None`.
+
+**VERIFY.md §5 documents the broken invocation twice** — those two commands
+were written into the docs *after* the breakage and have never worked.
+
+### Why these shipped, and the pattern worth fixing
+
+The same fact living in several places, updated in some and not others:
+
+| defect | what drifted |
+|---|---|
+| D1 | `_assemble` gained `use_channel`; the exporters did not |
+| D2 | `tap_pct` threaded through 3 files; 3 call sites missed |
+| pvt_sweep status (fixed) | regenerated; 1 of 3 notes updated |
+| test counts (fixed) | changed; 2 of 3 docs updated |
+
+And the verification then sampled the copy that could not fail: `--help` instead
+of a real invocation, the AC deck instead of the eye deck, the fast tier instead
+of the full suite. **Check the path that can fail, or the check is decorative.**
+
+
 | Item | Notes |
 |---|---|
 | **`netlists/*.sch` are STALE** | They describe the OLD merged topology. They are a cross-check only — never simulated — but they no longer match `netlist.py`, so the device-for-device diff in VERIFY.md §3 will not agree until they are regenerated. |
@@ -981,7 +1067,8 @@ No remote is configured. `git remote add origin <url>` when you have one.
 ```bash
 export PDK_ROOT=/home/kanishk/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b
 
-# tests: 108 fast (no PDK) + 27 against real ngspice
+# tests: 135 total -- 108 fast (no PDK) + 27 against real ngspice.
+# 3 of the ngspice tests currently FAIL; see 11.
 python3 -m pytest tests/ -q -m "not needs_pdk"
 python3 -m pytest tests/ -q
 
@@ -1035,7 +1122,9 @@ Ranked by what the brief actually grades:
    and the LLM wrapper. All three are credibility investments rather than
    coverage gaps.
 
-Housekeeping: no conda `environment.yml`; `results/pvt_sweep.*` is stale (§12b).
+Housekeeping: no conda `environment.yml`. (`results/pvt_sweep.*` is **not**
+stale — it was regenerated for the final design and corroborates `report.json`
+exactly; see §12b.)
 
 ---
 
@@ -1046,8 +1135,8 @@ parsing no matter how small the circuit — so anything provable without a
 simulator should be.
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 108 tests, < 1 s, no PDK
-python3 -m pytest tests/ -q                      # + 15 ngspice tests, ~3 min
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 108 tests, ~5 s, no PDK
+python3 -m pytest tests/ -q                      # all 135, ~70 s (3 FAIL, see 11)
 ```
 
 | tier | file | needs | covers |

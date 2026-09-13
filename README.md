@@ -37,7 +37,7 @@ Converged at iteration 4 of 15; 2,328 ngspice launches. Full write-up in
 | Closed-loop DFE in SPICE (ideal comparator + 1 UI latch) | ✅ |
 | **RL loop end-to-end, 9/9 specs at 20/20 corners** | ✅ |
 | Automatic analytic starting point (no hand-seeding) | ✅ |
-| Test suite (108 fast + 27 against ngspice) | ✅ |
+| Test suite (135: 108 fast + 27 against ngspice) | ⚠️ **132 pass, 3 fail** — see `HANDOVER.md` §11 |
 | **Schematic output** (we emit netlists) | ❌ |
 | **Sweep-vs-RL baseline** — the brief asks for it | ❌ |
 | Runtime "tunable" mechanism · Anaconda env · LLM wrapper | ❌ |
@@ -65,7 +65,7 @@ eqrl/
   env.py        Objective (parallel, cached) + Gymnasium CtleEnv
   agents/cem.py Cross-Entropy-Method policy search
   design.py     orchestrator: specs in -> sized decks + report.json
-tests/          108 pure (no PDK, <1 s) + 27 against real ngspice
+tests/          135 total: 108 pure (no PDK, ~5 s) + 27 against real ngspice
 scripts/        run_design, build_trimlib, pvt_sweep, smoke_test, plotting
 netlists/       xschem schematics -- CROSS-CHECK ONLY, currently STALE
 ```
@@ -88,7 +88,7 @@ ngspice-42 (XSPICE + KLU), xschem 3.4.4, Python 3.12. SKY130 via volare.
 ## Run
 
 ```bash
-python3 -m pytest tests/ -q                        # 135 tests (~4 min)
+python3 -m pytest tests/ -q                        # 135 tests, ~70 s (3 FAIL, §11)
 python3 scripts/build_trimlib.py --grid spec       # 22.4x faster evaluations
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
 ```
@@ -109,5 +109,7 @@ python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
 ## Version control
 
 Git initialised; identity set **repo-local**. SPICE dumps and plots are
-gitignored; `results/` is tracked as evidence. See `HANDOVER.md` §12b — note
-`results/pvt_sweep.*` is stale and `report.json` is the current result.
+gitignored; `results/` is tracked as evidence. `report.json` is the RL run's
+output and `pvt_sweep.{json,csv}` is the same design swept by a **different
+code path** — the two agree on all 20 corners to 0.00e+00, so the sweep is an
+independent confirmation, not a leftover. See `HANDOVER.md` §12b.

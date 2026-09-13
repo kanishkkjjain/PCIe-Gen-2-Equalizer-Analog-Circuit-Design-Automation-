@@ -16,16 +16,28 @@ channel.
 
 ## Result
 
-**All 9 specs pass at all 20 of the brief's PVT corners**, with the channel
-present and the DFE active, found in **189 candidates**:
+**All 8 brief specs pass at all 20 of the brief's PVT corners**, with the
+channel present and the DFE active. (The scorecard shows 9 — the ninth is an
+internal "are the devices in saturation" check, not a customer requirement.)
+Found in **189 candidates**:
 
 ```
-peaking 7.33 dB  vs 3-12      f_peak  1.887 GHz vs <=2.5     eye H 126.8 mV vs 100
-hd3    -72.2 dBc vs <-30      noise   0.607 mV  vs <1.5      eye W 0.484 UI vs 0.4
-power   3.41 mW  vs <15       area    0.00033 mm2 vs <0.05
+peaking 7.33 dB  vs 3-12       f_peak  1.887 GHz vs 1.25-2.5   eye H 126.8 mV vs 100
+hd3    -59.9 dBc  vs <-30      noise   0.655 mV  vs <1.5       eye W 0.484 UI vs 0.4
+power    3.41 mW  vs <15       area    0.00033 mm2 vs <0.05
 ```
 
-Converged at iteration 4 of 15; 2,328 ngspice launches. Full write-up in
+**Tightest margin: `f_peak`, +13.2% of its band** — quoted from the
+binding edge, not the comfortable one.
+
+**It genuinely equalises**, not merely amplifies: **1.93×
+eye-openness improvement** over the equaliser input, collapsing to 0.15 with the
+degeneration removed. Eye height alone cannot show this, because summing-stage
+gain is a free variable (it correlates with eye height at 0.98, peaking at 0.47).
+
+Eye measured at **200 mV pp** transmitter drive — conservative
+against a real Gen2 transmitter's ~800 mV. Converged at iteration
+4 of 15; 1552 ngspice launches. Full write-up in
 `HANDOVER.md` §16.
 
 ## Status
@@ -33,7 +45,7 @@ Converged at iteration 4 of 15; 2,328 ngspice launches. Full write-up in
 | | |
 |---|---|
 | Two-stage equalizer (CTLE → Gm1+GmF summing stage), all-real SKY130 devices | ✅ |
-| Lossy FR4-like channel, −11.1 dB at Nyquist, 10.2 dB of tilt | ✅ |
+| Lossy FR4-like channel, −16.8 dB at Nyquist, 10.6 dB of tilt | ✅ |
 | Closed-loop DFE in SPICE (ideal comparator + 1 UI latch) | ✅ |
 | **RL loop end-to-end, 9/9 specs at 20/20 corners** | ✅ |
 | Automatic analytic starting point (no hand-seeding) | ✅ |
@@ -110,6 +122,7 @@ python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
 
 Git initialised; identity set **repo-local**. SPICE dumps and plots are
 gitignored; `results/` is tracked as evidence. `report.json` is the RL run's
-output and `pvt_sweep.{json,csv}` is the same design swept by a **different
-code path** — the two agree on all 20 corners to 0.00e+00, so the sweep is an
-independent confirmation, not a leftover. See `HANDOVER.md` §12b.
+output; `pvt_sweep.{json,csv}` is the same design swept by a different
+**driver** and agrees on all 20 corners. That is not an *independent*
+confirmation — both go through `Simulator.evaluate()`, so it checks the
+reporting path, not the physics. See `HANDOVER.md` §12b.

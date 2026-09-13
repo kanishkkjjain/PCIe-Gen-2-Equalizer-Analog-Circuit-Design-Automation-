@@ -102,10 +102,19 @@ class Metrics:
     # closed-loop DFE eye (only populated when evaluate(do_eye=True))
     eye_height_v: float = float("nan")
     eye_width_ui: float = float("nan")
+    # Gain-invariant companions to eye_height_v. Eye height alone can be bought
+    # with gain; openness (opening / swing at the same node) cannot.
+    eye_height_in_v: float = float("nan")      # at the equaliser input
+    eye_height_ctle_v: float = float("nan")    # after stage 1
+    eye_openness_in: float = float("nan")
+    eye_openness_ctle: float = float("nan")
+    eye_openness_out: float = float("nan")     # at the slicer
+    eye_improvement: float = float("nan")      # openness_out / openness_in
     tap_ratio: float = float("nan")     # realised gmF/gm1, measured from .op
     gm_g1: float = float("nan")
     gm_gf: float = float("nan")
     summer_saturated: bool = False
+    out_cm_v: float = float("nan")   # summing-node common mode (see op())
     saturated: bool = False
     partial: bool = False            # some analyses failed; metrics are NaN
     note: str = ""
@@ -144,6 +153,8 @@ class Simulator:
         # A lossy channel in front of the equaliser. Off by default so every
         # number recorded before this existed stays reproducible.
         self.use_channel = use_channel
+        # differential pk-pk drive used for eye measurements (see specs.py)
+        self.tx_swing_pp_v = 0.200
 
     # ---- deck assembly -------------------------------------------------
     def lib_for(self, section: str) -> str:
@@ -391,6 +402,7 @@ class Simulator:
             f"print {tail}[id] {tail}[vds] {tail}[vdsat]\n"
             f"print {gm1}[gm] {gm1}[id] {gm1}[vds] {gm1}[vdsat]\n"
             f"print {gmf}[gm] {gmf}[id] {gmf}[vds] {gmf}[vdsat]\n"
+            "print v(outp_dfe) v(outn_dfe)\n"
             "print i(Vdd)\n"          # true total supply current
             ".endc\n"
         )
@@ -429,7 +441,13 @@ class Simulator:
             vdsat = v.get(f"{pre}[vdsat]", float("nan"))
             return (vds == vds) and (vds > vdsat + 0.02)
         summer_sat = _sat(gm1) and _sat(gmf)
-        return {"ok": True, "id_m1": idv, "gm_m1": gm, "vds_m1": vds,
+        # Output common mode at the summing node. analytic.py starts the search
+        # from the reference's rule (0.5*Ig1*Rsum = VDD/2) but Rsum and Ig1 are
+        # both free variables, so the optimiser can and does move away from it.
+        # Measured rather than assumed, and reported so the drift is visible.
+        cm = 0.5 * (v.get("v(outp_dfe)", float("nan"))
+                    + v.get("v(outn_dfe)", float("nan")))
+        return {"ok": True, "out_cm_v": cm, "id_m1": idv, "gm_m1": gm, "vds_m1": vds,
                 "vdsat_m1": vdsat, "vgs_m1": vgs,
                 "id_tail": t_id, "vds_tail": t_vds, "vdsat_tail": t_vdsat,
                 "tail_saturated": tail_sat, "i_supply": isup,
@@ -470,7 +488,17 @@ class Simulator:
                 "v_pos": vals["pos"], "v_neg": vals["neg"]}
 
     def tran_hd3(self, p: CtleParams, corner: pdk.Corner,
-                 amp: float = 0.1, freq: float = 100e6, tag: str = "tran") -> dict:
+                 amp: float = 0.1, freq: float = 100e6, tag: str = "tran",
+                 channel: bool | None = False) -> dict:
+        """3rd-harmonic distortion from a 100 MHz differential sine.
+
+        channel=False by default, for the same reason noise() is: the tone was
+        being injected AHEAD of the channel, which eats 6.2 dB at 100 MHz, so
+        the circuit was driven at ~49% of the intended amplitude and reported a
+        flattering number -- measured -76.0 dBc through the channel against
+        -63.4 dBc at full drive. Linearity is a property of the equaliser, so
+        it is measured on the equaliser.
+        """
         out = self.workdir / f"{tag}.dat"
         if out.exists():
             out.unlink()
@@ -485,7 +513,7 @@ class Simulator:
         )
         ok, log = self._run(
             self._assemble(p, corner, "tran", control, tran_amp=amp,
-                           tran_freq=freq), tag)
+                           tran_freq=freq, channel=channel), tag)
         if not ok:
             return {"ok": False, "log": log, "note": _fatal_tag(log)}
         d = self._read_wrdata(out)
@@ -495,7 +523,7 @@ class Simulator:
         return {"ok": True, "hd3_db": _hd3_from_wave(t, v, freq)}
 
     def tran_eye(self, p: CtleParams, corner: pdk.Corner, n_bits: int = 200,
-                 ui: float = 200e-12, amp: float = 0.10,
+                 ui: float = 200e-12, amp: float = 0.10,   # DIFFERENTIAL amplitude: pp = 2*amp
                  tstep: float | None = None, tag: str = "eye") -> dict:
         """Closed-loop PRBS transient through the full equalizer + DFE loop.
 
@@ -515,7 +543,10 @@ class Simulator:
         control = (
             ".control\n"
             f"tran {ts:.6g} {tstop:.6g} 0 {ts:.6g}\n"
-            f"wrdata {out.name} v(outp_dfe,outn_dfe) v(vfbp)\n"
+            # also capture the equaliser INPUT and the CTLE output, so a
+            # gain-only solution can be told apart from real equalisation
+            f"wrdata {out.name} v(outp_dfe,outn_dfe) v(vfbp) "
+            f"v(outp_ctle,outn_ctle) v(vinp,vinn)\n"
             ".endc\n"
         )
         ok, log = self._run(
@@ -529,12 +560,47 @@ class Simulator:
         t, v = d[:, 0], d[:, 1]
         vfb = d[:, 3] if d.shape[1] >= 4 else None
         eye = dfe_mod.eye_from_waveform(t, v, ui)
-        return {"ok": True, "eye": eye, "t": t, "v": v, "vfb": vfb,
-                "n_bits": n_bits}
+        res = {"ok": True, "eye": eye, "t": t, "v": v, "vfb": vfb,
+               "n_bits": n_bits}
+
+        # --- is the eye open because we EQUALISED, or because we AMPLIFIED? ---
+        # Eye height alone cannot tell: the summing stage's gain (Rsum, Wg1,
+        # Ig1) is a free optimiser variable, and measured across 20 corners the
+        # eye height correlates with that gain at 0.98 and with peaking at only
+        # 0.47. "Openness" -- the eye opening as a FRACTION of the swing at the
+        # same node -- is gain-invariant: scaling a waveform leaves it
+        # unchanged. So openness_out > openness_in means real equalisation.
+        skip = t >= t[0] + 20 * ui
+
+        def _openness(col):
+            if d.shape[1] <= col:
+                return float("nan"), float("nan")
+            w = d[skip, col]
+            e = dfe_mod.eye_from_waveform(t[skip], w, ui, skip_ui=0)
+            pp = float(w.max() - w.min())
+            return e.height_v, (e.height_v / pp if pp > 0 else float("nan"))
+
+        h_ctle, o_ctle = _openness(5)
+        h_in, o_in = _openness(7)
+        pp_out = float(v[skip].max() - v[skip].min())
+        o_out = eye.height_v / pp_out if pp_out > 0 else float("nan")
+        res.update(eye_height_ctle_v=h_ctle, eye_height_in_v=h_in,
+                   eye_openness_in=o_in, eye_openness_ctle=o_ctle,
+                   eye_openness_out=o_out,
+                   eye_improvement=(o_out / o_in) if o_in and o_in == o_in
+                   and o_in > 0 else float("nan"))
+        return res
 
     def noise(self, p: CtleParams, corner: pdk.Corner, tag: str = "noise",
               channel: bool | None = False) -> dict:
         """Integrated input-referred noise.
+
+        Measured at the SUMMING NODE (outp_dfe/outn_dfe), not the CTLE output.
+        The equaliser is two stages and the brief asks for the noise of the
+        equaliser; stopping at stage 1 left the summing stage's contribution
+        uncounted. That is not a small omission -- the CTLE runs at BELOW-unity
+        gain (-4.59 dB at the final design), so noise added after it refers
+        back to the input AMPLIFIED, not attenuated.
 
         ngspice's own `inoise_total` is unreliable here: at 5 of 9 PVT corners it
         returns `-nan` even though the SPECTRUM it computed is perfectly clean
@@ -548,7 +614,7 @@ class Simulator:
             out.unlink()
         control = (
             ".control\n"
-            "noise v(outp_ctle,outn_ctle) Vinp dec 20 10e6 5e9\n"
+            "noise v(outp_dfe,outn_dfe) Vinp dec 20 10e6 5e9\n"
             "setplot noise1\n"
             f"wrdata {out.name} inoise_spectrum\n"
             "setplot noise2\n"
@@ -600,7 +666,18 @@ class Simulator:
                            do_eye: bool = False) -> Metrics:
         m = Metrics()
         failed: list[str] = []
-        r = self._combined(p, corner)
+        # The combined deck runs op/ac/tran/noise CHANNEL-FREE. None of them
+        # needs it:
+        #   op    - no DC current flows into MOSFET gates, so the bias is
+        #           bit-identical with and without the ladder (measured, 0.00e+00)
+        #   ac    - referenced to v(vinp,vinn), so channel-invariant by design
+        #   hd3   - deliberately measured at full drive (bug 1b)
+        #   noise - deliberately referred to the equaliser input (bug 17)
+        # Only the eye needs the channel. Running the combined deck with it and
+        # then re-running hd3 and noise without it cost FOUR launches per
+        # evaluation instead of two, and the ladder's 80 inductors make every
+        # one of those transients genuinely slower to solve.
+        r = self._combined(p, corner, channel=False)
         if not r.get("launch_ok"):
             # The whole deck died. This is NOT a bad design -- record the cause
             # so it cannot be mistaken for one by the scorer or a reader.
@@ -619,8 +696,9 @@ class Simulator:
         if opr.get("ok"):
             for k in ("id_m1", "gm_m1", "vds_m1", "vdsat_m1", "id_tail",
                       "vds_tail", "vdsat_tail", "tail_saturated", "i_supply",
-                      "saturated", "gm_g1", "gm_gf", "summer_saturated"):
-                setattr(m, k, opr[k])
+                      "saturated", "gm_g1", "gm_gf", "summer_saturated",
+                      "out_cm_v"):
+                setattr(m, k, opr.get(k, float("nan")))
             m.tap_ratio = opr["tap_ratio"]
         else:
             failed.append(f"op[{opr.get('note', '?')}]")
@@ -632,24 +710,30 @@ class Simulator:
                                       + p.Ig1 + p.Igf)
         m.area_mm2 = p.area_um2()["total_mm2"]
 
-        if r["hd3"].get("ok"):
-            m.hd3_db = r["hd3"]["hd3_db"]
+        hd = r["hd3"]          # already channel-free: the deck was built that way
+        if hd.get("ok"):
+            m.hd3_db = hd["hd3_db"]
         else:
-            failed.append(f"hd3[{r['hd3'].get('note', '?')}]")
-        nz = r["noise"]
-        if self.use_channel:
-            # the combined deck carries the channel, so redo noise without it
-            nz = self.noise(p, corner, channel=False)
+            failed.append(f"hd3[{hd.get('note', '?')}]")
+        nz = r["noise"]        # likewise channel-free
         if nz.get("ok"):
             m.vn_in_rms = nz["vn_in_rms"]
         else:
             failed.append(f"noise[{nz.get('note', '?')}]")
 
         if do_eye:
-            ey = self.tran_eye(p, corner)
+            # tran_eye's `amp` is the DIFFERENTIAL AMPLITUDE, so the
+            # peak-to-peak swing is 2*amp. Passing tx_swing_pp_v
+            # straight in doubled the drive to 400 mV pp while the
+            # exported deck still used 200 -- caught by the export test.
+            ey = self.tran_eye(p, corner, amp=self.tx_swing_pp_v / 2)
             if ey.get("ok"):
                 m.eye_height_v = ey["eye"].height_v
                 m.eye_width_ui = ey["eye"].width_ui
+                for k in ("eye_height_in_v", "eye_height_ctle_v",
+                          "eye_openness_in", "eye_openness_ctle",
+                          "eye_openness_out", "eye_improvement"):
+                    setattr(m, k, ey.get(k, float("nan")))
             else:
                 failed.append(f"eye[{ey.get('note', '?')}]")
         return _finish(m, failed)
@@ -657,7 +741,7 @@ class Simulator:
     # ---- combined deck: one launch instead of four ---------------------
     def _combined(self, p: CtleParams, corner: pdk.Corner,
                   hd3_amp: float = 0.1, hd3_freq: float = 100e6,
-                  tag: str = "combo") -> dict:
+                  tag: str = "combo", channel: bool | None = None) -> dict:
         """Run op + ac + tran(HD3) + noise from ONE deck, one ngspice launch.
 
         These four analyses differ only in the ANALYSIS card -- they share the
@@ -698,6 +782,7 @@ class Simulator:
             f"print {tail}[id] {tail}[vds] {tail}[vdsat]\n"
             f"print {gm1}[gm] {gm1}[id] {gm1}[vds] {gm1}[vdsat]\n"
             f"print {gmf}[gm] {gmf}[id] {gmf}[vds] {gmf}[vdsat]\n"
+            "print v(outp_dfe) v(outn_dfe)\n"
             "print i(Vdd)\n"
             "ac dec 40 1e6 20e9\n"
             f"wrdata {f_ac.name} vdb(outp_ctle,outn_ctle) vdb(outp_dfe,outn_dfe) vdb(vinp,vinn)\n"
@@ -705,7 +790,7 @@ class Simulator:
             f"wrdata {f_tr.name} v(outp_ctle,outn_ctle)\n"
             # noise LAST: setplot switches the active plot and would strand the
             # wrdata calls above.
-            "noise v(outp_ctle,outn_ctle) Vinp dec 20 10e6 5e9\n"
+            "noise v(outp_dfe,outn_dfe) Vinp dec 20 10e6 5e9\n"
             "setplot noise1\n"
             f"wrdata {f_nz.name} inoise_spectrum\n"
             "setplot noise2\n"
@@ -713,7 +798,8 @@ class Simulator:
             ".endc\n"
         )
         ok, log = self._run(
-            self._assemble(p, corner, "ac", control, src_override=src), tag)
+            self._assemble(p, corner, "ac", control, src_override=src,
+                           channel=channel), tag)
         res: dict = {"launch_ok": ok, "log": log}
         if not ok:
             res["fatal"] = _fatal_tag(log)
@@ -754,7 +840,13 @@ class Simulator:
             b = v.get(f"{pre}[vdsat]", float("nan"))
             return (a == a) and (a > b + 0.02)
         summer_sat = _sat(gm1) and _sat(gmf)
-        return {"ok": True, "id_m1": idv, "gm_m1": gm, "vds_m1": vds,
+        # Output common mode at the summing node. analytic.py starts the search
+        # from the reference's rule (0.5*Ig1*Rsum = VDD/2) but Rsum and Ig1 are
+        # both free variables, so the optimiser can and does move away from it.
+        # Measured rather than assumed, and reported so the drift is visible.
+        cm = 0.5 * (v.get("v(outp_dfe)", float("nan"))
+                    + v.get("v(outn_dfe)", float("nan")))
+        return {"ok": True, "out_cm_v": cm, "id_m1": idv, "gm_m1": gm, "vds_m1": vds,
                 "vdsat_m1": vdsat, "vgs_m1": vgs, "id_tail": t_id,
                 "vds_tail": t_vds, "vdsat_tail": t_vdsat,
                 "tail_saturated": tail_sat, "i_supply": isup,
@@ -842,6 +934,7 @@ class Simulator:
             m.saturated = opr["saturated"]
             m.gm_g1 = opr["gm_g1"]; m.gm_gf = opr["gm_gf"]
             m.summer_saturated = opr["summer_saturated"]
+            m.out_cm_v = opr.get("out_cm_v", float("nan"))
         # Power from the MEASURED supply current. The old analytic
         # `vdd * 2 * Itail` was wrong twice over: it ignored the mirror
         # reference branch, and the mirror does not actually deliver Itail
@@ -872,10 +965,18 @@ class Simulator:
             # ~1.3 s of solve on top of the PDK parse, so with a trimmed library
             # this is affordable per-candidate and the cheap pulse-response
             # surrogate may not be needed at all.
-            ey = self.tran_eye(p, corner)
+            # tran_eye's `amp` is the DIFFERENTIAL AMPLITUDE, so the
+            # peak-to-peak swing is 2*amp. Passing tx_swing_pp_v
+            # straight in doubled the drive to 400 mV pp while the
+            # exported deck still used 200 -- caught by the export test.
+            ey = self.tran_eye(p, corner, amp=self.tx_swing_pp_v / 2)
             if ey.get("ok"):
                 m.eye_height_v = ey["eye"].height_v
                 m.eye_width_ui = ey["eye"].width_ui
+                for k in ("eye_height_in_v", "eye_height_ctle_v",
+                          "eye_openness_in", "eye_openness_ctle",
+                          "eye_openness_out", "eye_improvement"):
+                    setattr(m, k, ey.get(k, float("nan")))
             else:
                 failed.append(f"eye[{ey.get('note', '?')}]")
         # `ok` means "this result is SCOREABLE" (the AC parsed), not

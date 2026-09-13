@@ -112,7 +112,8 @@ The analog design is **two stages**, matching the reference architecture (§4):
    `GmF` (feedback tap) draining into one shared pair of `Rsum` loads. That
    shared pair *is* the summer.
 
-A lossy **FR4-like channel** sits in front of it (−11.1 dB at Nyquist). Without
+A lossy **FR4-like channel** sits in front of it (−16.8 dB at Nyquist,
+10.6 dB of equalizable tilt). Without
 one the specification set is incoherent: a 1-tap DFE with no post-cursor to
 cancel can only make the eye worse, which was measured (§10b).
 
@@ -245,6 +246,12 @@ welded to `RL`.
 - **`Gm1` design rule** (from the reference): flat response well past Nyquist,
   gain need not be high, and the output common mode is set by
   `0.5 * Ig1 * Rsum`. Prioritise a high dominant pole over gain.
+  ⚠️ This is an **initialisation heuristic, not a constraint**. `analytic.py`
+  starts the search from it, but `Rsum` and `Ig1` are both free variables and
+  the optimiser moves away: the previous final design sat at **1.442 V of
+  1.8 V**, not the 0.900 V the rule implies. Nothing re-enforces it, and the
+  resulting headroom is asymmetric. `op()` now measures `out_cm_v` and
+  `report.json` records it, so the drift is visible rather than assumed away.
 - **Decision path**: `adc_bridge` -> `d_dff` (clocked comparator) -> `d_dff`
   (1 UI hold) -> `dac_bridge`. Two flops on the same edge give exactly one UI of
   feedback delay: the second captures what the first held before the edge.
@@ -495,22 +502,35 @@ for keeping the eye in the inner loop.
 
 ## 8. Current design state
 
-The RL-sized design (§16), at the typical corner, **with the channel present**:
+The RL-sized design (§16) at the typical corner, **with the channel present**.
+Every number below is read from `results/report.json`, not recalled:
 
 | Metric | Value | Spec | |
 |---|---|---|---|
 | Peaking | 8.21 dB @ 1.682 GHz | 3–12 dB, 1.25–2.5 GHz | pass |
-| DC gain | −4.59 dB | — | (gain @ 2.5 GHz = +3.16 dB) |
-| Power | 3.14 mW | < 15 mW | pass |
-| HD3 | −76.0 dBc | < −30 dBc | pass |
-| Input noise | 0.515 mVrms | < 1.5 mVrms | pass |
+| DC gain | -4.59 dB | — | gain @ 2.5 GHz = +3.16 dB |
+| Power | 3.14 mW | < 15 mW | pass — **excludes the ideal comparator and latch** |
+| HD3 | -63.4 dBc | < −30 dBc | pass, measured at **full drive** (§10 bug 1b) |
+| Input noise | 0.545 mVrms | < 1.5 mVrms | pass, **both stages** counted (§10 bug 1a) |
 | Area | 0.000327 mm² | < 0.05 mm² | pass |
-| Eye | 189.0 mV × 0.547 UI | > 100 mV, > 0.4 UI | pass |
-| Realised `gmF/gm1` | 0.0097 (`tap_pct` = 1.38 %) | — | see §16 |
+| Eye | 189.0 mV × 0.547 UI | > 100 mV, > 0.4 UI | at **200 mV pp** drive |
+| **Eye openness** | **0.349 of swing, 1.93× better than at the input** | > 1 | see below |
+| Realised `gmF/gm1` | 0.0097 (`tap_pct` = 1.38 %) | — | §16 |
+| Summing-node CM | 1.450 V of 1.80 V | — | mid-supply heuristic wants 0.900 V (§4) |
 
-`CtleParams()` defaults are a sane starting point in their own right and pass
-9/9 at typical with the channel on. The search does not start from them — it
-starts from `analytic.py` (§5).
+### Eye openness is the number that shows equalisation
+
+Eye **height** can be bought with summing-stage gain — measured across the 20
+corners it correlates with that gain at **0.982** and with peaking at only
+**0.468**, because `Rsum`/`Wg1`/`Ig1` are free variables. **Openness** (opening
+as a fraction of the swing at the same node) is invariant under scaling, so
+`eye_improvement` = openness at the slicer ÷ openness at the equaliser input
+measures equalisation rather than amplification.
+
+Measured: **1.93×**, and it collapses to **0.15** when the
+degeneration capacitor is removed. Doubling the summing-stage gain moves eye
+height by tens of mV and `eye_improvement` barely at all. So this design really
+does equalise.
 
 ---
 
@@ -862,7 +882,7 @@ altogether — it was optimising an ill-posed problem, not misbehaving.
 | ngspice `LTRA` | −0.16 dB | none | its `r` is frequency-independent |
 | naive RLGC ladder | −302 dB | — | badly parameterised, just a big RC |
 | correctly-sized ladder | −15.3 dB | 2.2 dB | **flat attenuator — no dispersion, no ISI** |
-| **ladder + frequency-dependent series R** | −11.1 dB | **10.2 dB** | ✅ what is built |
+| **ladder + frequency-dependent series R** | −16.8 dB | **10.6 dB** | ✅ what is built |
 
 Flat loss creates no ISI. **Dispersion is the whole point.**
 
@@ -874,9 +894,9 @@ shunt `C`. 50 Ω series at the source, **100 Ω differential** termination at th
 receiver. Measured:
 
 ```
-0.1 GHz   -0.93 dB        2.5 GHz  -11.10 dB   <- Nyquist, typical Gen2 is -10..-15
-1.0 GHz   -4.95 dB        5.0 GHz  -16.56 dB
-equalizable tilt 0.1 -> 2.5 GHz = 10.2 dB, inside the brief's 3-12 dB boost window
+0.1 GHz   -6.20 dB        2.5 GHz  -16.77 dB   <- Nyquist
+1.0 GHz  -10.33 dB        5.0 GHz  -22.07 dB
+equalizable tilt 0.1 -> 2.5 GHz = 10.6 dB, inside the brief's 3-12 dB boost window
 ```
 
 Pulse response at the **channel output** (the reference's measurement point):
@@ -1004,7 +1024,7 @@ of the full suite. **Check the path that can fail, or the check is decorative.**
 | **`netlists/*.sch` are STALE** | They describe the OLD merged topology. They are a cross-check only — never simulated — but they no longer match `netlist.py`, so the device-for-device diff in VERIFY.md §3 will not agree until they are regenerated. |
 | **No schematic export** | The brief asks for "the final schematic"; we emit `.sp` netlists. xschem's `.sch` is a text format, so generating one from `full_netlist()` is tractable and unbuilt. |
 | **"Tunable" has no mechanism** | The brief says *tunable 1.25–2.5 GHz* and *variable Rs, Cs*. `Cs` is a design-time constant; a switchable cap bank with a control word is not built, and nothing tests tunability (§0). |
-| **No sweep-vs-RL baseline** | The Problem Statement asks for "significantly lower time than sweeping". 189 candidates vs 5¹¹ = 48.8 M for a 5-point grid is suggestive, but no fair baseline (random search at equal budget) has been run. **Biggest remaining gap.** |
+| **No sweep-vs-RL baseline** | The Problem Statement asks for *"significantly lower time than sweeping"*. The exhaustive side is arithmetic: a 5-point grid over 11 variables is 5¹¹ = **48.8 million** designs, which at the measured cost is millennia — not a close contest. The *fair* comparison a reviewer would ask for, **random search at an equal 189-candidate budget**, has NOT been run. `scripts/baseline.py` exists and does exactly that (`--budget 189 --channel --eye`, ~16 min). **Still the largest unmet requirement.** |
 | **`ad`/`as`/`pd`/`ps` pinned to 0** | Junction capacitance is zero in the netlist, so output capacitance is understated and every `f_peak` is optimistic. Measured `Cdd` = 0.14 fF, which is the tell. |
 | **Slicer/latch are ideal** | XSPICE code models with 20 ps clk→Q against 50–150 ps for a real StrongARM, no offset, no metastability, no kickback. The <200 ps loop-delay budget is asserted, not proven. The reference labels its own comparator and flop "(Ideal)" too. |
 | **No CDR** | The sampling clock phase is fixed, not recovered. Swept across 8 phases it changed the eye by under 2 %, so it is not currently binding — but a real link needs one. |
@@ -1047,12 +1067,16 @@ Change with `git config --local user.name "..."` if that attribution is wrong.
 | `report.json` | the RL run's full output — sizing, resolved geometry, cost, per-corner PVT. **The current result (§16).** |
 | `ctle_final.sp` | the sized equaliser, DFE loop open — runs standalone |
 | `ctle_final_eye.sp` | the sized equaliser, loop closed |
-| `pvt_sweep.{json,csv}` | the same design swept by a **different code path** — an independent confirmation |
+| `pvt_sweep.{json,csv}` | the same design swept by a different **driver** |
 
 `pvt_sweep.{json,csv}` was regenerated for the final design with the channel on
-and reports **0 of 20 corners failing**, matching `report.json`'s own
-verification. The two share `Simulator.evaluate()` but not the search or the
-reporting path, so agreement is worth something. Regenerate with:
+and reports **0 of 20 corners failing**, matching `report.json`.
+
+⚠️ **This is NOT an independent confirmation, and earlier revisions of this file
+called it one.** Both go through `Simulator.evaluate()`; only the driver above
+it differs. Two files agreeing to every digit is what happens when they run the
+same code. It confirms the *reporting and aggregation* paths, nothing about the
+physics. Regenerate with:
 
 ```bash
 python3 scripts/pvt_sweep.py --grid spec --eye --channel --set tap_pct=1.37903 ...
@@ -1178,35 +1202,43 @@ keep if anything is ever trimmed:
 
 ## 16. The RL loop, run end to end
 
-**Command** (~25 min on 16 cores):
+**Command** (~17 min on 16 cores):
 ```bash
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel \
         --pop 48 --iters 15 --seed 0
 ```
 
-### Result: all 9 specs pass at all 20 of the brief's PVT corners
+### Result: all 8 brief specs pass at all 20 of the brief's PVT corners
 
-With the lossy channel in front and the DFE active.
+With the lossy channel in front and the DFE active. **0 of 20 corners fail
+anything.**
 
 | spec | worst case over 20 corners | limit | |
 |---|---|---|---|
 | HF peaking | 7.33 dB | 3–12 dB | pass |
-| `f_peak` | 1.887 GHz | 1.25–2.5 GHz | pass |
-| HD3 | −72.2 dBc | < −30 dBc | pass, 42 dB margin |
-| input noise | 0.607 mVrms | < 1.5 mVrms | pass, 2.5× |
-| power | 3.41 mW | < 15 mW | pass, 4.4× |
-| area | 0.000327 mm² | < 0.05 mm² | pass, 150× |
-| eye height | 126.8 mV | > 100 mV | pass, 27% |
-| eye width | 0.484 UI | > 0.4 UI | pass, 21% |
+| **f_peak** | **1.887 GHz** | 1.25–2.5 GHz | **binding, +13.2%** |
+| HD3 | -59.9 dBc | < −30 dBc | pass |
+| input noise | 0.655 mVrms | < 1.5 mVrms | pass |
+| power | 3.41 mW | < 15 mW | pass |
+| area | 0.000327 mm² | < 0.05 mm² | pass |
+| eye height | 126.8 mV | > 100 mV | pass |
+| eye width | 0.484 UI | > 0.4 UI | pass |
 
-0 corners unscoreable. Worst search corner: `ff_1.890V_0C`.
+The scorecard shows **9** entries; the ninth (`bias`) is an internal "are the
+devices actually in saturation" check, **not a customer requirement**. Quote 8.
+
+**Quote the margin from the BINDING edge.** `f_peak` is a two-sided spec and the
+worst corner sits **1.887 GHz**, +13.2% of the band from
+its nearest limit. Earlier revisions quoted it against the 2.5 GHz ceiling,
+which is the comfortable side and flatters. `report.json` records
+`binding_spec` and `margins_worst` so this cannot drift again.
 
 ### Sizing found
 
 ```
-W=24.27um  L=0.2000um  RL=782.9ohm  Rs=2208.7ohm  Cs=257.8fF
-Itail=635.0uA  Wtail=97.93um  Rsum=1732.9ohm  Wg1=42.94um  Ig1=407.0uA
-tap_pct=1.379%
+W=24.27um  L=0.2um  RL=782.9ohm  Rs=2208.7ohm  Cs=257.8fF
+Itail=635.0uA  Wtail=97.93um  Rsum=1732.9ohm
+Wg1=42.94um  Ig1=407.0uA  tap_pct=1.379%
 ```
 
 ### Cost
@@ -1215,52 +1247,53 @@ tap_pct=1.379%
 |---|---|
 | candidates simulated | **189** |
 | (candidate × corner) evaluations | 756 |
-| ngspice launches, search | 2268 |
-| ngspice launches, 20-corner verify | 60 |
-| convergence | `[0.977, 0.988, 0.988, 0.998]`, stopped early at iteration **4 of 15** |
+| ngspice launches, search | 1512 |
+| ngspice launches, 20-corner verify | 40 |
+| convergence | `[0.9767, 0.988, 0.988, 0.998]`, stopped early at iteration **4 of 15** |
 
-For the brief's "fewer search points" framing: a 5-point grid over 11 variables
-is 5¹¹ = **48.8 million** designs. But see §11 — a *fair* baseline (random
-search at equal budget) has not been run, so quote the 189 and the caveat
-together.
+Two launches per evaluation: one channel-free deck carrying op/ac/tran/noise,
+one closed-loop eye with the channel. An earlier version ran four — the combined
+deck was needlessly carrying the channel and HD3/noise were then re-run without
+it. See §9.
+
+⚠️ `stop_on_pass` halts at the **first design that passes**, which is
+first-feasible, not the *"near-optimal"* the brief asks for. And the
+sweep/random-search comparison the Problem Statement requests has **not** been
+run (§11) — `scripts/baseline.py` exists for it. An exhaustive grid over these
+11 variables is 5¹¹ = 48.8 million designs, which is arithmetic rather than a
+measurement.
 
 ### What made it work — three fixes, each found by a run that failed
 
-The first three attempts all failed, and each failure was diagnostic:
-
 | run | result | what it showed |
 |---|---|---|
-| unseeded, centre of the box | never found the basin in 15 rounds | 11-D is too big to start blind |
-| seeded, no injection | 0.765 at round 1 | `mu` was never evaluated — seeding alone does nothing (§10 bug 19) |
-| seeded + injected | **0.986** at round 1, then stalled at 0.998 | the reward saturated at the spec boundary (§10 bug 20) |
-| **+ hard-pass bonus** | **crossed at round 4**, 9/9 | `f_peak` 2.52 → 1.89 GHz |
-
-Round 2 of the final run sat at exactly the pathological case — `f_peak`
-2.52 GHz, failing by **20 MHz**. Under the old reward that scored 0.9995 and
-looked converged.
+| unseeded, box centre | never found the basin in 15 rounds | 11-D is too big to start blind |
+| seeded, no injection | 0.765 at round 1 | `mu` was never evaluated (§10 bug 19) |
+| seeded + injected | 0.986, then stalled at 0.998 | the reward saturated at the boundary (§10 bug 20) |
+| **+ hard-pass bonus** | **crossed at round 4** | `f_peak` 2.52 → 1.89 GHz |
 
 ### The DFE result, stated plainly
 
-**`tap_pct` converged to 1.38 %** — essentially the bottom of its 1–30 % range.
-The optimiser kept the mandated 1-tap DFE but turned it down as far as allowed.
+**`tap_pct` converged to 1.38 %** — near the bottom of its 1–30 %
+range. The optimiser kept the mandated 1-tap DFE and turned it down as far as
+allowed. A manual sweep peaked at 5 % with **+0.8 %** eye height and degraded
+past 10 %; the reference design's own sweep has the same shape and concludes
+*"the system may not need to use DFE ... if CTLE can give an enough eye
+opening."* At 5 Gb/s with this channel and 8 dB of CTLE boost, one tap has
+little left to cancel. It would matter at 12 Gb/s.
 
-That is consistent with everything measured: a manual tap sweep on this design
-peaked at 5 % with **+0.8 %** eye height and degraded past 10 %; the reference
-design's own sweep has the same shape; and the reference concludes *"the system
-may not need to use DFE (or higher-tap DFE) if CTLE can give an enough eye
-opening."* At 5 Gb/s with 11 dB of channel loss and 8 dB of CTLE boost, one tap
-has little left to cancel. It would matter at 12 Gb/s.
+### Caveats
 
-The DFE is present and functioning — not disabled — but it is not earning much,
-and that should be said rather than dressed up.
-
-### Caveats on this result
-
-- `ad`/`as`/`pd`/`ps` are 0, so every `f_peak` is optimistic (§11).
+- **`ad`/`as`/`pd`/`ps` are 0**, so junction capacitance is missing and every
+  `f_peak` is optimistic — and `f_peak` is the **binding** spec, so the tightest
+  margin sits on the least trustworthy number.
 - The slicer and latch are ideal with 20 ps clk→Q; the loop-delay budget is
-  asserted, not proven.
-- Verified on the brief's **20** corners. The R/C axis (60 corners) is a
-  project addition and was not re-run for this design.
+  asserted, not proven. Power excludes them entirely.
+- The eye is measured at **200 mV pp** drive — conservative
+  against a real Gen2 transmitter's ~800 mV, so it understates rather than
+  flatters.
+- Verified on the brief's **20** corners; the 60-corner R/C grid is a project
+  addition and was not re-run for this design.
 
 ---
 

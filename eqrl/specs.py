@@ -25,6 +25,13 @@ class EqualizerSpec:
     """PCIe Gen2 (5 Gb/s) equalizer targets. Frequencies in Hz, power in W."""
 
     nyquist: float = 2.5e9
+    # Transmitter drive, differential peak-to-peak, at the CHANNEL input.
+    # The brief states an eye requirement but no drive level, so one had to be
+    # chosen -- and an eye number is meaningless without it, since eye height
+    # scales directly with it. 200 mV pp is CONSERVATIVE: a real PCIe Gen2
+    # transmitter drives ~800 mV pp, which would give a larger eye. Recorded in
+    # report.json so the number can be checked rather than guessed at.
+    tx_swing_pp_v: float = 0.200
     # HF peaking boost window and the band the peak should fall in
     peaking_min_db: float = 3.0
     peaking_max_db: float = 12.0
@@ -41,6 +48,10 @@ class EqualizerSpec:
     vn_in_max_rms: float = 1.5e-3
     power_max_w: float = 15e-3
     area_max_m2: float = 0.05e-6   # 0.05 mm^2
+    # When True (the default), a MISSING eye result is a FAILURE rather than a
+    # spec that quietly disappears. Set False only for deliberately AC-only
+    # evaluation (--no-eye), where there is no eye to judge.
+    require_eye: bool = True
     # eye (closed-loop DFE sim). Names say WHAT is bounded and in WHICH unit:
     # these two used to be crossed (`eye_h_min_ui` held the width limit) and the
     # scorer crossed them back, which worked only for as long as nobody set them
@@ -124,8 +135,16 @@ def score(m: Metrics, spec: EqualizerSpec) -> dict:
     s["area"] = _below(area_mm2, spec.area_max_m2 * 1e6, soft=0.02)
     # Eye: only scored when the closed-loop DFE sim was actually run. Scoring a
     # NaN as 0 would otherwise make every AC-only evaluation look like a failure.
+    # A missing eye used to remove eye_h/eye_w from the scorecard entirely, so
+    # all_pass() returned True over the remaining seven specs -- a design could
+    # be declared compliant by deleting the two hardest requirements. The eye
+    # sim genuinely can fail (convergence, timeout, an OOM-killed worker), so
+    # this was reachable. Now: absent eye => scored 0 and marked FAILED, unless
+    # the caller explicitly said it was not measuring one.
     has_eye = (m.eye_height_v == m.eye_height_v) and (m.eye_width_ui == m.eye_width_ui)
-    if has_eye:
+    score_eye = has_eye or spec.require_eye
+    if score_eye:
+        # _above() already maps NaN -> 0.0, so a missing eye scores zero.
         s["eye_h"] = _above(m.eye_height_v, spec.eye_height_min_v, soft=0.05)
         s["eye_w"] = _above(m.eye_width_ui, spec.eye_width_min_ui, soft=0.15)
     # `saturated` now requires the REAL tail device to be in saturation too, not
@@ -147,7 +166,7 @@ def score(m: Metrics, spec: EqualizerSpec) -> dict:
     # non-eye-scored one are NOT on the same scale. Any search must therefore
     # evaluate every candidate the same way -- see env.Objective(do_eye=...),
     # which applies one setting to the whole population.
-    if has_eye:
+    if score_eye:
         weighted += w.w_eye * (s["eye_h"] + s["eye_w"])
         wsum += 2.0 * w.w_eye
     passd = {
@@ -161,9 +180,10 @@ def score(m: Metrics, spec: EqualizerSpec) -> dict:
     }
     if spec.w_gain > 0:
         passd["gain2g5"] = m.gain_2g5_db >= spec.gain_2g5_min_db
-    if has_eye:
-        passd["eye_h"] = m.eye_height_v >= spec.eye_height_min_v
-        passd["eye_w"] = m.eye_width_ui >= spec.eye_width_min_ui
+    if score_eye:
+        # `NaN >= x` is False, so a missing eye fails here rather than vanishing
+        passd["eye_h"] = bool(m.eye_height_v >= spec.eye_height_min_v)
+        passd["eye_w"] = bool(m.eye_width_ui >= spec.eye_width_min_ui)
     reward = weighted / wsum
 
     # HARD-PASS BONUS. The soft scores above give the search a gradient when it
@@ -186,6 +206,57 @@ def score(m: Metrics, spec: EqualizerSpec) -> dict:
         reward = min(reward, 0.2)
 
     return {"reward": float(reward), "scores": s, "pass": passd, "metrics": m}
+
+
+def margins(m: Metrics, spec: EqualizerSpec) -> dict:
+    """Fractional margin to the NEAREST limit for each spec.
+
+    For a two-sided spec this is the distance to whichever edge is closer --
+    which is the one that actually binds. Reporting the comfortable edge
+    flatters: the final design's worst f_peak is 1.887 GHz, quoted against the
+    2.5 GHz ceiling (0.613 GHz of room) when the binding edge is the 1.25 GHz
+    floor, and the worst corner sits 1.415 GHz -- only 0.165 GHz above it,
+    3.7x tighter. Negative means the spec is violated.
+    """
+    def two_sided(x, lo, hi):
+        if x != x:
+            return float("nan")
+        return min(x - lo, hi - x) / (hi - lo)
+
+    def upper(x, lim, ref):
+        return (lim - x) / abs(ref) if x == x else float("nan")
+
+    def lower(x, lim, ref):
+        return (x - lim) / abs(ref) if x == x else float("nan")
+
+    out = {
+        "peaking": two_sided(m.peaking_db, spec.peaking_min_db, spec.peaking_max_db),
+        "fpeak": two_sided(m.f_peak, spec.fpeak_lo, spec.fpeak_hi),
+        "hd3": upper(m.hd3_db, spec.hd3_max_db, spec.hd3_max_db),
+        "noise": upper(m.vn_in_rms, spec.vn_in_max_rms, spec.vn_in_max_rms),
+        "power": upper(m.power_w, spec.power_max_w, spec.power_max_w),
+        "area": upper(m.area_mm2, spec.area_max_m2 * 1e6, spec.area_max_m2 * 1e6),
+        "eye_h": lower(m.eye_height_v, spec.eye_height_min_v, spec.eye_height_min_v),
+        "eye_w": lower(m.eye_width_ui, spec.eye_width_min_ui, spec.eye_width_min_ui),
+    }
+    return out
+
+
+def binding_spec(m: Metrics, spec: EqualizerSpec) -> tuple:
+    """(name, fractional margin) of the spec closest to failing."""
+    mg = {k: v for k, v in margins(m, spec).items() if v == v}
+    if not mg:
+        return ("none", float("nan"))
+    k = min(mg, key=lambda x: mg[x])
+    return (k, mg[k])
+
+
+# Specs that come from the brief. `bias` and `summer_saturated` are INTERNAL
+# sanity checks -- "are the transistors actually switched on" -- not customer
+# requirements, so "9 specs pass" is really 8 brief specs plus one self-check.
+BRIEF_SPECS = ("peaking", "fpeak", "hd3", "noise", "power", "area",
+               "eye_h", "eye_w")
+INTERNAL_CHECKS = ("bias",)
 
 
 def all_pass(scored: dict) -> bool:

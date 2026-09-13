@@ -534,12 +534,21 @@ adac_n [q1]  [vfbn] dac_fb
 # across 1-5 GHz), and ngspice's LTRA gives -0.16 dB at 2.5 GHz because its `r`
 # is frequency-independent. Dispersion is what creates ISI; flat loss does not.
 #
-# Measured response of the defaults below (40 sections/leg):
-#     0.1 GHz   -0.93 dB
-#     1.0 GHz   -4.95 dB
-#     2.5 GHz  -11.10 dB   <- Nyquist; typical Gen2 is -10..-15 dB
-#     5.0 GHz  -16.56 dB
-#   equalizable tilt 0.1 -> 2.5 GHz = 10.2 dB, inside the 3-12 dB boost spec.
+# Measured END TO END on the defaults below (chsrc -> vinp, 40 sections/leg,
+# INCLUDING the 50 ohm source resistors and 100 ohm differential termination --
+# i.e. what this function actually builds):
+#     0.1 GHz   -6.20 dB
+#     1.0 GHz  -10.33 dB
+#     2.5 GHz  -16.77 dB   <- Nyquist
+#     5.0 GHz  -22.07 dB
+#   equalizable tilt 0.1 -> 2.5 GHz = 10.6 dB, inside the 3-12 dB boost spec.
+#
+# An earlier version of this comment read -0.93 / -4.95 / -11.10 / -16.56 dB.
+# Those came from a PROTOTYPE with no source resistors, before this function
+# existed; Rsrc plus Rterm is a 2:1 divider, so the built channel is ~5.5 dB
+# lossier across the whole band. The TILT -- the only part the equaliser acts
+# on -- was and is correct (10.6 vs 10.2 dB), so the design conclusions drawn
+# from it stand. Only the flat offset was misdescribed.
 CH_SECTIONS = 40
 CH_TD_TOTAL = 1.2e-9      # s, ~7 inch of FR4
 CH_Z0 = 50.0              # ohm per leg (100 ohm differential)

@@ -406,14 +406,22 @@ def test_bias_failure_caps_the_reward():
     assert not sc["pass"]["bias"]
 
 
-def test_eye_is_scored_when_present_and_absent_when_not():
+def test_eye_is_scored_when_present_and_FAILED_when_missing():
+    """This test previously asserted the opposite -- that a missing eye removes
+    the eye specs from the scorecard. That WAS the behaviour, and it was a bug:
+    all_pass() then returned True over the remaining seven specs. The eye specs
+    must stay and fail."""
     with_eye = sp.score(_good_metrics(), sp.EqualizerSpec())
-    assert "eye_h" in with_eye["pass"] and "eye_w" in with_eye["pass"]
+    assert with_eye["pass"]["eye_h"] and with_eye["pass"]["eye_w"]
     m = _good_metrics()
     m.eye_height_v = float("nan")
     m.eye_width_ui = float("nan")
     without = sp.score(m, sp.EqualizerSpec())
-    assert "eye_h" not in without["pass"]
+    assert without["pass"]["eye_h"] is False
+    assert without["pass"]["eye_w"] is False
+    # ...unless the caller explicitly declared an AC-only evaluation
+    optout = sp.score(m, sp.EqualizerSpec(require_eye=False))
+    assert "eye_h" not in optout["pass"]
 
 
 def test_eye_spec_field_names_match_their_units():
@@ -877,3 +885,40 @@ def test_more_specs_passed_always_scores_higher():
     r1 = sp.score(one_bad, spec)["reward"]
     r2 = sp.score(two_bad, spec)["reward"]
     assert base > r1 > r2
+
+
+# --------------------------------------------------------------------------
+# a missing eye must FAIL, not silently delete two specs
+# --------------------------------------------------------------------------
+def test_a_missing_eye_is_a_failure_not_a_vanishing_spec():
+    """If the eye simulation does not produce a result, the two eye specs used
+    to simply disappear from the pass dict and all_pass() returned True over
+    the remaining seven -- a design could be declared compliant by deleting the
+    two hardest requirements. A missing eye is a FAILURE."""
+    m = _good_metrics()
+    m.eye_height_v = float("nan")
+    m.eye_width_ui = float("nan")
+    sc = sp.score(m, sp.EqualizerSpec())
+    assert "eye_h" in sc["pass"] and "eye_w" in sc["pass"], \
+        "eye specs vanished from the scorecard"
+    assert not sc["pass"]["eye_h"] and not sc["pass"]["eye_w"]
+    assert not sp.all_pass(sc), "a design with no eye result must not 'pass'"
+
+
+def test_a_half_measured_eye_also_fails():
+    m = _good_metrics()
+    m.eye_width_ui = float("nan")          # height fine, width missing
+    sc = sp.score(m, sp.EqualizerSpec())
+    assert not sp.all_pass(sc)
+
+
+def test_ac_only_evaluation_is_still_scoreable():
+    """Scoring an AC-only sweep (no eye requested) must stay usable -- the
+    optimiser evaluates that way when --no-eye is passed. It should score, but
+    it must not claim the eye specs passed."""
+    m = _good_metrics()
+    m.eye_height_v = float("nan")
+    m.eye_width_ui = float("nan")
+    sc = sp.score(m, sp.EqualizerSpec(require_eye=False))
+    assert "eye_h" not in sc["pass"]
+    assert sp.all_pass(sc), "with require_eye=False an AC-only result may pass"

@@ -44,7 +44,9 @@ def main() -> int:
               f"vds={op['vds_m1']*1e3:.0f}mV vdsat={op['vdsat_m1']*1e3:.0f}mV")
         check("real tail saturated", op["tail_saturated"],
               f"vds={op['vds_tail']*1e3:.0f}mV vdsat={op['vdsat_tail']*1e3:.0f}mV")
-        budget = (2 + 1 / nl.MIRROR_RATIO) * p.Itail + p.Itap
+        # Itap/Wfb no longer exist -- the tap branch is derived from tap_pct
+        # and draws Ig1*tap_pct/100 through the summing stage.
+        budget = ((2 + 1 / nl.MIRROR_RATIO) * p.Itail + p.Ig1 + p.Igf)
         check("supply current within 20% of budget",
               abs(op["i_supply"] - budget) / budget < 0.20,
               f"{op['i_supply']*1e3:.4f} mA vs {budget*1e3:.4f} mA budget")

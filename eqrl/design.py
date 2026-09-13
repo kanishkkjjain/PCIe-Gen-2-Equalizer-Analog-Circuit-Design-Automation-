@@ -5,6 +5,7 @@
 (2) verifies the winner across the full PVT grid, and (3) emits the final sized
 SPICE schematic, a JSON report, and diagnostic plots.
 """
+import dataclasses
 import json
 import math
 from dataclasses import asdict
@@ -21,7 +22,8 @@ from .agents import cem as cem_agent
 from . import analytic
 
 
-def _sized_header(params: nl.CtleParams, corner: pdk.Corner, what: str) -> str:
+def _sized_header(params: nl.CtleParams, corner: pdk.Corner, what: str,
+                  use_channel: bool = False) -> str:
     """Comment block recording BOTH the requested values and the geometry that
     was actually instantiated -- res/cap values are quantised onto real device
     geometry, so the two are not always the same number."""
@@ -44,59 +46,96 @@ def _sized_header(params: nl.CtleParams, corner: pdk.Corner, what: str) -> str:
 *   Gm1 tail W={g['wg1_tail']:.4g}   GmF tail W={g['wgf_tail']:.4g}
 *   nominal tap weight gmF/gm1 = {params.tap_weight_ratio():.4g}
 * corner: {corner.name}
+* channel: {'PRESENT (lossy FR4-like, see netlist.channel_netlist)' if use_channel else 'none'}
 * =================================================================="""
 
 
-def _export_deck(params: nl.CtleParams, corner: pdk.Corner, path: Path) -> None:
-    """Write a standalone, human-openable AC deck with the sized values.
+def _exporter(params: nl.CtleParams, use_channel: bool):
+    """A Simulator used only to BUILD deck text, never to run anything.
 
-    The GmF pair MUST be biased. Emitting the netlist alone leaves vfbp/vfbn
-    floating -- the deck looks complete and does not simulate.
+    Routing the exporters through Simulator._assemble is the point: the decks
+    used to be rebuilt by hand here, and when the channel was added
+    `use_channel` was threaded through Simulator/Objective/env/run_design but
+    not through these two functions. The result shipped an eye deck with no
+    channel that reported 591.8 mV against the report's 189.0 mV -- 3.1x
+    optimistic, exiting 0. Any hand-built third copy would drift the same way.
+
+    `use_trimmed=False` is not optional: a trimmed library lives in
+    ~/.cache/eqrl/trimlib and is not portable, so a shipped artifact must
+    reference the full PDK library.
     """
-    lib = pdk.find_sky130_lib()
-    deck = f"""{_sized_header(params, corner, "forward path, DFE loop OPEN")}
-.lib "{lib}" {corner.lib_section}
-.temp {corner.temp:.4g}
-.param Vcm={params.Vcm:.4g}
+    import tempfile
+    from .spice import Simulator
+    return Simulator(tempfile.mkdtemp(prefix="eqrl_export_"),
+                     use_trimmed=False, use_channel=use_channel)
 
-Vdd vdd 0 DC {corner.vdd:.4g}
-Vinp vinp 0 DC {{Vcm}} AC 0.5 0
-Vinn vinn 0 DC {{Vcm}} AC 0.5 180
-{nl.dfe_static_bias()}
-{params.full_netlist()}
-.control
-ac dec 40 1e6 20e9
-wrdata ctle_ac.dat vdb(outp_ctle,outn_ctle) vdb(outp_dfe,outn_dfe)
-.endc
-.end
-"""
-    path.write_text(deck)
+
+def _export_deck(params: nl.CtleParams, corner: pdk.Corner, path: Path,
+                 use_channel: bool = False) -> None:
+    """Standalone AC deck (DFE loop OPEN) with the sized values."""
+    sim = _exporter(params, use_channel)
+    control = (".control\n"
+               "ac dec 40 1e6 20e9\n"
+               "wrdata ctle_ac.dat vdb(outp_ctle,outn_ctle) "
+               "vdb(outp_dfe,outn_dfe) vdb(vinp,vinn)\n"
+               ".endc\n")
+    body = sim._assemble(params, corner, "ac", control, dfe="cm")
+    path.write_text(_sized_header(params, corner,
+                                  "forward path, DFE loop OPEN",
+                                  use_channel) + "\n" + body)
 
 
 def _export_eye_deck(params: nl.CtleParams, corner: pdk.Corner, path: Path,
-                     n_bits: int = 200, ui: float = 200e-12) -> None:
-    """Write the CLOSED-loop deck, so the reported eye is reproducible from the
-    artifact rather than only from inside the framework."""
-    from . import dfe as dfe_mod
-    lib = pdk.find_sky130_lib()
-    bits = dfe_mod.prbs(n_bits)
-    ts = ui / 50.0
-    deck = f"""{_sized_header(params, corner, "closed-loop eye, DFE loop CLOSED")}
-.lib "{lib}" {corner.lib_section}
-.temp {corner.temp:.4g}
+                     use_channel: bool = False,
+                     n_bits: int = 200, ui: float = 200e-12,
+                     tx_swing_pp_v: float = 0.200) -> None:
+    """Standalone CLOSED-loop deck, so the reported eye is reproducible.
 
-Vdd vdd 0 DC {corner.vdd:.4g}
-Vinp vinp 0 {dfe_mod.nrz_pwl(bits, ui, 0.05, params.Vcm)}
-Vinn vinn 0 {dfe_mod.nrz_pwl(bits, ui, 0.05, params.Vcm, invert=True)}
-{nl.dfe_decision_path(ui_s=ui)}
-{params.full_netlist()}
-.control
-tran {ts:.6g} {n_bits * ui:.6g} 0 {ts:.6g}
-wrdata eye.dat v(outp_dfe,outn_dfe) v(vfbp)
-.endc
-.end
-"""
-    path.write_text(deck)
+    The stimulus is built the same way Simulator.tran_eye() builds it, so it
+    cannot drift from what was actually simulated either.
+    """
+    from . import dfe as dfe_mod
+    sim = _exporter(params, use_channel)
+    bits = dfe_mod.prbs(n_bits)
+    # nrz_pwl takes the SINGLE-ENDED amplitude about Vcm; each leg swings
+    # +/-(pp/4) so the differential peak-to-peak is pp. Getting this factor
+    # wrong silently doubles the drive -- it did once, and the export test
+    # caught it.
+    se = tx_swing_pp_v / 4.0
+    src = (f"Vinp vinp 0 {dfe_mod.nrz_pwl(bits, ui, se, params.Vcm)}\n"
+           f"Vinn vinn 0 "
+           f"{dfe_mod.nrz_pwl(bits, ui, se, params.Vcm, invert=True)}\n")
+    ts = ui / 50.0
+    control = (".control\n"
+               f"tran {ts:.6g} {n_bits * ui:.6g} 0 {ts:.6g}\n"
+               "wrdata eye.dat v(outp_dfe,outn_dfe) v(vfbp)\n"
+               ".endc\n")
+    body = sim._assemble(params, corner, "tran", control, dfe="closed",
+                         src_override=src, ui=ui)
+    path.write_text(_sized_header(params, corner,
+                                  f"closed-loop eye, DFE loop CLOSED, "
+                                  f"{tx_swing_pp_v*1e3:.0f} mV pp differential drive",
+                                  use_channel) + "\n" + body)
+
+
+def _worst_margins(vres, spec) -> dict:
+    """Per-spec fractional margin at the worst corner for that spec."""
+    out: dict = {}
+    for sc in vres.per_corner.values():
+        for k, v in sp.margins(sc["metrics"], spec).items():
+            if v != v:
+                continue
+            if k not in out or v < out[k]:
+                out[k] = v
+    return out
+
+
+def _worst_margin(vres, spec):
+    mg = _worst_margins(vres, spec)
+    if not mg:
+        return None
+    k = min(mg, key=lambda x: mg[x])
+    return [k, mg[k]]
 
 
 def _json_safe(o):
@@ -160,6 +199,11 @@ def run_design(spec: sp.EqualizerSpec | None = None,
                fixed: dict | None = None,
                verbose: bool = True) -> dict:
     spec = spec or sp.EqualizerSpec()
+    if not do_eye and spec.require_eye:
+        # An AC-only run genuinely has no eye to judge, so scoring one as a
+        # failure would be wrong. Every other path must keep require_eye=True:
+        # a missing eye when we DID ask for one is a failure, not an excuse.
+        spec = dataclasses.replace(spec, require_eye=False)
     out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     sim = Simulator(workdir, use_channel=use_channel)
 
@@ -242,8 +286,11 @@ def run_design(spec: sp.EqualizerSpec | None = None,
     # numbers that correspond to the artifact it ships.
     typ = pdk.typical_corner()
     typ_scored = sp.score(sim.evaluate(best.params, typ, do_eye=do_eye), spec)
-    _export_deck(best.params, typ, out_dir / "ctle_final.sp")
-    _export_eye_deck(best.params, typ, out_dir / "ctle_final_eye.sp")
+    _export_deck(best.params, typ, out_dir / "ctle_final.sp",
+                 use_channel=use_channel)
+    _export_eye_deck(best.params, typ, out_dir / "ctle_final_eye.sp",
+                     use_channel=use_channel,
+                     tx_swing_pp_v=spec.tx_swing_pp_v)
 
     report = {
         "spec": asdict(spec),
@@ -257,6 +304,9 @@ def run_design(spec: sp.EqualizerSpec | None = None,
         "pvt_grid": pvt_grid,
         "n_pvt_corners": len(pvt),
         "eye_scored": do_eye,
+        # The drive level the eye was measured at. Eye height scales directly
+        # with it, so the number is uninterpretable without this.
+        "tx_swing_pp_v": spec.tx_swing_pp_v,
         "channel": use_channel,
         "analytic_init": analytic_init,
         "curve": res.curve,
@@ -266,6 +316,17 @@ def run_design(spec: sp.EqualizerSpec | None = None,
         # because that is what the stopping rule must test. Labelling it "typ"
         # made the exported (typical-corner) deck look 25% off when it was
         # exactly right -- tt_ll pushes f_peak up ~33%.
+        # Gain-invariant companions to eye height. Eye height can be bought
+        # with summing-stage gain (measured: it correlates with that gain at
+        # 0.98 and with peaking at only 0.47); openness and improvement cannot.
+        "eye_openness_out": typ_scored["metrics"].eye_openness_out,
+        "out_cm_v": typ_scored["metrics"].out_cm_v,
+        "vdd": typ.vdd,
+        # the spec closest to failing, over the whole PVT grid -- reporting the
+        # comfortable edge of a two-sided spec flatters
+        "binding_spec": _worst_margin(vres, spec),
+        "margins_worst": _worst_margins(vres, spec),
+        "eye_improvement": typ_scored["metrics"].eye_improvement,
         "worst_search_corner": best.scored_corner,
         "worst_search_corner_metrics": best.scored["metrics"].as_dict(),
         "worst_search_corner_pass": best.scored["pass"],
@@ -305,12 +366,29 @@ def _print_summary(r: dict) -> None:
     _ew = m.get("eye_width_ui")
     if _ew is not None and math.isfinite(_ew):
         print(f"  Eye        : {m['eye_height_v']*1e3:.1f} mV x "
-              f"{m['eye_width_ui']:.3f} UI")
+              f"{m['eye_width_ui']:.3f} UI   (at {r['tx_swing_pp_v']*1e3:.0f} mV pp drive)")
+        _imp = m.get("eye_improvement")
+        if _imp is not None and math.isfinite(_imp):
+            print(f"  Eye opening: {m['eye_openness_out']:.3f} of swing, "
+                  f"{_imp:.2f}x better than at the input")
+            print(f"               (>1 = real equalisation; eye HEIGHT alone "
+                  f"can be bought with gain)")
     print(f"  Candidates : {r['n_candidates']}  "
           f"(ngspice launches: {r['n_ngspice_launches']} search + "
           f"{r['n_ngspice_launches_verify']} verify)")
+    nb = sum(1 for k in r["pvt_all_pass"] if k in sp.BRIEF_SPECS and r["pvt_all_pass"][k])
+    tb = sum(1 for k in r["pvt_all_pass"] if k in sp.BRIEF_SPECS)
     print(f"  PVT ({r['pvt_grid']}, {r['n_pvt_corners']} corners) meets all: "
           f"{r['pvt_meets_all']}")
+    print(f"    {nb}/{tb} BRIEF specs + "
+          f"{len([k for k in r['pvt_all_pass'] if k in sp.INTERNAL_CHECKS])} "
+          f"internal bias check (not a customer requirement)")
+    if r.get("binding_spec"):
+        bn, bm = r["binding_spec"]
+        print(f"    tightest margin: {bn} at {bm*100:+.1f}% of its limit")
+    if r.get("out_cm_v") == r.get("out_cm_v"):
+        print(f"    summing-node CM: {r['out_cm_v']:.3f} V of {r['vdd']:.2f} V "
+              f"(mid-supply heuristic wants {r['vdd']/2:.3f} V)")
     if r.get("pvt_unscoreable_corners"):
         print(f"  !! {len(r['pvt_unscoreable_corners'])} corner(s) did not "
               f"fully simulate: {r['pvt_unscoreable_corners'][:4]}")

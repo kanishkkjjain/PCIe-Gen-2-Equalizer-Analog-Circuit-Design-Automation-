@@ -9,7 +9,7 @@ degeneration feeding a separate **DFE summing stage**, across a lossy FR4-like
 channel.
 
 > **Read [`HANDOVER.md`](HANDOVER.md) before changing anything.** §0 quotes the
-> problem statement verbatim, §10 documents 21 bugs found and fixed (plus a
+> problem statement verbatim, §10 documents 31 bugs found and fixed (plus a
 > list of this project's own claims that measurement disproved), and §11/§12
 > say exactly what is *not* built.
 > [`VERIFY.md`](VERIFY.md) shows how to reproduce every claim yourself.
@@ -17,27 +17,32 @@ channel.
 ## Result
 
 **All 8 brief specs pass at all 20 of the brief's PVT corners**, with the
-channel present and the DFE active. (The scorecard shows 9 — the ninth is an
-internal "are the devices in saturation" check, not a customer requirement.)
-Found in **189 candidates**:
+channel present and the DFE active. (The scorecard shows 10 — the other two are
+internal checks: devices in saturation, and "does it actually equalise".)
+Found in **95 candidates**, worst case over all 20 corners:
 
 ```
-peaking 7.33 dB  vs 3-12       f_peak  1.887 GHz vs 1.25-2.5   eye H 126.8 mV vs 100
-hd3    -59.9 dBc  vs <-30      noise   0.655 mV  vs <1.5       eye W 0.484 UI vs 0.4
-power    3.41 mW  vs <15       area    0.00033 mm2 vs <0.05
+peaking 5.89 dB  vs 3-12       f_peak  1.781 GHz vs 1.25-2.5   eye H 131.1 mV vs 100
+hd3    -31.2 dBc  vs <-30      noise   0.617 mV  vs <1.5       eye W 0.563 UI vs 0.4
+power    2.89 mW  vs <15       area    0.00031 mm2 vs <0.05
 ```
 
-**Tightest margin: `f_peak`, +13.2% of its band** — quoted from the
-binding edge, not the comfortable one.
+**Tightest margin: `hd3`, +4.1% — only 1.24 dB.** That is the honest number:
+HD3 is measured at the SLICER, across both stages. Measured after stage 1 only
+— as this project did until it was caught — the same design reads −55.2 dBc and
+appears to have 25 dB of margin it does not have. The summing stage's Gm1 is an
+undegenerated pair, so it is the more distorting half and the one the slicer
+sees. See `HANDOVER.md` §10 bug 27.
 
-**It genuinely equalises**, not merely amplifies: **1.93×
-eye-openness improvement** over the equaliser input, collapsing to 0.15 with the
-degeneration removed. Eye height alone cannot show this, because summing-stage
-gain is a free variable (it correlates with eye height at 0.98, peaking at 0.47).
+**It genuinely equalises**, not merely amplifies: **1.97×
+eye-openness improvement** over the equaliser input (1.53× worst-case).
+Eye height alone cannot show this, because summing-stage gain is a free
+variable (it correlates with eye height at 0.98, peaking at 0.47), so openness
+— opening as a fraction of the swing at the same node — is scored instead.
 
 Eye measured at **200 mV pp** transmitter drive — conservative
 against a real Gen2 transmitter's ~800 mV. Converged at iteration
-4 of 15; 1552 ngspice launches. Full write-up in
+2 of 15; 800 ngspice launches. Full write-up in
 `HANDOVER.md` §16.
 
 ## Status
@@ -47,11 +52,11 @@ against a real Gen2 transmitter's ~800 mV. Converged at iteration
 | Two-stage equalizer (CTLE → Gm1+GmF summing stage), all-real SKY130 devices | ✅ |
 | Lossy FR4-like channel, −16.8 dB at Nyquist, 10.6 dB of tilt | ✅ |
 | Closed-loop DFE in SPICE (ideal comparator + 1 UI latch) | ✅ |
-| **RL loop end-to-end, 9/9 specs at 20/20 corners** | ✅ |
+| **RL loop end-to-end, 8/8 brief specs at 20/20 corners** | ✅ |
 | Automatic analytic starting point (no hand-seeding) | ✅ |
-| Test suite (145: 111 fast + 34 against ngspice) | ✅ all passing |
+| Test suite (164: 127 fast + 37 against ngspice) | ✅ all passing |
 | **Schematic output** (we emit netlists) | ❌ |
-| **Sweep-vs-RL baseline** — the brief asks for it | ❌ |
+| **Sweep-vs-RL baseline** — CEM 0.987 (passes) vs random 0.726 (0/95) | ✅ |
 | Runtime "tunable" mechanism · Anaconda env · LLM wrapper | ❌ |
 
 ## Why CEM (not deep RL)
@@ -59,7 +64,7 @@ against a real Gen2 transmitter's ~800 mV. Converged at iteration
 The brief stresses *fewest search points / lowest design time*. A step-wise deep
 RL policy (PPO/TD3) needs thousands of SPICE calls; every environment step here
 *is* a SPICE simulation. The default agent is the **Cross-Entropy Method** —
-gradient-free policy search that closed this problem in 189 candidates. A
+gradient-free policy search that closed this problem in 95 candidates. A
 standard `gymnasium.Env` (`eqrl/env.py::CtleEnv`) is provided so PPO/TD3 can be
 dropped in for comparison.
 
@@ -77,9 +82,9 @@ eqrl/
   env.py        Objective (parallel, cached) + Gymnasium CtleEnv
   agents/cem.py Cross-Entropy-Method policy search
   design.py     orchestrator: specs in -> sized decks + report.json
-tests/          145 total: 111 pure (no PDK, ~5 s) + 34 against real ngspice
+tests/          164 total: 127 pure (no PDK, ~5 s) + 37 against real ngspice
 scripts/        run_design, build_trimlib, pvt_sweep, smoke_test, plotting,
-                baseline (random search at equal budget -- written, unrun)
+                baseline (random search at an equal candidate budget)
 netlists/       xschem schematics -- CROSS-CHECK ONLY, currently STALE
 ```
 
@@ -101,7 +106,7 @@ ngspice-42 (XSPICE + KLU), xschem 3.4.4, Python 3.12. SKY130 via volare.
 ## Run
 
 ```bash
-python3 -m pytest tests/ -q                        # 145 tests, ~2 min
+python3 -m pytest tests/ -q                        # 164 tests, ~2 min
 python3 scripts/build_trimlib.py --grid spec       # 22.4x faster evaluations
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
 ```

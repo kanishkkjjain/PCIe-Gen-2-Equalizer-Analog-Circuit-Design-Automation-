@@ -33,7 +33,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from eqrl import netlist as nl, pdk, specs as sp
 from eqrl.env import Objective
-from eqrl.spice import Simulator
+from eqrl.spice import MeasCond, Simulator
+
+
+def _human_time(seconds: float) -> str:
+    """Pick a unit a reader can feel. Formatting everything in years printed
+    "0 years" for the 3-point grid, which reads as free rather than as 9 days."""
+    for div, unit in ((1, "s"), (60, "min"), (3600, "hours"), (86400, "days"),
+                      (86400 * 365.25, "years")):
+        if seconds / div < 1000:
+            return f"{seconds/div:,.1f} {unit}"
+    return f"{seconds/(86400*365.25):,.0f} years"
 
 
 def main() -> int:
@@ -54,7 +64,8 @@ def main() -> int:
     if not a.eye:
         import dataclasses
         spec = dataclasses.replace(spec, require_eye=False)
-    sim = Simulator(a.workdir, use_channel=a.channel)
+    sim = Simulator(a.workdir, use_channel=a.channel,
+                    meas=MeasCond.from_spec(spec))
     corners = [pdk.Corner("tt", pdk.VDD_NOM, 27.0),
                pdk.Corner("ss", pdk.VDD_CORNERS["lo"], 125.0),
                pdk.Corner("ff", pdk.VDD_CORNERS["hi"], 0.0),
@@ -73,7 +84,11 @@ def main() -> int:
     wall = time.perf_counter() - t0
 
     best = max(results, key=lambda r: r.reward)
-    n_pass = sum(1 for r in results if sp.all_pass(r.scored))
+    # all_pass_everywhere, not all_pass(r.scored): the latter tests only the
+    # WORST-REWARD corner, and a candidate can pass there while failing a spec
+    # at another. This is the headline statistic of the whole comparison, so it
+    # has to be the strict one -- cem._passes_everywhere already uses it.
+    n_pass = sum(1 for r in results if obj.all_pass_everywhere(r))
     print(f"\n  best reward      : {best.reward:.4f}")
     print(f"  candidates that pass every spec at every search corner: "
           f"{n_pass}/{a.budget}")
@@ -86,7 +101,7 @@ def main() -> int:
     for k in (3, 5, 10):
         total = k ** n
         print(f"    {k:2d} points/variable = {total:,} designs "
-              f"= {total*per_eval/3.15e7:,.0f} years at this cost")
+              f"= {_human_time(total * per_eval)} at this cost")
 
     rep = {"method": "random", "budget": a.budget, "seed": a.seed,
            "channel": a.channel, "eye": a.eye,

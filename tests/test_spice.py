@@ -122,15 +122,15 @@ def test_ac_peaks_in_band(sim, corner):
     assert ac["ok"]
     assert 3.0 < ac["peaking_db"] < 12.0
     assert 1.0e9 < ac["f_peak"] < 5.0e9
-    assert math.isfinite(ac["gain_2g5_db"])
+    assert math.isfinite(ac["gain_nyq_db"])
 
 
 def test_summing_stage_adds_gain(sim, corner):
     """Gm1 into Rsum is a real gain stage; the summing node should show more
     gain at Nyquist than the CTLE alone."""
     ac = sim.ac(CtleParams(), corner)
-    assert "sum_gain_2g5_db" in ac
-    assert ac["sum_gain_2g5_db"] > ac["gain_2g5_db"]
+    assert "sum_gain_nyq_db" in ac
+    assert ac["sum_gain_nyq_db"] > ac["gain_nyq_db"]
 
 
 def test_noise_is_finite_and_agrees_with_ngspices_own_integration(sim, corner):
@@ -514,3 +514,49 @@ def test_removing_equalisation_collapses_the_improvement(tmp_path, corner):
         CtleParams(Cs=1e-14), corner, do_eye=True)
     assert good.eye_improvement > 1.0, good.eye_improvement
     assert flat.eye_improvement < good.eye_improvement / 2
+
+
+def test_hd3_is_measured_where_the_slicer_decides(sim, corner):
+    """HD3 was measured at `outp_ctle` -- stage 1 of two -- which is the same
+    defect the noise measurement had before it was moved to the summing node.
+
+    It matters MORE here than it did for noise: summer_netlist()'s Gm1 is an
+    UNDEGENERATED pair (the CTLE has Rs||Cs linearising it, the summer has
+    nothing), so the omitted stage is the more distorting one, and it is the
+    node the slicer actually decides on.
+    """
+    p = CtleParams()
+    r = Simulator("/tmp/hd3_node", timeout=600, use_channel=False).tran_hd3(p, corner)
+    assert r["ok"], r.get("note")
+    assert math.isfinite(r["hd3_db"])
+    assert "hd3_ctle_db" in r, "the stage-1 diagnostic must still be reported"
+    assert math.isfinite(r["hd3_ctle_db"])
+    # The scored number is the one at the slicer, and the whole point is that
+    # it is WORSE than the stage-1-only number that used to be reported.
+    assert r["hd3_db"] > r["hd3_ctle_db"], (
+        f"summing stage appears more linear than the degenerated CTLE "
+        f"({r['hd3_db']:.1f} vs {r['hd3_ctle_db']:.1f} dBc) -- probe nodes "
+        f"are likely swapped")
+
+
+def test_evaluate_carries_both_hd3_numbers(sim, corner):
+    """evaluate() must surface the diagnostic too, or the stage-by-stage story
+    is only available by calling tran_hd3 separately -- which is how the CTLE
+    node came to be the one that shipped."""
+    m = Simulator("/tmp/hd3_eval2", timeout=600, use_channel=True).evaluate(
+        CtleParams(), corner)
+    assert math.isfinite(m.hd3_db)
+    assert math.isfinite(m.hd3_ctle_db)
+    assert m.hd3_db > m.hd3_ctle_db
+
+
+def test_summing_stage_does_not_clip_at_the_hd3_drive(sim, corner):
+    """Moving the probe to the summing node is only meaningful if that node is
+    still in its linear region at the test amplitude -- otherwise HD3 measures
+    clipping rather than device non-linearity. Asserted, not assumed."""
+    p = CtleParams()
+    m = Simulator("/tmp/hd3_clip", timeout=600, use_channel=False).evaluate(
+        p, corner)
+    assert m.summer_saturated, (
+        "Gm1/GmF left saturation at the HD3 drive level; the measured HD3 "
+        "would be clipping, not distortion")

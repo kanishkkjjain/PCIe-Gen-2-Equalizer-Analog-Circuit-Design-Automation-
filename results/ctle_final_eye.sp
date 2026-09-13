@@ -2,19 +2,19 @@
 * PCIe Gen2 equalizer (CTLE + 1-tap DFE summer) -- auto-sized by RL (CEM)
 * closed-loop eye, DFE loop CLOSED, 200 mV pp differential drive
 * Requested (W/L in um, R in ohm, C in F, I in A):
-*   W=24.27  L=0.2  RL=782.875  Rs=2208.7
-*   Cs=2.5779e-13  Itail=0.000635023  Wtail=97.93
-*   Rsum=1732.91  Wg1=42.94  Ig1=0.000407005
-*   tap_pct=1.379%  -> Wgf=0.5922 Igf=5.61272e-06
+*   W=30.26  L=0.2426  RL=983.119  Rs=1890.81
+*   Cs=2.53286e-13  Itail=0.000539324  Wtail=84.47
+*   Rsum=1822.96  Wg1=33.44  Ig1=0.000345351
+*   tap_pct=1.072%  -> Wgf=0.42 Igf=3.70188e-06
 *   CL=4e-14  Vcm=1.1
 * Realised geometry:
-*   RL -> l=2.008 m=1 (782.875 ohm)
-*   Rs -> l=8.39 m=1 (2208.7 ohm)
-*   Cs -> 11.16 x 11.16 um (2.5779e-13 F)
-*   Rsum -> l=6.261 m=1 (1732.91 ohm)
-*   Iref=0.000158756  Wref=24.48
-*   Gm1 tail W=62.77   GmF tail W=0.8656
-*   nominal tap weight gmF/gm1 = 0.01379
+*   RL -> l=2.904 m=1 (983.119 ohm)
+*   Rs -> l=6.967 m=1 (1890.81 ohm)
+*   Cs -> 11.07 x 11.07 um (2.53286e-13 F)
+*   Rsum -> l=6.664 m=1 (1822.96 ohm)
+*   Iref=0.000134831  Wref=21.12
+*   Gm1 tail W=54.09   GmF tail W=0.5798
+*   nominal tap weight gmF/gm1 = 0.01072
 * corner: tt_1.800V_27C
 * channel: PRESENT (lossy FR4-like, see netlist.channel_netlist)
 * ==================================================================
@@ -613,40 +613,40 @@ adac_n [q1]  [vfbn] dac_fb
 
 * --- STAGE 1: CTLE, source-degenerated diff pair, real SKY130 devices ---
 * input pair
-X1 outn_ctle vinp sp 0 sky130_fd_pr__nfet_01v8_lvt L=0.2 W=24.27 nf=2 m=1
-X2 outp_ctle vinn sn 0 sky130_fd_pr__nfet_01v8_lvt L=0.2 W=24.27 nf=2 m=1
+X1 outn_ctle vinp sp 0 sky130_fd_pr__nfet_01v8_lvt L=0.2426 W=30.26 nf=3 m=1
+X2 outp_ctle vinn sn 0 sky130_fd_pr__nfet_01v8_lvt L=0.2426 W=30.26 nf=3 m=1
 * degeneration: real poly resistor + real MIM cap  (b = body tie to substrate)
-XRs sp sn 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=8.39 m=1
-XCs sp sn sky130_fd_pr__cap_mim_m3_1 w=11.16 l=11.16 mf=1
+XRs sp sn 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=6.967 m=1
+XCs sp sn sky130_fd_pr__cap_mim_m3_1 w=11.07 l=11.07 mf=1
 * loads
-XRLp vdd outp_ctle 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=2.008 m=1
-XRLn vdd outn_ctle 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=2.008 m=1
+XRLp vdd outp_ctle 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=2.904 m=1
+XRLn vdd outn_ctle 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=2.904 m=1
 * CL stays ideal: it models the NEXT stage's input capacitance
 CLp outp_ctle 0 4e-14
 CLn outn_ctle 0 4e-14
 * tail: 4:1 NMOS current mirror (Iref sourced from vdd).
 * Xt1/Xt2 are the SAME unit device as Xref, replicated m=4 times --
 * a mirror ratios by multiplicity, not by making one device wider.
-Iref vdd vbias DC 0.000158756
-Xref vbias vbias 0 0 sky130_fd_pr__nfet_01v8_lvt L=0.5 W=24.48 nf=2 m=1
-Xt1  sp vbias 0 0 sky130_fd_pr__nfet_01v8_lvt L=0.5 W=24.48 nf=2 m=4
-Xt2  sn vbias 0 0 sky130_fd_pr__nfet_01v8_lvt L=0.5 W=24.48 nf=2 m=4
+Iref vdd vbias DC 0.000134831
+Xref vbias vbias 0 0 sky130_fd_pr__nfet_01v8_lvt L=0.5 W=21.12 nf=2 m=1
+Xt1  sp vbias 0 0 sky130_fd_pr__nfet_01v8_lvt L=0.5 W=21.12 nf=2 m=4
+Xt2  sn vbias 0 0 sky130_fd_pr__nfet_01v8_lvt L=0.5 W=21.12 nf=2 m=4
 * --- STAGE 2: DFE summing stage (Gm1 + GmF share one load pair) ---
 * summing-node loads -- these ARE the summer
-XRsp vdd outp_dfe 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=6.261 m=1
-XRsn vdd outn_dfe 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=6.261 m=1
+XRsp vdd outp_dfe 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=6.664 m=1
+XRsn vdd outn_dfe 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=6.664 m=1
 * Gm1: main signal path, gates driven by the CTLE output (drains crossed)
-XG1p outn_dfe outp_ctle sgm1 0 sky130_fd_pr__nfet_01v8_lvt L=0.18 W=42.94 nf=4 m=1
-XG1n outp_dfe outn_ctle sgm1 0 sky130_fd_pr__nfet_01v8_lvt L=0.18 W=42.94 nf=4 m=1
+XG1p outn_dfe outp_ctle sgm1 0 sky130_fd_pr__nfet_01v8_lvt L=0.18 W=33.44 nf=3 m=1
+XG1n outp_dfe outn_ctle sgm1 0 sky130_fd_pr__nfet_01v8_lvt L=0.18 W=33.44 nf=3 m=1
 * GmF: feedback tap, gates driven by the held decision (same crossing as Gm1)
-XGFp outn_dfe vfbp sgmf 0 sky130_fd_pr__nfet_01v8_lvt L=0.18 W=0.5922 nf=1 m=1
-XGFn outp_dfe vfbn sgmf 0 sky130_fd_pr__nfet_01v8_lvt L=0.18 W=0.5922 nf=1 m=1
+XGFp outn_dfe vfbp sgmf 0 sky130_fd_pr__nfet_01v8_lvt L=0.18 W=0.42 nf=1 m=1
+XGFn outp_dfe vfbn sgmf 0 sky130_fd_pr__nfet_01v8_lvt L=0.18 W=0.42 nf=1 m=1
 * separate tails, both mirrored off the same vbias as the CTLE.
 * Names must not collide with the CTLE's Xt1/Xt2 even case-insensitively --
 * ngspice folds case, so `XT1` IS `Xt1` and the deck dies with
 * "device already exists, bail out".
-XTsum1 sgm1 vbias 0 0 sky130_fd_pr__nfet_01v8_lvt L=0.5 W=62.77 nf=6 m=1
-XTsumf sgmf vbias 0 0 sky130_fd_pr__nfet_01v8_lvt L=0.5 W=0.8656 nf=1 m=1
+XTsum1 sgm1 vbias 0 0 sky130_fd_pr__nfet_01v8_lvt L=0.5 W=54.09 nf=5 m=1
+XTsumf sgmf vbias 0 0 sky130_fd_pr__nfet_01v8_lvt L=0.5 W=0.5798 nf=1 m=1
 
 .control
 tran 4e-12 4e-08 0 4e-12

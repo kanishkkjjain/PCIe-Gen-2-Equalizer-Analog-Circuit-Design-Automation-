@@ -36,7 +36,7 @@ from . import netlist as nl
 from . import pdk
 from . import specs as sp
 from .netlist import CtleParams, PARAM_NAMES
-from .spice import Simulator, safe_job_count
+from .spice import MeasCond, Simulator, safe_job_count
 
 
 def _eval_task(task):
@@ -48,14 +48,18 @@ def _eval_task(task):
     worker parses another's dump. scripts/pvt_sweep.py hit this first and works
     around it the same way.
     """
-    key, workroot, params, corner, do_eye, timeout, use_ch = task
+    key, workroot, params, corner, do_eye, timeout, use_ch, meas = task
     # Per (candidate, CORNER) -- not per candidate. The corners of one candidate
     # run concurrently, so keying the directory on the candidate alone puts four
     # workers in one directory all writing ac.dat / tran.dat / eye.dat, and they
     # overwrite each other's dumps. Verified: a candidate directory held exactly
     # one ac.dat shared by four corner tasks.
+    # `meas` rides in the task tuple because the worker builds its own
+    # Simulator: anything not carried here silently reverts to the defaults,
+    # which is how tx_swing_pp_v came to be recorded in the report at a value
+    # the simulation never used.
     sim = Simulator(Path(workroot) / f"c{key}" / corner.name, timeout=timeout,
-                    use_channel=use_ch)
+                    use_channel=use_ch, meas=meas)
     m = sim.evaluate(CtleParams(**params), corner, do_eye=do_eye)
     return key, corner.name, m, sim.n_launches
 
@@ -123,8 +127,9 @@ class Objective:
         if todo:
             params = {k: self.params_from_u(k) for k in todo}
             root = self.sim.workdir
+            meas = MeasCond.from_spec(self.spec)
             tasks = [(self._digest(k), str(root), params[k].as_dict(), c,
-                      self.do_eye, self.sim.timeout, self.use_channel)
+                      self.do_eye, self.sim.timeout, self.use_channel, meas)
                      for k in todo for c in self.corners]
             by_key = {self._digest(k): k for k in todo}
             results: dict[tuple, dict] = {k: {} for k in todo}
@@ -185,7 +190,7 @@ if _HAVE_GYM:
             self.max_steps = max_steps
             self.step_scale = step_scale
             self.action_space = spaces.Box(-1.0, 1.0, (self.n,), np.float32)
-            # obs: n params + [dc_gain, peaking, fpeak, gain2g5, power, reward]
+            # obs: n params + [dc_gain, peaking, fpeak, gain_nyq, power, reward]
             # Observations are CLIPPED into this box below: f_peak/2.5e9 alone
             # exceeds 5 for any candidate peaking above 12.5 GHz, which
             # gymnasium's env_checker rejects outright.
@@ -201,7 +206,7 @@ if _HAVE_GYM:
                 (m.dc_gain_db or 0) / 40.0,
                 (m.peaking_db or 0) / 12.0,
                 (m.f_peak or 0) / 2.5e9,
-                (m.gain_2g5_db or 0) / 40.0,
+                (m.gain_nyq_db or 0) / 40.0,
                 (m.power_w or 0) / self.obj.spec.power_max_w,
                 res.reward,
             ]

@@ -17,7 +17,7 @@ from . import pdk
 from . import specs as sp
 from . import netlist as nl
 from .env import Objective
-from .spice import Simulator
+from .spice import MeasCond, Simulator
 from .agents import cem as cem_agent
 from . import analytic
 
@@ -50,7 +50,7 @@ def _sized_header(params: nl.CtleParams, corner: pdk.Corner, what: str,
 * =================================================================="""
 
 
-def _exporter(params: nl.CtleParams, use_channel: bool):
+def _exporter(params: nl.CtleParams, use_channel: bool, meas=None):
     """A Simulator used only to BUILD deck text, never to run anything.
 
     Routing the exporters through Simulator._assemble is the point: the decks
@@ -65,15 +65,15 @@ def _exporter(params: nl.CtleParams, use_channel: bool):
     reference the full PDK library.
     """
     import tempfile
-    from .spice import Simulator
+    from .spice import MeasCond, Simulator
     return Simulator(tempfile.mkdtemp(prefix="eqrl_export_"),
-                     use_trimmed=False, use_channel=use_channel)
+                     use_trimmed=False, use_channel=use_channel, meas=meas)
 
 
 def _export_deck(params: nl.CtleParams, corner: pdk.Corner, path: Path,
-                 use_channel: bool = False) -> None:
+                 use_channel: bool = False, meas=None) -> None:
     """Standalone AC deck (DFE loop OPEN) with the sized values."""
-    sim = _exporter(params, use_channel)
+    sim = _exporter(params, use_channel, meas)
     control = (".control\n"
                "ac dec 40 1e6 20e9\n"
                "wrdata ctle_ac.dat vdb(outp_ctle,outn_ctle) "
@@ -86,16 +86,23 @@ def _export_deck(params: nl.CtleParams, corner: pdk.Corner, path: Path,
 
 
 def _export_eye_deck(params: nl.CtleParams, corner: pdk.Corner, path: Path,
-                     use_channel: bool = False,
-                     n_bits: int = 200, ui: float = 200e-12,
-                     tx_swing_pp_v: float = 0.200) -> None:
+                     use_channel: bool = False, n_bits: int = 200,
+                     meas=None) -> None:
     """Standalone CLOSED-loop deck, so the reported eye is reproducible.
 
     The stimulus is built the same way Simulator.tran_eye() builds it, so it
     cannot drift from what was actually simulated either.
+
+    UI and drive level come from `meas`, the same object the simulation used.
+    They were separate parameters with their own defaults, which is precisely
+    how a deck can be emitted at one drive level while the report quotes
+    another.
     """
     from . import dfe as dfe_mod
-    sim = _exporter(params, use_channel)
+    from .spice import MeasCond as _MC
+    meas = meas or _MC()
+    ui, tx_swing_pp_v = meas.ui_s, meas.tx_swing_pp_v
+    sim = _exporter(params, use_channel, meas)
     bits = dfe_mod.prbs(n_bits)
     # nrz_pwl takes the SINGLE-ENDED amplitude about Vcm; each leg swings
     # +/-(pp/4) so the differential peak-to-peak is pp. Getting this factor
@@ -174,8 +181,8 @@ def _plot(report: dict, obj: Objective, best, out_dir: Path) -> None:
             d = np.loadtxt(dat)
             fig, ax = plt.subplots(figsize=(6, 4))
             ax.semilogx(d[:, 0], d[:, 1])
-            ax.axvspan(1.25e9, 2.5e9, alpha=0.12, color="green",
-                       label="peak band")
+            ax.axvspan(obj.spec.fpeak_lo, obj.spec.fpeak_hi, alpha=0.12,
+                       color="green", label="peak band")
             ax.set_xlabel("Frequency (Hz)")
             ax.set_ylabel("Diff gain (dB)")
             ax.set_title("Final CTLE AC response")
@@ -205,7 +212,11 @@ def run_design(spec: sp.EqualizerSpec | None = None,
         # a missing eye when we DID ask for one is a failure, not an excuse.
         spec = dataclasses.replace(spec, require_eye=False)
     out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
-    sim = Simulator(workdir, use_channel=use_channel)
+    # Measurement conditions come from the SPEC, so asking for a different bit
+    # rate or drive level changes what is actually simulated rather than only
+    # what the report claims.
+    meas = MeasCond.from_spec(spec)
+    sim = Simulator(workdir, use_channel=use_channel, meas=meas)
 
     # Search corners: typical only (fast) or a robust subset.
     if search_robust:
@@ -287,10 +298,9 @@ def run_design(spec: sp.EqualizerSpec | None = None,
     typ = pdk.typical_corner()
     typ_scored = sp.score(sim.evaluate(best.params, typ, do_eye=do_eye), spec)
     _export_deck(best.params, typ, out_dir / "ctle_final.sp",
-                 use_channel=use_channel)
+                 use_channel=use_channel, meas=meas)
     _export_eye_deck(best.params, typ, out_dir / "ctle_final_eye.sp",
-                     use_channel=use_channel,
-                     tx_swing_pp_v=spec.tx_swing_pp_v)
+                     use_channel=use_channel, meas=meas)
 
     report = {
         "spec": asdict(spec),
@@ -359,7 +369,7 @@ def _print_summary(r: dict) -> None:
           f"Rs={p['Rs']:.0f}ohm Cs={p['Cs']*1e15:.1f}fF It={p['Itail']*1e6:.0f}uA")
     print(f"  DC gain    : {m['dc_gain_db']:.2f} dB")
     print(f"  Peaking    : {m['peaking_db']:.2f} dB @ {m['f_peak']/1e9:.2f} GHz")
-    print(f"  Gain@2.5GHz: {m['gain_2g5_db']:.2f} dB")
+    print(f"  Gain@2.5GHz: {m['gain_nyq_db']:.2f} dB")
     print(f"  Power      : {m['power_w']*1e3:.2f} mW")
     print(f"  HD3        : {m['hd3_db']:.1f} dBc")
     print(f"  In. noise  : {m['vn_in_rms']*1e3:.3f} mVrms")

@@ -365,7 +365,7 @@ def test_mirror_uses_identical_unit_devices():
 def _good_metrics() -> Metrics:
     return Metrics(
         ok=True, dc_gain_db=-0.1, peak_gain_db=8.9, peaking_db=9.0,
-        f_peak=2.0e9, gain_2g5_db=8.0, bw_3db=4e9, power_w=2.8e-3,
+        f_peak=2.0e9, gain_nyq_db=8.0, bw_3db=4e9, power_w=2.8e-3,
         hd3_db=-66.0, vn_in_rms=0.5e-3, area_mm2=2.6e-4,
         eye_height_v=0.17, eye_width_ui=0.69, saturated=True,
         tail_saturated=True,
@@ -439,10 +439,10 @@ def test_eye_spec_field_names_match_their_units():
 
 
 def test_gain_at_nyquist_is_reported_but_not_constrained():
-    """gain_2g5_min_db is not in the brief (HANDOVER 11); it must not veto an
+    """gain_nyq_min_db is not in the brief (HANDOVER 11); it must not veto an
     otherwise-passing design."""
     m = _good_metrics()
-    m.gain_2g5_db = -6.0
+    m.gain_nyq_db = -6.0
     sc = sp.score(m, sp.EqualizerSpec())
     assert sp.all_pass(sc), "an invented spec is vetoing a valid design"
 
@@ -451,9 +451,12 @@ def test_pass_keys_are_stable_and_complete():
     """Regression for the design.py KeyError: anything aggregating this dict
     must be derived from it, never from a hand-maintained key list."""
     sc = sp.score(_good_metrics(), sp.EqualizerSpec())
+    assert set(sc["pass"]) == set(sp.BRIEF_SPECS) | set(sp.INTERNAL_CHECKS)
+    # spelled out too, so a careless edit to BRIEF_SPECS cannot make the line
+    # above vacuously true
     assert set(sc["pass"]) == {
-        "peaking", "fpeak", "power", "hd3", "noise", "area", "bias",
-        "eye_h", "eye_w"}
+        "peaking", "fpeak", "power", "hd3", "noise", "area",
+        "eye_h", "eye_w", "bias", "equalises"}
 
 
 def test_reward_is_comparable_across_candidates():
@@ -501,7 +504,7 @@ class _StubObjective:
     def __call__(self, u):
         from eqrl.env import EvalResult
         m = Metrics(ok=True, dc_gain_db=200.0, peaking_db=50.0,
-                    f_peak=2.0e10, gain_2g5_db=-300.0, power_w=1.0,
+                    f_peak=2.0e10, gain_nyq_db=-300.0, power_w=1.0,
                     hd3_db=-10.0, vn_in_rms=1.0, area_mm2=1.0,
                     saturated=True)
         self.n_sims += 1
@@ -922,3 +925,176 @@ def test_ac_only_evaluation_is_still_scoreable():
     sc = sp.score(m, sp.EqualizerSpec(require_eye=False))
     assert "eye_h" not in sc["pass"]
     assert sp.all_pass(sc), "with require_eye=False an AC-only result may pass"
+
+
+# ---------------------------------------------------------------------------
+# relative soft widths (SOFT_FRAC) -- provably a no-op at the default spec
+# ---------------------------------------------------------------------------
+def test_relative_soft_widths_reproduce_the_absolute_ones():
+    """The barrier widths were absolute constants; they are now fractions of
+    each limit so that a DIFFERENT spec still gets a usable gradient.
+
+    The fractions were chosen to reproduce the old absolute values exactly at
+    the default spec, which is what makes the change safe: every number already
+    published stays valid. This pins that equality so a future edit to
+    SOFT_FRAC cannot silently move published results.
+    """
+    s = sp.EqualizerSpec()
+    pk_band = s.peaking_max_db - s.peaking_min_db
+    fp_band = s.fpeak_hi - s.fpeak_lo
+    assert sp.SOFT_FRAC["power"] * s.power_max_w == pytest.approx(3e-3)
+    assert sp.SOFT_FRAC["noise"] * s.vn_in_max_rms == pytest.approx(0.5e-3)
+    assert sp.SOFT_FRAC["area"] * s.area_max_m2 * 1e6 == pytest.approx(0.02)
+    assert sp.SOFT_FRAC["eye_h"] * s.eye_height_min_v == pytest.approx(0.05)
+    assert sp.SOFT_FRAC["eye_w"] * s.eye_width_min_ui == pytest.approx(0.15)
+    assert sp.SOFT_FRAC["fpeak"] * fp_band == pytest.approx(0.6e9)
+    assert sp.SOFT_FRAC["peaking"] * pk_band == pytest.approx(3.0)
+    assert sp.SOFT_FRAC["peaking_target"] * pk_band == pytest.approx(4.0)
+    assert sp.HD3_SOFT_DB == 6.0        # dB is already a ratio: stays absolute
+
+
+def test_soft_width_actually_tracks_a_tighter_spec():
+    """The point of the change: a 5x tighter power budget must produce a 5x
+    tighter barrier, so the score still discriminates near the new limit.
+
+    Under the old absolute width a design 1 mW over a 2 mW budget scored
+    0.895 -- nearly indistinguishable from passing -- so the search had no
+    gradient to close the gap.
+    """
+    tight = sp.EqualizerSpec(power_max_w=2e-3)
+    m = _good_metrics()
+    m.power_w = 3e-3                       # 1 mW over the tight budget
+    over = sp.score(m, tight)["scores"]["power"]
+    m.power_w = 2e-3                       # exactly at it
+    at = sp.score(m, tight)["scores"]["power"]
+    assert at == 1.0
+    assert over < 0.15, (
+        f"barrier did not tighten with the spec: 1 mW over a 2 mW budget "
+        f"still scores {over:.3f}")
+
+
+# ---------------------------------------------------------------------------
+# "equalises" -- an internal check, not a brief spec
+# ---------------------------------------------------------------------------
+def test_amplifying_without_equalising_is_rejected():
+    """Eye HEIGHT can be bought with summing-stage gain (it correlates with it
+    at 0.98 across corners); openness cannot. A design whose openness at the
+    slicer is no better than at its own input is not an equaliser, whatever its
+    eye height, and must not be able to win the search."""
+    m = _good_metrics()
+    m.channel_present = True               # there IS ISI to remove
+    m.eye_improvement = 0.8                # eye came out WORSE than it went in
+    sc = sp.score(m, sp.EqualizerSpec())
+    assert sc["pass"]["equalises"] is False
+    assert not sp.all_pass(sc)
+    assert sc["reward"] <= 0.3, "a non-equalising design must be gated down"
+
+
+def test_equalises_is_internal_not_a_brief_spec():
+    """It must not inflate the count of BRIEF specs met -- gain_nyq_min_db is
+    the cautionary tale for inventing a requirement the brief never stated."""
+    assert "equalises" in sp.INTERNAL_CHECKS
+    assert "equalises" not in sp.BRIEF_SPECS
+
+
+def test_unmeasured_improvement_does_not_fail_a_design():
+    """AC-only evaluation has no eye, so no openness. That is missing data, not
+    a failure to equalise -- the same distinction require_eye draws."""
+    m = _good_metrics()
+    m.channel_present = True
+    m.eye_improvement = float("nan")
+    sc = sp.score(m, sp.EqualizerSpec())
+    assert sc["pass"]["equalises"] is True
+
+
+# ---------------------------------------------------------------------------
+# measurement conditions actually reach the deck (F1/F5)
+# ---------------------------------------------------------------------------
+def test_ui_follows_the_spec_nyquist():
+    """`nyquist` used to be read by NOTHING: the eye and the DFE latch ran at a
+    hardcoded 200 ps whatever the spec said, so asking for 8 Gb/s returned a
+    confident 5 Gb/s answer with no error at all."""
+    from eqrl.spice import MeasCond
+    assert sp.EqualizerSpec().ui_s == pytest.approx(200e-12)
+    assert sp.EqualizerSpec(nyquist=4e9).ui_s == pytest.approx(125e-12)
+    m = MeasCond.from_spec(sp.EqualizerSpec(nyquist=4e9))
+    assert m.ui_s == pytest.approx(125e-12)
+    assert m.nyquist == pytest.approx(4e9)      # round trip
+
+
+def test_meas_cond_carries_every_measurement_condition():
+    """One mapping, in one place. A condition missing here is a condition that
+    silently keeps its default while the report quotes the requested value."""
+    from eqrl.spice import MeasCond
+    s = sp.EqualizerSpec(nyquist=4e9, tx_swing_pp_v=0.8, hd3_freq=200e6,
+                         hd3_amp_pp_v=0.05, noise_f_lo=1e6, noise_f_hi=8e9)
+    m = MeasCond.from_spec(s)
+    assert m.tx_swing_pp_v == 0.8
+    assert m.hd3_freq == 200e6
+    assert m.hd3_amp_pp_v == 0.05
+    assert (m.noise_f_lo, m.noise_f_hi) == (1e6, 8e9)
+
+
+def test_defaults_match_the_brief_so_nothing_moves():
+    """A Simulator built with no spec (tests, trimlib.validate, plot_eye) must
+    behave exactly as before this was threaded."""
+    from eqrl.spice import MeasCond
+    d, s = MeasCond(), MeasCond.from_spec(sp.EqualizerSpec())
+    assert d == s
+
+
+def test_dfe_latch_clock_follows_the_ui():
+    """The decision path's clock is what makes the loop delay exactly 1 UI. It
+    was once left at its 200 ps default while the PRBS followed the requested
+    rate, which sampled the eye at the wrong rate silently (HANDOVER 5)."""
+    fast = nl.dfe_decision_path(ui_s=125e-12)
+    assert "1.25e-10" in fast or "6.25e-11" in fast, fast[:400]
+    slow = nl.dfe_decision_path(ui_s=200e-12)
+    assert slow != fast
+
+
+def test_worker_task_tuple_matches_what_the_worker_unpacks():
+    """The workers build their OWN Simulator in another process, so anything
+    not carried in the task tuple silently reverts to defaults there -- which
+    is exactly how tx_swing_pp_v came to be recorded at a value the simulation
+    never used.
+
+    Both ends of that tuple are checked against each other: adding a field to
+    the producer without the consumer (or vice versa) is a ValueError at
+    runtime, inside a worker, where it is reported as a failed candidate.
+    """
+    import ast
+    import inspect
+    from eqrl import env
+
+    # consumer: the single `a, b, ... = task` unpacking in _eval_task
+    consumer = None
+    for node in ast.walk(ast.parse(inspect.getsource(env._eval_task))):
+        if (isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Tuple)
+                and getattr(node.value, "id", None) == "task"):
+            consumer = [e.id for e in node.targets[0].elts]
+    assert consumer, "could not find the task-tuple unpacking in _eval_task"
+    assert "meas" in consumer, consumer
+
+    # producer: the tuple literal built in evaluate_batch
+    src = inspect.getsource(env.Objective.evaluate_batch)
+    produced = None
+    for node in ast.walk(ast.parse(src.lstrip())):
+        if isinstance(node, ast.Tuple) and len(node.elts) >= 5:
+            produced = len(node.elts)
+    assert produced == len(consumer), (
+        f"task tuple built with {produced} fields but unpacked into "
+        f"{len(consumer)}: {consumer}")
+
+
+def test_no_channel_means_the_equalises_check_is_not_asked():
+    """Driven from an ideal PWL source, the input eye is already perfect, so
+    openness can only drop -- improvement < 1 is the correct physical answer,
+    not a defect. Gating on it channel-free took the default design's reward
+    from 0.98 to the 0.3 cap and failed a real ngspice test."""
+    m = _good_metrics()
+    m.channel_present = False
+    m.eye_improvement = 0.6                # would fail the gate if it applied
+    sc = sp.score(m, sp.EqualizerSpec())
+    assert sc["pass"]["equalises"] is True
+    assert sc["reward"] > 0.8, "channel-free evaluation must not be gated"

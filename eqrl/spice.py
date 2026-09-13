@@ -81,10 +81,11 @@ class Metrics:
     peak_gain_db: float = float("nan")
     peaking_db: float = float("nan")  # peak - dc
     f_peak: float = float("nan")      # Hz of peak gain
-    gain_2g5_db: float = float("nan")  # gain at Nyquist (2.5 GHz)
+    gain_nyq_db: float = float("nan")  # gain at Nyquist (2.5 GHz)
     bw_3db: float = float("nan")      # -3dB freq relative to peak (Hz)
     power_w: float = float("nan")
-    hd3_db: float = float("nan")      # 3rd-harmonic distortion (dBc)
+    hd3_db: float = float("nan")      # 3rd-harmonic distortion (dBc), at the slicer
+    hd3_ctle_db: float = float("nan")  # same tone after stage 1 only -- diagnostic
     vn_in_rms: float = float("nan")   # integrated input-referred noise (Vrms)
     # bias sanity
     id_m1: float = float("nan")
@@ -115,6 +116,12 @@ class Metrics:
     gm_gf: float = float("nan")
     summer_saturated: bool = False
     out_cm_v: float = float("nan")   # summing-node common mode (see op())
+    # Was a channel in front? The "does it equalise" check is only meaningful
+    # when there is ISI to remove: drive the equaliser from an ideal PWL source
+    # and eye openness can only DROP, because the source is already perfect.
+    # Recording it here keeps that condition with the measurement instead of
+    # leaving the scorer to guess.
+    channel_present: bool = False
     saturated: bool = False
     partial: bool = False            # some analyses failed; metrics are NaN
     note: str = ""
@@ -124,11 +131,48 @@ class Metrics:
         return asdict(self)
 
 
+@dataclass
+class MeasCond:
+    """The conditions every measurement is taken under.
+
+    These lived as literals inside the deck builders, which made
+    ``EqualizerSpec.nyquist`` decorative: the eye and the DFE latch ran at a
+    hardcoded 200 ps UI no matter what the spec asked for, so a request for
+    8 Gb/s came back as a confident 5 Gb/s answer with no error. Gathering them
+    here gives one place to thread from the spec, and `from_spec` is the only
+    mapping.
+
+    Defaults are the brief's values, so a Simulator built without a spec (the
+    tests, `trimlib.validate`, `plot_eye`) behaves exactly as before.
+
+    Duck-typed on purpose: `specs.py` imports `Metrics` from this module, so
+    importing `EqualizerSpec` here would be circular.
+    """
+
+    ui_s: float = 200e-12           # 1/(2*nyquist); 2.5 GHz -> 200 ps
+    tx_swing_pp_v: float = 0.200    # differential pp at the channel input
+    hd3_freq: float = 100e6
+    hd3_amp_pp_v: float = 0.100     # differential pp at the equaliser input
+    noise_f_lo: float = 10e6
+    noise_f_hi: float = 5e9
+
+    @property
+    def nyquist(self) -> float:
+        return 1.0 / (2.0 * self.ui_s)
+
+    @classmethod
+    def from_spec(cls, spec) -> "MeasCond":
+        return cls(ui_s=spec.ui_s, tx_swing_pp_v=spec.tx_swing_pp_v,
+                   hd3_freq=spec.hd3_freq, hd3_amp_pp_v=spec.hd3_amp_pp_v,
+                   noise_f_lo=spec.noise_f_lo, noise_f_hi=spec.noise_f_hi)
+
+
 class Simulator:
     def __init__(self, workdir: str | Path, ngspice_bin: str = "ngspice",
                  timeout: float = 300.0, use_trimmed: bool = True,
                  trim_dir: str | Path | None = None,
-                 use_channel: bool = False):
+                 use_channel: bool = False,
+                 meas: "MeasCond | None" = None):
         self.workdir = Path(workdir)
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.ngspice = shutil.which(ngspice_bin) or ngspice_bin
@@ -153,8 +197,15 @@ class Simulator:
         # A lossy channel in front of the equaliser. Off by default so every
         # number recorded before this existed stays reproducible.
         self.use_channel = use_channel
-        # differential pk-pk drive used for eye measurements (see specs.py)
-        self.tx_swing_pp_v = 0.200
+        # Measurement conditions, threaded from the spec by design.py and
+        # env._eval_task. This used to be a bare `self.tx_swing_pp_v = 0.200`
+        # attribute that NOTHING ever assigned from the spec, so setting
+        # spec.tx_swing_pp_v gave metrics simulated at 200 mV, a report claiming
+        # the requested value, and an exported deck built at the requested
+        # value -- the D1 defect (artifact disagrees with report) through a
+        # different door. A constructor argument cannot be forgotten the way a
+        # post-construction assignment was.
+        self.meas = meas or MeasCond()
 
     # ---- deck assembly -------------------------------------------------
     def lib_for(self, section: str) -> str:
@@ -369,7 +420,7 @@ class Simulator:
         ipk = int(np.argmax(gdb))
         peak = float(gdb[ipk])
         fpk = float(f[ipk])
-        g25 = float(np.interp(2.5e9, f, gdb))
+        g25 = float(np.interp(self.meas.nyquist, f, gdb))
         # 3dB bandwidth relative to peak (first crossing below peak-3 after peak)
         bw = float("nan")
         target = peak - 3.0
@@ -377,12 +428,12 @@ class Simulator:
             if gdb[i] <= target:
                 bw = float(f[i]); break
         out_d = {"ok": True, "dc_gain_db": dc, "peak_gain_db": peak,
-                 "peaking_db": peak - dc, "f_peak": fpk, "gain_2g5_db": g25,
+                 "peaking_db": peak - dc, "f_peak": fpk, "gain_nyq_db": g25,
                  "bw_3db": bw}
         if gdb_sum is not None:
             out_d["sum_dc_gain_db"] = float(gdb_sum[0])
             out_d["sum_peak_gain_db"] = float(np.max(gdb_sum))
-            out_d["sum_gain_2g5_db"] = float(np.interp(2.5e9, f, gdb_sum))
+            out_d["sum_gain_nyq_db"] = float(np.interp(self.meas.nyquist, f, gdb_sum))
         return out_d
 
     def op(self, p: CtleParams, corner: pdk.Corner, tag: str = "op") -> dict:
@@ -488,9 +539,9 @@ class Simulator:
                 "v_pos": vals["pos"], "v_neg": vals["neg"]}
 
     def tran_hd3(self, p: CtleParams, corner: pdk.Corner,
-                 amp: float = 0.1, freq: float = 100e6, tag: str = "tran",
-                 channel: bool | None = False) -> dict:
-        """3rd-harmonic distortion from a 100 MHz differential sine.
+                 amp: float | None = None, freq: float | None = None,
+                 tag: str = "tran", channel: bool | None = False) -> dict:
+        """3rd-harmonic distortion, measured AT THE SLICER.
 
         channel=False by default, for the same reason noise() is: the tone was
         being injected AHEAD of the channel, which eats 6.2 dB at 100 MHz, so
@@ -498,7 +549,22 @@ class Simulator:
         flattering number -- measured -76.0 dBc through the channel against
         -63.4 dBc at full drive. Linearity is a property of the equaliser, so
         it is measured on the equaliser.
+
+        MEASURED AT `outp_dfe`, NOT `outp_ctle`. This is the same defect the
+        noise measurement had: the equaliser is two stages and stopping at
+        stage 1 leaves the summing stage out of a number that claims to
+        describe the whole thing. It bites harder here than it did for noise,
+        because `summer_netlist()`'s Gm1 is an UNDEGENERATED pair -- the CTLE
+        has Rs||Cs linearising it and the summer has nothing -- so the omitted
+        stage is the more distorting one, and it is the node the slicer
+        actually decides on.
+
+        `hd3_ctle_db` is still returned, as a diagnostic: the stage-by-stage
+        split is what makes the number explainable, the same way
+        eye_openness_ctle sits beside eye_openness_out.
         """
+        amp = self.meas.hd3_amp_pp_v if amp is None else amp
+        freq = self.meas.hd3_freq if freq is None else freq
         out = self.workdir / f"{tag}.dat"
         if out.exists():
             out.unlink()
@@ -508,7 +574,7 @@ class Simulator:
         control = (
             ".control\n"
             f"tran {tstep:.6g} {tstop:.6g} 0 {tstep:.6g}\n"
-            f'wrdata {out.name} v(outp_ctle,outn_ctle)\n'
+            f'wrdata {out.name} v(outp_dfe,outn_dfe) v(outp_ctle,outn_ctle)\n'
             ".endc\n"
         )
         ok, log = self._run(
@@ -520,7 +586,11 @@ class Simulator:
         if d is None or d.shape[1] < 2:
             return {"ok": False, "log": log, "note": "hd3 produced no data"}
         t, v = d[:, 0], d[:, 1]
-        return {"ok": True, "hd3_db": _hd3_from_wave(t, v, freq)}
+        res = {"ok": True, "hd3_db": _hd3_from_wave(t, v, freq)}
+        # wrdata repeats the x column per expression: cols are t, dfe, t, ctle
+        if d.shape[1] >= 4:
+            res["hd3_ctle_db"] = _hd3_from_wave(d[:, 2], d[:, 3], freq)
+        return res
 
     def tran_eye(self, p: CtleParams, corner: pdk.Corner, n_bits: int = 200,
                  ui: float = 200e-12, amp: float = 0.10,   # DIFFERENTIAL amplitude: pp = 2*amp
@@ -614,7 +684,8 @@ class Simulator:
             out.unlink()
         control = (
             ".control\n"
-            "noise v(outp_dfe,outn_dfe) Vinp dec 20 10e6 5e9\n"
+            f"noise v(outp_dfe,outn_dfe) Vinp dec 20 {self.meas.noise_f_lo:.6g} "
+            f"{self.meas.noise_f_hi:.6g}\n"
             "setplot noise1\n"
             f"wrdata {out.name} inoise_spectrum\n"
             "setplot noise2\n"
@@ -689,7 +760,7 @@ class Simulator:
             m.note = f"ac-failed[{acr.get('note', '?')}]"
             return m
         for k in ("dc_gain_db", "peak_gain_db", "peaking_db", "f_peak",
-                  "gain_2g5_db", "bw_3db"):
+                  "gain_nyq_db", "bw_3db"):
             setattr(m, k, acr[k])
 
         opr = r["op"]
@@ -709,10 +780,12 @@ class Simulator:
             m.power_w = corner.vdd * ((2.0 + 1.0 / nl.MIRROR_RATIO) * p.Itail
                                       + p.Ig1 + p.Igf)
         m.area_mm2 = p.area_um2()["total_mm2"]
+        m.channel_present = bool(self.use_channel)
 
         hd = r["hd3"]          # already channel-free: the deck was built that way
         if hd.get("ok"):
             m.hd3_db = hd["hd3_db"]
+            m.hd3_ctle_db = hd.get("hd3_ctle_db", float("nan"))
         else:
             failed.append(f"hd3[{hd.get('note', '?')}]")
         nz = r["noise"]        # likewise channel-free
@@ -726,7 +799,8 @@ class Simulator:
             # peak-to-peak swing is 2*amp. Passing tx_swing_pp_v
             # straight in doubled the drive to 400 mV pp while the
             # exported deck still used 200 -- caught by the export test.
-            ey = self.tran_eye(p, corner, amp=self.tx_swing_pp_v / 2)
+            ey = self.tran_eye(p, corner, amp=self.meas.tx_swing_pp_v / 2,
+                               ui=self.meas.ui_s)
             if ey.get("ok"):
                 m.eye_height_v = ey["eye"].height_v
                 m.eye_width_ui = ey["eye"].width_ui
@@ -740,7 +814,7 @@ class Simulator:
 
     # ---- combined deck: one launch instead of four ---------------------
     def _combined(self, p: CtleParams, corner: pdk.Corner,
-                  hd3_amp: float = 0.1, hd3_freq: float = 100e6,
+                  hd3_amp: float | None = None, hd3_freq: float | None = None,
                   tag: str = "combo", channel: bool | None = None) -> dict:
         """Run op + ac + tran(HD3) + noise from ONE deck, one ngspice launch.
 
@@ -758,6 +832,8 @@ class Simulator:
         -- so "the file exists and parsed" is verified per analysis rather than
         inferred from the launch succeeding.
         """
+        hd3_amp = self.meas.hd3_amp_pp_v if hd3_amp is None else hd3_amp
+        hd3_freq = self.meas.hd3_freq if hd3_freq is None else hd3_freq
         dev = f"@m.x1.m{nl.NFET}"
         tail = f"@m.xt1.m{nl.NFET}"
         gm1 = f"@m.xg1p.m{nl.NFET}"
@@ -787,10 +863,11 @@ class Simulator:
             "ac dec 40 1e6 20e9\n"
             f"wrdata {f_ac.name} vdb(outp_ctle,outn_ctle) vdb(outp_dfe,outn_dfe) vdb(vinp,vinn)\n"
             f"tran {tstep:.6g} {tstop:.6g} 0 {tstep:.6g}\n"
-            f"wrdata {f_tr.name} v(outp_ctle,outn_ctle)\n"
+            f"wrdata {f_tr.name} v(outp_dfe,outn_dfe) v(outp_ctle,outn_ctle)\n"
             # noise LAST: setplot switches the active plot and would strand the
             # wrdata calls above.
-            "noise v(outp_dfe,outn_dfe) Vinp dec 20 10e6 5e9\n"
+            f"noise v(outp_dfe,outn_dfe) Vinp dec 20 {self.meas.noise_f_lo:.6g} "
+            f"{self.meas.noise_f_hi:.6g}\n"
             "setplot noise1\n"
             f"wrdata {f_nz.name} inoise_spectrum\n"
             "setplot noise2\n"
@@ -821,6 +898,9 @@ class Simulator:
         else:
             res["hd3"] = {"ok": True,
                           "hd3_db": _hd3_from_wave(d[:, 0], d[:, 1], hd3_freq)}
+            if d.shape[1] >= 4:     # t, dfe, t, ctle
+                res["hd3"]["hd3_ctle_db"] = _hd3_from_wave(d[:, 2], d[:, 3],
+                                                           hd3_freq)
         # --- noise ---
         res["noise"] = self._noise_from_file(f_nz, log)
         return res
@@ -880,11 +960,12 @@ class Simulator:
                 bw = float(f[i]); break
         out = {"ok": True, "dc_gain_db": dc, "peak_gain_db": peak,
                "peaking_db": peak - dc, "f_peak": fpk,
-               "gain_2g5_db": float(np.interp(2.5e9, f, gdb)), "bw_3db": bw}
+               "gain_nyq_db": float(np.interp(self.meas.nyquist, f, gdb)),
+               "bw_3db": bw}
         if gdb_sum is not None:
             out["sum_dc_gain_db"] = float(gdb_sum[0])
             out["sum_peak_gain_db"] = float(np.max(gdb_sum))
-            out["sum_gain_2g5_db"] = float(np.interp(2.5e9, f, gdb_sum))
+            out["sum_gain_nyq_db"] = float(np.interp(self.meas.nyquist, f, gdb_sum))
         return out
 
     def _noise_from_file(self, path: Path, log: str) -> dict:
@@ -919,7 +1000,7 @@ class Simulator:
             m.note = f"ac-failed[{acr.get('note', '?')}]"
             return m
         for k in ("dc_gain_db", "peak_gain_db", "peaking_db", "f_peak",
-                  "gain_2g5_db", "bw_3db"):
+                  "gain_nyq_db", "bw_3db"):
             setattr(m, k, acr[k])
         opr = self.op(p, corner)
         if not opr.get("ok"):
@@ -947,10 +1028,12 @@ class Simulator:
             m.power_w = corner.vdd * ((2.0 + 1.0 / nl.MIRROR_RATIO) * p.Itail
                                       + p.Ig1 + p.Igf)
         m.area_mm2 = p.area_um2()["total_mm2"]
+        m.channel_present = bool(self.use_channel)
         if do_hd3:
             tr = self.tran_hd3(p, corner)
             if tr.get("ok"):
                 m.hd3_db = tr["hd3_db"]
+                m.hd3_ctle_db = tr.get("hd3_ctle_db", float("nan"))
             else:
                 failed.append(f"hd3[{tr.get('note', '?')}]")
         if do_noise:
@@ -969,7 +1052,8 @@ class Simulator:
             # peak-to-peak swing is 2*amp. Passing tx_swing_pp_v
             # straight in doubled the drive to 400 mV pp while the
             # exported deck still used 200 -- caught by the export test.
-            ey = self.tran_eye(p, corner, amp=self.tx_swing_pp_v / 2)
+            ey = self.tran_eye(p, corner, amp=self.meas.tx_swing_pp_v / 2,
+                               ui=self.meas.ui_s)
             if ey.get("ok"):
                 m.eye_height_v = ey["eye"].height_v
                 m.eye_width_ui = ey["eye"].width_ui

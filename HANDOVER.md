@@ -3,9 +3,11 @@
 **Project root:** `~/pcie_eq_rl` (WSL native ext4 — *not* `/mnt/c`, see §2)
 **Last updated:** 2026-09-13
 **Status:** Two-stage equalizer (CTLE → DFE summing stage) with a lossy channel,
-sized end-to-end by the RL loop. **All 9 specs pass at all 20 of the brief's PVT
-corners** in 189 candidates (§16). LLM wrapper and schematic export **not built**
-(§0b).
+sized end-to-end by the RL loop. **All 8 brief specs pass at all 20 of the
+brief's PVT corners** in 95 candidates (§16) — the scorecard shows 10, the other
+two being internal checks (devices in saturation; does it actually equalise)
+rather than customer requirements. LLM wrapper and schematic export **not
+built** (§0b).
 
 ---
 
@@ -92,7 +94,7 @@ mistaken for done:
 | **outputs the final schematic** | ⚠️ **netlists, not a schematic.** `results/ctle_final*.sp` run and reproduce the report; `netlists/*.sch` are hand-drawn and now describe the OLD topology |
 | SKY130 PDK | ✅ |
 | Gym Utils | ⚠️ `CtleEnv` exists and passes `check_env`, but no deep-RL agent has been run through it |
-| **fewer search points than a sweep** | ⚠️ **unmeasured.** 189 candidates vs 5¹¹ = 48.8 M for a 5-point grid, but no baseline (e.g. random search at equal budget) has been run. **This is the biggest remaining gap — the Problem Statement asks for it explicitly.** |
+| **fewer search points than a sweep** | ✅ **measured** (§11). 95 candidates to a passing design; random search at the same budget reached 0.726 with **0 of 95** passing. A 5-point grid over 11 variables is 5¹¹ = 48.8 M designs = **6.8 years** at the measured per-candidate cost. |
 | zero human intervention | ✅ the starting point is derived automatically (`analytic.py`), not hand-seeded |
 | Anaconda | ❌ `requirements.txt` only, no `environment.yml` |
 | LLM wrapper (bonus) | ❌ |
@@ -123,7 +125,7 @@ reference design, which labels them "(Ideal)" too.
 
 ```bash
 cd ~/pcie_eq_rl
-python3 -m pytest tests/ -q                              # 145 tests
+python3 -m pytest tests/ -q                              # 164 tests
 python3 scripts/smoke_test.py                            # SPICE layer sanity
 python3 scripts/build_trimlib.py --grid spec             # 5.7x less model text
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
@@ -186,12 +188,12 @@ shipping an `environment.yml` remains an open conformance item.
 │   └── agents/cem.py        Cross-Entropy-Method policy search
 ├── tests/
 │   ├── conftest.py          the `needs_pdk` marker
-│   ├── test_pure.py         111 tests, no PDK needed, ~5 s
-│   └── test_spice.py        34 tests against real ngspice
+│   ├── test_pure.py         122 tests, no PDK needed, ~5 s
+│   └── test_spice.py        37 tests against real ngspice
 ├── scripts/
 │   ├── run_design.py        CLI entry point
 │   ├── build_trimlib.py     build + VALIDATE trimmed model libraries
-│   ├── baseline.py          random search at an equal budget (UNRUN, §11)
+│   ├── baseline.py          random search at an equal budget (§11, run)
 │   ├── pvt_sweep.py         parallel PVT sweep of every spec, with timing
 │   ├── smoke_test.py        SPICE-layer sanity checks (asserts)
 │   ├── plot_eye.py          render the closed-loop eye diagram
@@ -371,12 +373,23 @@ library: slow, never wrong.
 | `EqualizerSpec.require_eye` | **True by default**: a missing eye result FAILS rather than deleting `eye_h`/`eye_w` from the scorecard (§10 bug 24). `--no-eye` sets it False for deliberately AC-only runs |
 | `EqualizerSpec.tx_swing_pp_v` | transmitter drive, differential pk-pk, at the channel input. 200 mV pp — **conservative** against a real Gen2 transmitter's ~800 mV. An eye number is meaningless without it |
 | `Metrics.eye_openness_out` | eye opening as a **fraction of the swing at the same node** — invariant under gain |
-| `Metrics.eye_improvement` | openness at the slicer ÷ openness at the equaliser input. **>1 means real equalisation**; measured 1.93×, and 0.15 with the degeneration removed |
+| `Metrics.eye_improvement` | openness at the slicer ÷ openness at the equaliser input. **>1 means real equalisation**; measured 1.97× (1.53× worst corner), and 0.15 with the degeneration removed. SCORED as an internal check since bug 31 |
 | `Metrics.eye_height_in_v` / `eye_height_ctle_v` | the eye before the equaliser and after stage 1, so a gain-only solution is visible |
 | `Metrics.out_cm_v` | summing-node common mode, so drift from the mid-supply heuristic is measured rather than assumed (§4) |
 | `specs.margins()` / `binding_spec()` | fractional margin to the **nearest** limit, and the spec closest to failing. Two-sided specs must be quoted from the binding edge |
-| `specs.BRIEF_SPECS` / `INTERNAL_CHECKS` | 8 customer requirements vs the 1 internal saturation check |
+| `specs.BRIEF_SPECS` / `INTERNAL_CHECKS` | 8 customer requirements vs the 2 internal checks (`bias`, `equalises`) |
 | `Simulator.tran_hd3(channel=False)` / `.noise(channel=False)` | both default to channel-free: linearity and input-referred noise are properties of the EQUALISER (§10 bugs 22–23) |
+
+### New in this round — measurement conditions and the two-stage HD3
+
+| Symbol | Purpose |
+|---|---|
+| `spice.MeasCond` | **every** condition a measurement is taken under: `ui_s`, `tx_swing_pp_v`, `hd3_freq`, `hd3_amp_pp_v`, `noise_f_lo/hi`. Built from the spec by `MeasCond.from_spec()` — one mapping, one place. Duck-typed because `specs.py` imports `Metrics` from `spice.py`, so importing the spec here would be circular |
+| `EqualizerSpec.ui_s` | `1/(2*nyquist)`. NRZ Nyquist is half the baud rate, so the brief's 2.5 GHz is exactly 200 ps — the value that used to be hardcoded (§10 bug 29) |
+| `Metrics.hd3_db` / `hd3_ctle_db` | HD3 **at the slicer** (scored) and after stage 1 only (diagnostic). The second is what the project used to quote; it flatters by ~25 dB (§10 bug 27) |
+| `Metrics.channel_present` | was there ISI to remove? The `equalises` check is meaningless without a channel — from an ideal PWL source, openness can only drop — so the condition travels with the measurement (§10 bug 31) |
+| `EqualizerSpec.eye_improvement_min` | threshold for the `equalises` internal check; 1.0 = "no better than its own input" |
+| `specs.SOFT_FRAC` / `HD3_SOFT_DB` | reward barrier widths as a fraction of each limit, so a different spec keeps its gradient. Chosen to reproduce the old absolute values exactly at the default spec (§10 bug 30) |
 
 ### `eqrl/dfe.py` — DFE + eye
 `prbs()`, `nrz_pwl()`, `Eye`, `eye_from_waveform()` (closed-loop),
@@ -522,28 +535,30 @@ Every number below is read from `results/report.json`, not recalled:
 
 | Metric | Value | Spec | |
 |---|---|---|---|
-| Peaking | 8.21 dB @ 1.682 GHz | 3–12 dB, 1.25–2.5 GHz | pass |
-| DC gain | -4.59 dB | — | gain @ 2.5 GHz = +3.16 dB |
-| Power | 3.14 mW | < 15 mW | pass — **excludes the ideal comparator and latch** |
-| HD3 | -63.4 dBc | < −30 dBc | pass, measured at **full drive** (§10 bug 1b) |
-| Input noise | 0.545 mVrms | < 1.5 mVrms | pass, **both stages** counted (§10 bug 1a) |
-| Area | 0.000327 mm² | < 0.05 mm² | pass |
-| Eye | 189.0 mV × 0.547 UI | > 100 mV, > 0.4 UI | at **200 mV pp** drive |
-| **Eye openness** | **0.349 of swing, 1.93× better than at the input** | > 1 | see below |
-| Realised `gmF/gm1` | 0.0097 (`tap_pct` = 1.38 %) | — | §16 |
-| Summing-node CM | 1.450 V of 1.80 V | — | mid-supply heuristic wants 0.900 V (§4) |
+| Peaking | 6.74 dB @ 1.588 GHz | 3–12 dB, 1.25–2.5 GHz | pass |
+| DC gain | -1.81 dB | — | gain @ Nyquist = +4.25 dB |
+| Power | 2.67 mW | < 15 mW | pass — **excludes the ideal comparator and latch** |
+| HD3 | **-32.9 dBc** | < −30 dBc | pass, at the **slicer**, both stages (§10 bug 27) |
+| HD3 after stage 1 only | -57.9 dBc | — | diagnostic; this is what used to be quoted |
+| Input noise | 0.502 mVrms | < 1.5 mVrms | pass, **both stages** counted (§10 bug 1a) |
+| Area | 0.000308 mm² | < 0.05 mm² | pass |
+| Eye | 202.1 mV × 0.609 UI | > 100 mV, > 0.4 UI | at **200 mV pp** drive |
+| **Eye openness** | **0.355 of swing, 1.97× better than at the input** | > 1 | see below |
+| Realised `gmF/gm1` | 0.0076 (`tap_pct` = 1.07 %) | — | §16 |
+| Summing-node CM | 1.489 V of 1.80 V | — | mid-supply heuristic wants 0.900 V (§4) |
 
 ### Eye openness is the number that shows equalisation
 
 Eye **height** can be bought with summing-stage gain — measured across the 20
 corners it correlates with that gain at **0.982** and with peaking at only
-**0.468**, because `Rsum`/`Wg1`/`Ig1` are free variables. **Openness** (opening
+**0.468**, because `Rsum`/`Wg1`/`Ig1` are free variables. It is a scored
+internal check now, not merely a reported one (§10 bug 31). **Openness** (opening
 as a fraction of the swing at the same node) is invariant under scaling, so
 `eye_improvement` = openness at the slicer ÷ openness at the equaliser input
 measures equalisation rather than amplification.
 
-Measured: **1.93×**, and it collapses to **0.15** when the
-degeneration capacitor is removed. Doubling the summing-stage gain moves eye
+Measured: **1.97×** (1.53× at the worst corner), and it collapses to **0.15**
+when the degeneration capacitor is removed. Doubling the summing-stage gain moves eye
 height by tens of mV and `eye_improvement` barely at all. So this design really
 does equalise.
 
@@ -883,6 +898,84 @@ circuit and was never moved when the circuit changed.
     only when the documented commands were executed for real rather than
     `--help`'d. The audit now covers attribute access, kwargs and string keys.
 
+### Found by a second review round (2026-09-13, after checkpoint 2)
+
+27. **HD3 was still measured on ONE STAGE OF TWO — the same defect as bug 22,
+    surviving in a second place.** Bug 22 moved the *noise* probe from
+    `outp_ctle` to the summing node, with the reasoning written into
+    `spice.py`: the equaliser is two stages and the brief asks for a property
+    of the equaliser. Nobody applied that reasoning to HD3, which kept probing
+    `v(outp_ctle,outn_ctle)`.
+
+    It bites **harder** here than it did for noise. `summer_netlist()`'s Gm1 is
+    an **undegenerated** differential pair — the CTLE has `Rs‖Cs` linearising
+    it, the summing stage has nothing — so the omitted stage is the *more*
+    distorting one, and it is the node the slicer actually decides on.
+
+    Predicted from square law before measuring (`Id=204 µA`, `gm=3.92 mS` →
+    `Vov≈104 mV`, 59 mV on Gm1's gates, `HD3≈(1/32)(Vid/Vov)²` → −39.9 dBc),
+    then measured:
+
+    | | HD3 at typ |
+    |---|---|
+    | `outp_ctle` (stage 1 only — what shipped) | **−63.4 dBc** |
+    | `outp_dfe` (at the slicer — correct) | **−38.7 dBc** |
+
+    So the advertised margin was **33.4 dB and is really 8.7 dB**. Still passes
+    −30 dBc, but the number that was quoted described the more linear half of
+    the circuit. `hd3_ctle_db` is still reported alongside, because the
+    stage-by-stage split is what makes the result explainable — the same way
+    `eye_openness_ctle` sits beside `eye_openness_out`.
+
+28. **`tx_swing_pp_v` was recorded but never used.** `Simulator.__init__` set
+    `self.tx_swing_pp_v = 0.200` and **nothing anywhere assigned it from the
+    spec** — while `design.py` passed `spec.tx_swing_pp_v` to the deck exporter
+    and wrote it into `report.json`. Setting it to 800 mV would have given
+    metrics simulated at 200 mV, a report claiming 800 mV, and an exported deck
+    built at 800 mV: **defect D1 exactly** (artifact disagrees with report),
+    through a different door, and invisible only because the default happened
+    to equal the constant.
+
+    Root cause is the pattern, not the value: a post-construction attribute
+    assignment has no call site to update. It is a constructor argument now
+    (`MeasCond`), carried through `env._eval_task`'s task tuple because the
+    workers build their own `Simulator` in another process — anything not in
+    that tuple silently reverts to defaults there.
+    `tests/test_pure.py::test_worker_task_tuple_matches_what_the_worker_unpacks`
+    compares both ends of the tuple by AST so the two cannot drift.
+
+29. **`spec.nyquist` was read by NOTHING.** `tran_eye`'s `ui=200e-12` default
+    was never overridden by `_evaluate_combined`, and the noise band
+    (`10e6..5e9`), HD3 tone (`100e6`) and Nyquist probe (`2.5e9`) were literals
+    in `spice.py`. The framework was hard-wired to 5 Gb/s: a spec asking for
+    8 Gb/s got a confident 5 Gb/s answer with **no error at all**. All six
+    conditions now live in `MeasCond`, built from the spec by one mapping.
+
+30. **The reward's soft barriers did not scale with the spec.** `soft=3e-3` for
+    power means that asking for power < 2 mW gives a barrier 1.5× wider than
+    the whole limit — the score is flat exactly where it has to steer, and the
+    search runs blind until the hard-pass bonus fires. They are fractions of
+    each limit now (`SOFT_FRAC`), chosen to reproduce the previous absolute
+    values **exactly** at the default spec, so no published number moves. HD3
+    deliberately keeps an absolute 6 dB width: dB is already a ratio scale, so
+    "20% of −30 dB" is not a meaningful quantity.
+
+31. **`eye_improvement` was reported but never scored** — and my first attempt
+    at scoring it was wrong in an instructive way. Checkpoint 2 added the
+    metric that distinguishes equalising from amplifying, but nothing in
+    `score()` consulted it, so the gaming path was documented and disproven for
+    one sizing while staying wide open for any re-run. It is an internal check
+    now, alongside `bias` (deliberately **not** a brief spec —
+    `gain_nyq_min_db` is this project's cautionary tale about inventing one).
+
+    The instructive part: gating on `eye_improvement >= 1` unconditionally
+    **failed the default design**, reward 0.98 → the 0.3 cap. With no channel
+    the stimulus is an ideal PWL source, so the input eye is already perfect
+    and openness can only drop — improvement < 1 is then the correct physical
+    answer, not a defect. The gate is conditional on `channel_present`, which
+    `Metrics` now records, so the condition travels with the measurement
+    instead of being left for the scorer to assume.
+
 ### Corrections to earlier claims in this file
 
 - **"The mirror's unequal finger widths are a matching defect."** Retracted.
@@ -1092,10 +1185,9 @@ of the full suite. **Check the path that can fail, or the check is decorative.**
 | Item | Notes |
 |---|---|
 | **`netlists/*.sch` are STALE** | They describe the OLD merged topology. They are a cross-check only — never simulated — but they no longer match `netlist.py`, so the device-for-device diff in VERIFY.md §3 will not agree until they are regenerated. |
-| **No sweep-vs-RL baseline (UNRUN)** | The brief asks for *"significantly lower time than sweeping"*. The exhaustive side is arithmetic — a 5-point grid over 11 variables is 5¹¹ = **48.8 million** designs. The fair comparison, **random search at an equal 189-candidate budget**, has **not** been run; `scripts/baseline.py` does exactly that (`--budget 189 --channel --eye`, ~16 min). **Largest unmet requirement.** |
+| **Sweep-vs-RL baseline — MEASURED** | Random search at an equal **95-candidate** budget, same 4 corners, same scorer, same channel and eye: **best reward 0.726, 0 of 95 passing**, against CEM's **0.987 and a design that passes every spec at every corner**. `results/baseline.json`. The exhaustive side stays arithmetic: at the measured 4.42 s per candidate a 5-point grid over 11 variables (5¹¹ = 48.8 M designs) is **6.8 years**, a 3-point grid 217.7 hours. Caveat worth stating: CEM also had the analytic seed, so this compares two methods as a whole, not the search operator alone — the unseeded CEM run (§16) is the third data point. |
 | **No schematic export** | The brief asks for "the final schematic"; we emit `.sp` netlists. xschem's `.sch` is a text format, so generating one from `full_netlist()` is tractable and unbuilt. |
 | **"Tunable" has no mechanism** | The brief says *tunable 1.25–2.5 GHz* and *variable Rs, Cs*. `Cs` is a design-time constant; a switchable cap bank with a control word is not built, and nothing tests tunability (§0). |
-| **No sweep-vs-RL baseline** | The Problem Statement asks for *"significantly lower time than sweeping"*. The exhaustive side is arithmetic: a 5-point grid over 11 variables is 5¹¹ = **48.8 million** designs, which at the measured cost is millennia — not a close contest. The *fair* comparison a reviewer would ask for, **random search at an equal 189-candidate budget**, has NOT been run. `scripts/baseline.py` exists and does exactly that (`--budget 189 --channel --eye`, ~16 min). **Still the largest unmet requirement.** |
 | **`ad`/`as`/`pd`/`ps` pinned to 0** | Junction capacitance is zero in the netlist, so output capacitance is understated and every `f_peak` is optimistic. Measured `Cdd` = 0.14 fF, which is the tell. |
 | **Slicer/latch are ideal** | XSPICE code models with 20 ps clk→Q against 50–150 ps for a real StrongARM, no offset, no metastability, no kickback. The <200 ps loop-delay budget is asserted, not proven. The reference labels its own comparator and flop "(Ideal)" too. |
 | **No CDR** | The sampling clock phase is fixed, not recovered. Swept across 8 phases it changed the eye by under 2 %, so it is not currently binding — but a real link needs one. |
@@ -1111,9 +1203,13 @@ of the full suite. **Check the path that can fail, or the check is decorative.**
 - **LLM natural-language wrapper** — the bonus deliverable.
 - **Schematic output** — netlists only (§11).
 - **Runtime tunability** — no cap bank, no control word (§0).
-- **Sweep/random-search baseline** — the headline claim is unmeasured (§11).
 - **Transistor-level slicer and latch** — behavioural by design.
 - **Candidate batching** — one deck per candidate; ~16× still available (§9).
+- **A bit rate other than 5 Gb/s is now WIRED but untested.** `spec.nyquist`
+  really does drive the UI, the latch clock and the Nyquist probe (§10 bug 29),
+  and a pure test pins the arithmetic — but no design has actually been sized at
+  another rate, and the channel model is fixed FR4 regardless. Treat a non-5 Gb/s
+  run as unvalidated, not as unsupported.
 
 ---
 
@@ -1162,10 +1258,9 @@ No remote is configured. `git remote add origin <url>` when you have one.
 ```bash
 export PDK_ROOT=/home/kanishk/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b
 
-# tests: 135 total -- 108 fast (no PDK) + 27 against real ngspice.
-# 3 of the ngspice tests currently FAIL; see 11.
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 111, ~5 s
-python3 -m pytest tests/ -q                      # all 145, ~2 min
+# tests: 164 total -- 127 fast (no PDK) + 37 against real ngspice.
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 127, ~5 s
+python3 -m pytest tests/ -q                      # all 164, ~2 min
 
 # SPICE layer sanity (asserts, so it can fail)
 python3 scripts/smoke_test.py
@@ -1203,17 +1298,21 @@ git log --oneline
 
 Ranked by what the brief actually grades:
 
-1. **Measure RL vs a sweep.** The Problem Statement asks for *"significantly
-   lower time than sweeping all MOS, R, C, L parameter space"* and there is no
-   measurement. Run random search at an equal evaluation budget (189
-   candidates) and report both. This is the headline claim and it is currently
-   unsupported. Cheap now: ~10 minutes.
-2. **Export a schematic.** The deliverable says *"outputs the final
+1. **Buy back HD3 margin.** Now that HD3 is measured where the slicer decides
+   (§10 bug 27) the design passes by **1.24 dB**, and that is the binding spec.
+   The lever is the undegenerated Gm1: degenerate it, or trade its gain down
+   and let the CTLE carry more. The eye-height spec pays for it, so this is a
+   real design trade rather than a free fix — which is exactly why it is worth
+   doing deliberately rather than leaving the optimiser to sit on the boundary.
+2. **Size at a rate other than 5 Gb/s.** The plumbing exists and is tested
+   (§10 bug 29) but has never been exercised end to end, and the channel model
+   is fixed FR4 regardless of the rate. Either validate it or say so.
+3. **Export a schematic.** The deliverable says *"outputs the final
    schematic"*; we emit netlists, and `netlists/*.sch` are stale (§11). xschem's
    format is text, so generating one from `full_netlist()` is tractable.
-3. **Batch candidates into one deck** (§9) — ~16× and the only large speed win
+4. **Batch candidates into one deck** (§9) — ~16× and the only large speed win
    left, now that parsing is no longer dominant.
-4. **Then** the runtime cap bank for "tunable" (§0), a transistor-level slicer,
+5. **Then** the runtime cap bank for "tunable" (§0), a transistor-level slicer,
    and the LLM wrapper. All three are credibility investments rather than
    coverage gaps.
 
@@ -1230,14 +1329,14 @@ parsing no matter how small the circuit — so anything provable without a
 simulator should be.
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 111 tests, ~5 s, no PDK
-python3 -m pytest tests/ -q                      # all 145, ~2 min
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 127 tests, ~5 s, no PDK
+python3 -m pytest tests/ -q                      # all 164, ~2 min
 ```
 
 | tier | file | needs | covers |
 |---|---|---|---|
-| pure | `tests/test_pure.py` (111) | nothing | value↔geometry round trips, `denorm`/`norm`, corner→`.lib` section names, PRBS, eye metrics, the scorer's NaN and gating behaviour, netlist text invariants, the Gymnasium env |
-| spice | `tests/test_spice.py` (34) | PDK + ngspice | device-model conventions (`m=` vs `mult=`, `W` total vs per-finger), every analysis, the tap polarity, the combined deck's equivalence, trimmed-library equivalence, `evaluate()` end to end |
+| pure | `tests/test_pure.py` (122) | nothing | value↔geometry round trips, `denorm`/`norm`, corner→`.lib` section names, PRBS, eye metrics, the scorer's NaN and gating behaviour, netlist text invariants, the Gymnasium env |
+| spice | `tests/test_spice.py` (37) | PDK + ngspice | device-model conventions (`m=` vs `mult=`, `W` total vs per-finger), every analysis, the tap polarity, the combined deck's equivalence, trimmed-library equivalence, `evaluate()` end to end |
 
 `tests/conftest.py` defines the `needs_pdk` marker and skips that tier when
 `find_sky130_lib()` raises, so the fast tier runs on a machine with no PDK.
@@ -1273,7 +1372,7 @@ keep if anything is ever trimmed:
 
 ## 16. The RL loop, run end to end
 
-**Command** (~17 min on 16 cores):
+**Command** (~11 min on 16 cores):
 ```bash
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel \
         --pop 48 --iters 15 --seed 0
@@ -1286,41 +1385,57 @@ anything.**
 
 | spec | worst case over 20 corners | limit | |
 |---|---|---|---|
-| HF peaking | 7.33 dB | 3–12 dB | pass |
-| **f_peak** | **1.887 GHz** | 1.25–2.5 GHz | **binding, +13.2%** |
-| HD3 | -59.9 dBc | < −30 dBc | pass |
-| input noise | 0.655 mVrms | < 1.5 mVrms | pass |
-| power | 3.41 mW | < 15 mW | pass |
-| area | 0.000327 mm² | < 0.05 mm² | pass |
-| eye height | 126.8 mV | > 100 mV | pass |
-| eye width | 0.484 UI | > 0.4 UI | pass |
+| HF peaking | 5.89 dB | 3–12 dB | pass |
+| f_peak | 1.781 GHz | 1.25–2.5 GHz | pass, +6.9% |
+| **HD3** | **−31.2 dBc** | < −30 dBc | **binding, +4.1% (1.24 dB)** |
+| input noise | 0.617 mVrms | < 1.5 mVrms | pass |
+| power | 2.89 mW | < 15 mW | pass |
+| area | 0.000308 mm² | < 0.05 mm² | pass |
+| eye height | 131.1 mV | > 100 mV | pass |
+| eye width | 0.563 UI | > 0.4 UI | pass |
 
-The scorecard shows **9** entries; the ninth (`bias`) is an internal "are the
-devices actually in saturation" check, **not a customer requirement**. Quote 8.
+The scorecard shows **10** entries; the other two (`bias`, `equalises`) are
+internal checks, **not customer requirements**. Quote 8.
 
-**Quote the margin from the BINDING edge.** `f_peak` is a two-sided spec and the
-worst corner sits **1.887 GHz**, +13.2% of the band from
-its nearest limit. Earlier revisions quoted it against the 2.5 GHz ceiling,
-which is the comfortable side and flatters. `report.json` records
-`binding_spec` and `margins_worst` so this cannot drift again.
+**Quote the margin from the BINDING edge.** `report.json` records
+`binding_spec` and `margins_worst` so this cannot drift.
+
+**The binding spec changed when HD3 was measured correctly** (§10 bug 27). With
+the probe on the CTLE output the same design reads **−55.2 dBc** worst-case and
+`f_peak` looks binding at +13.2%; with the probe where the slicer decides, HD3
+is **−31.2 dBc** and binding at **+4.1%**. Nothing about the circuit changed —
+only which half of it was being measured.
+
+**1.24 dB is genuinely tight**, and it should be read as such: it is inside the
+range that model uncertainty, the missing junction capacitance (§11) and a real
+(non-ideal) slicer could plausibly move. The design passes as measured; it is
+not a design with comfortable distortion margin. Buying margin back means
+degenerating Gm1 or dropping its gain, and the eye-height spec pays for it.
 
 ### Sizing found
 
 ```
-W=24.27um  L=0.2um  RL=782.9ohm  Rs=2208.7ohm  Cs=257.8fF
-Itail=635.0uA  Wtail=97.93um  Rsum=1732.9ohm
-Wg1=42.94um  Ig1=407.0uA  tap_pct=1.379%
+W=30.26um  L=0.2426um  RL=983.1ohm  Rs=1890.8ohm  Cs=253.3fF
+Itail=539.0uA  Wtail=84.47um  Rsum=1823.0ohm
+Wg1=33.44um  Ig1=345.0uA  tap_pct=1.072%
 ```
+
+Compared with the sizing found before HD3 was measured at the slicer, the search
+backed the summing stage off: `Ig1` 407 → 345 µA and `Wg1` 42.9 → 33.4 µm, with
+more of the gain moved into the CTLE (`RL` 783 → 983 Ω, DC gain −4.59 → −1.81 dB).
+That is the expected response to a distortion constraint that finally sees the
+undegenerated stage — and a useful side effect, since summing-stage gain is
+exactly what eye height could otherwise be bought with.
 
 ### Cost
 
 | | |
 |---|---|
-| candidates simulated | **189** |
-| (candidate × corner) evaluations | 756 |
-| ngspice launches, search | 1512 |
+| candidates simulated | **95** |
+| (candidate × corner) evaluations | 380 |
+| ngspice launches, search | 760 |
 | ngspice launches, 20-corner verify | 40 |
-| convergence | `[0.9767, 0.988, 0.988, 0.998]`, stopped early at iteration **4 of 15** |
+| convergence | `[0.9778, 0.9873]`, stopped early at iteration **2 of 15** |
 
 Two launches per evaluation: one channel-free deck carrying op/ac/tran/noise,
 one closed-loop eye with the channel. An earlier version ran four — the combined
@@ -1328,11 +1443,14 @@ deck was needlessly carrying the channel and HD3/noise were then re-run without
 it. See §9.
 
 ⚠️ `stop_on_pass` halts at the **first design that passes**, which is
-first-feasible, not the *"near-optimal"* the brief asks for. And the
-sweep/random-search comparison the Problem Statement requests has **not** been
-run (§11) — `scripts/baseline.py` exists for it. An exhaustive grid over these
-11 variables is 5¹¹ = 48.8 million designs, which is arithmetic rather than a
-measurement.
+first-feasible, not the *"near-optimal"* the brief asks for. That caveat stands.
+
+The sweep comparison the Problem Statement asks for **has now been run** (§11):
+random search at the same 95-candidate budget, through the same `Objective`,
+same corners, same scorer, reached **0.726 and 0 of 95 passing** against CEM's
+**0.987 and a passing design**. So the search is doing real work, not riding the
+analytic seed alone — though it is fair to say the seed is part of the method,
+and the unseeded CEM run below is the third data point.
 
 ### What made it work — three fixes, each found by a run that failed
 

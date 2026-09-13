@@ -16,8 +16,8 @@ The fastest check that nothing is broken. The pure tier needs no PDK and no
 ngspice, so it runs anywhere in under a second:
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 111 tests, ~5 s, no PDK
-python3 -m pytest tests/ -q                      # all 145, ~2 min with the PDK
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 127 tests, ~5 s, no PDK
+python3 -m pytest tests/ -q                      # all 164, ~2 min with the PDK
 ```
 
 Two of those tests are worth reading on their own, because they pin device-model
@@ -507,8 +507,9 @@ print('report', round(r['eye_height_v']*1e3,1),'mV', round(r['eye_width_ui'],3),
 ```
 
 Measured after the D1 fix: deck and report agree to **0.00 %**
-(189.0 mV × 0.547 UI both). Before the fix the deck read **591.8 mV × 0.750 UI**
-— 3.1× optimistic — because it had no channel, and it exited 0 while doing so.
+(202.1 mV × 0.609 UI both, re-verified against the current `report.json`).
+Before the fix the deck read **591.8 mV × 0.750 UI** — 3.1× optimistic —
+because it had no channel, and it exited 0 while doing so.
 
 The AC comparison below should also hold:
 

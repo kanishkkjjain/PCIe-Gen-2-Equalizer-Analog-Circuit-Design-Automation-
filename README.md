@@ -49,7 +49,7 @@ against a real Gen2 transmitter's ~800 mV. Converged at iteration
 | Closed-loop DFE in SPICE (ideal comparator + 1 UI latch) | ✅ |
 | **RL loop end-to-end, 9/9 specs at 20/20 corners** | ✅ |
 | Automatic analytic starting point (no hand-seeding) | ✅ |
-| Test suite (135: 108 fast + 27 against ngspice) | ⚠️ **132 pass, 3 fail** — see `HANDOVER.md` §11 |
+| Test suite (145: 111 fast + 34 against ngspice) | ✅ all passing |
 | **Schematic output** (we emit netlists) | ❌ |
 | **Sweep-vs-RL baseline** — the brief asks for it | ❌ |
 | Runtime "tunable" mechanism · Anaconda env · LLM wrapper | ❌ |
@@ -77,7 +77,7 @@ eqrl/
   env.py        Objective (parallel, cached) + Gymnasium CtleEnv
   agents/cem.py Cross-Entropy-Method policy search
   design.py     orchestrator: specs in -> sized decks + report.json
-tests/          135 total: 108 pure (no PDK, ~5 s) + 27 against real ngspice
+tests/          145 total: 111 pure (no PDK, ~5 s) + 34 against real ngspice
 scripts/        run_design, build_trimlib, pvt_sweep, smoke_test, plotting
 netlists/       xschem schematics -- CROSS-CHECK ONLY, currently STALE
 ```
@@ -100,7 +100,7 @@ ngspice-42 (XSPICE + KLU), xschem 3.4.4, Python 3.12. SKY130 via volare.
 ## Run
 
 ```bash
-python3 -m pytest tests/ -q                        # 135 tests, ~70 s (3 FAIL, §11)
+python3 -m pytest tests/ -q                        # 145 tests, ~2 min
 python3 scripts/build_trimlib.py --grid spec       # 22.4x faster evaluations
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
 ```

@@ -125,9 +125,11 @@ def pvt_grid(mode: str = "spec", full: bool | None = None) -> list[Corner]:
     physically exists and, measured on this CTLE, moves f_peak by 29.7% --
     more than the process corners do.
 
-    Measured on the Itap=50uA design: worst-case f_peak is 2.517 GHz on the
-    "spec" grid but 2.991 GHz on "full". Reporting only the spec grid
-    understates the worst case by 19%.
+    Measured HISTORICALLY, on the old merged single-stage topology (when the
+    tap was an absolute current `Itap`, since replaced by `tap_pct`): worst-case
+    f_peak was 2.517 GHz on the "spec" grid but 2.991 GHz on "full" -- reporting
+    only the spec grid understated the worst case by 19%. The point stands for
+    the current design even though those numbers are from the old one.
 
     ``full=`` is a deprecated alias kept so existing callers keep working:
     full=True -> "full", full=False -> "quick".

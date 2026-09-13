@@ -13,16 +13,63 @@ one parameter set at one PVT corner.
 from __future__ import annotations
 
 import math
+import os
 import shutil
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
 from . import netlist as nl
 from . import pdk
+from . import trimlib
 from .netlist import CtleParams
+
+# Where validated trimmed libraries live. Outside the repo, and persistent --
+# if it is wiped, validated_lib() returns None and everything falls back to the
+# full library, which is slow but correct.
+# Measured on this design with the FULL library: ~322 MiB resident per ngspice
+# process, almost all of it parsed model data. A trimmed library holds roughly
+# a sixth of the model text, so the estimate drops with it.
+NGSPICE_RSS_MIB_FULL = 350
+NGSPICE_RSS_MIB_TRIMMED = 120
+
+
+def available_mib() -> int:
+    """MemAvailable in MiB, or a large number if it cannot be read."""
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return 1 << 20
+
+
+def safe_job_count(requested: int | None = None, trimmed: bool = False,
+                   reserve_mib: int = 1024) -> int:
+    """Parallel workers that fit in RAM as well as in cores.
+
+    16 ngspice processes at ~322 MiB each is 5.0 GiB, which on a 7.6 GiB box
+    leaves too little headroom -- measured, it OOM-killed unrelated background
+    tasks during a run. An OOM-killed worker is a RESOURCE failure that the
+    scorer would otherwise see as a bad design, so it is worth avoiding rather
+    than merely detecting.
+
+    ``reserve_mib`` is left for the OS, the parent process and anything else
+    the user is running.
+    """
+    cores = os.cpu_count() or 4
+    want = requested if requested else min(16, cores)
+    per = NGSPICE_RSS_MIB_TRIMMED if trimmed else NGSPICE_RSS_MIB_FULL
+    budget = max(0, available_mib() - reserve_mib)
+    by_mem = max(1, budget // per)
+    return max(1, min(want, cores, by_mem))
+
+
+DEFAULT_TRIM_DIR = Path(
+    os.environ.get("EQRL_TRIMLIB", Path.home() / ".cache" / "eqrl" / "trimlib"))
 
 
 @dataclass
@@ -55,8 +102,12 @@ class Metrics:
     # closed-loop DFE eye (only populated when evaluate(do_eye=True))
     eye_height_v: float = float("nan")
     eye_width_ui: float = float("nan")
-    tap_weight_v: float = float("nan")
+    tap_ratio: float = float("nan")     # realised gmF/gm1, measured from .op
+    gm_g1: float = float("nan")
+    gm_gf: float = float("nan")
+    summer_saturated: bool = False
     saturated: bool = False
+    partial: bool = False            # some analyses failed; metrics are NaN
     note: str = ""
 
     def as_dict(self) -> dict:
@@ -66,24 +117,67 @@ class Metrics:
 
 class Simulator:
     def __init__(self, workdir: str | Path, ngspice_bin: str = "ngspice",
-                 timeout: float = 60.0):
+                 timeout: float = 300.0, use_trimmed: bool = True,
+                 trim_dir: str | Path | None = None,
+                 use_channel: bool = False):
         self.workdir = Path(workdir)
         self.workdir.mkdir(parents=True, exist_ok=True)
         self.ngspice = shutil.which(ngspice_bin) or ngspice_bin
+        # 300 s, not 60: a closed-loop eye is ~10 s standalone but ~2x that
+        # under 16-way contention, and a TIMEOUT is indistinguishable from a
+        # bad design to the scorer -- it would be silently ranked as a failed
+        # candidate and steer the search away from a region for no reason.
         self.timeout = timeout
         self._lib = str(pdk.find_sky130_lib())
+        # S3: the honest cost metric. One evaluate() launches ngspice 4-5x, so
+        # counting "evaluations" understates SPICE cost by that factor.
+        self.n_launches = 0
+        self.last_error: str | None = None
+        # Trimmed libraries are opt-OUT, but they are only ever used for a
+        # section that has been PROVEN identical to the full library (see
+        # trimlib.validate). An unvalidated or stale section silently and
+        # correctly falls back to the full library -- slow, never wrong.
+        self.trim_dir = Path(trim_dir) if trim_dir else DEFAULT_TRIM_DIR
+        self.use_trimmed = use_trimmed
+        self._lib_cache: dict[str, str] = {}
+        self.trimmed_sections_used: set[str] = set()
+        # A lossy channel in front of the equaliser. Off by default so every
+        # number recorded before this existed stays reproducible.
+        self.use_channel = use_channel
 
     # ---- deck assembly -------------------------------------------------
+    def lib_for(self, section: str) -> str:
+        """Model library to use for one corner section.
+
+        Returns the trimmed library only if it exists AND was validated against
+        this exact PDK; otherwise the full one. Never raises -- falling back is
+        always safe, so a missing or stale trim degrades speed, not accuracy.
+        """
+        if section in self._lib_cache:
+            return self._lib_cache[section]
+        chosen = self._lib
+        if self.use_trimmed:
+            try:
+                t = trimlib.validated_lib(section, self.trim_dir)
+                if t is not None:
+                    chosen = str(t)
+                    self.trimmed_sections_used.add(section)
+            except Exception:
+                chosen = self._lib          # any doubt -> full library
+        self._lib_cache[section] = chosen
+        return chosen
+
     def _header(self, corner: pdk.Corner) -> str:
         return (f"* auto-generated CTLE deck  corner={corner.name}\n"
-                f'.lib "{self._lib}" {corner.lib_section}\n'
+                f'.lib "{self.lib_for(corner.lib_section)}" {corner.lib_section}\n'
                 f".temp {corner.temp:.4g}\n"
                 f".param Vcm={{Vcm}}\n")
 
     def _assemble(self, p: CtleParams, corner: pdk.Corner, analysis: str,
                   control: str, tran_amp: float = 0.1,
                   tran_freq: float = 100e6, dfe: str | None = None,
-                  src_override: str | None = None) -> str:
+                  src_override: str | None = None,
+                  ui: float = 200e-12, channel: bool | None = None) -> str:
         """Assemble a deck.
 
         ``dfe`` selects how the tap pair's gates are driven:
@@ -91,10 +185,30 @@ class Simulator:
           "pos"/"neg"  -> fully steered one way (to measure the tap weight)
           "closed"     -> the XSPICE slicer->latch->tap feedback loop
         Without one of these, vfbp/vfbn float and every analysis fails.
+
+        ``ui`` sets the DFE latch clock. It MUST come from the caller: it was
+        previously left at dfe_decision_path's 200 ps default while the PRBS
+        followed the requested UI, so any bit rate but 5 Gb/s silently sampled
+        the eye at the wrong rate.
         """
+        use_ch = self.use_channel if channel is None else channel
         src = (src_override if src_override is not None
                else nl.build_source_lines(analysis, tran_amp=tran_amp,
                                           tran_freq=tran_freq))
+        ch_opts = ""
+        if use_ch:
+            # The ladder adds 80 inductors and ngspice's default abstol (1e-12 A)
+            # is too tight for it: transients die with "timestep too small,
+            # trouble with node ...#branch". Measured, abstol=1e-10 fixes it.
+            # NOT switching to method=gear, which would damp the ladder's
+            # ringing and understate the very ISI we are trying to measure.
+            ch_opts = ".options abstol=1e-10 vntol=1e-6\n"
+            # Re-target the stimulus at the channel input. The channel's output
+            # IS vinp/vinn, so the equaliser netlist is byte-identical with or
+            # without a channel -- only what drives its gates changes.
+            src = (src.replace(" vinp ", f" {nl.CH_SRC_P} ")
+                      .replace(" vinn ", f" {nl.CH_SRC_N} "))
+            src += nl.channel_netlist()
         if dfe in (None, "cm"):
             src += nl.dfe_static_bias()
         elif dfe == "pos":
@@ -102,35 +216,97 @@ class Simulator:
         elif dfe == "neg":
             src += nl.dfe_static_tap(-1.0)
         elif dfe == "closed":
-            src += nl.dfe_decision_path()
+            src += nl.dfe_decision_path(ui_s=ui)
         else:
             raise ValueError(f"unknown dfe mode {dfe!r}")
         # substitute Vcm literal (kept as a param for readability)
         deck = [
             self._header(corner),
+            ch_opts,
             f".param Vcm={p.Vcm:.4g}",
             f"Vdd vdd 0 DC {corner.vdd:.4g}",
             src.replace("{Vcm}", f"{p.Vcm:.4g}"),
-            p.core_netlist(),
+            p.full_netlist(),
             control,
             ".end\n",
         ]
         return "\n".join(deck)
 
+    # ngspice reports most fatal conditions on stdout and STILL EXITS 0, so a
+    # returncode check alone is not enough. Every pattern here has been seen in
+    # this project; the tag is what ends up in Metrics.note so a failure is
+    # traceable to a cause instead of appearing as a bad design.
+    FATAL_PATTERNS: tuple[tuple[str, str], ...] = (
+        ("could not find a valid modelname", "model-bin-miss"),
+        ("device already exists", "duplicate-instance"),
+        ("unknown subckt", "missing-subckt"),
+        ("could not find a valid subcircuit", "missing-subckt"),
+        ("simulation interrupted", "sim-interrupted"),
+        ("singular matrix", "singular-matrix"),
+        ("iteration limit reached", "no-convergence"),
+        ("too many iterations without convergence", "no-convergence"),
+        ("timestep too small", "timestep-too-small"),
+        ("mif-error", "xspice-error"),
+        ("error on line", "deck-syntax"),
+        ("fatal error", "fatal"),
+        ("is not a valid instance name", "bad-instance-name"),
+        ("no such vector", "missing-vector"),
+        ("out of memory", "oom"),
+    )
+    # Benign notes that contain scary words; never treat these as failures.
+    BENIGN = (
+        "no compatibility mode selected",
+        'no ".plot", ".print", or ".fourier" lines',
+    )
+
+    @classmethod
+    def scan_log(cls, log: str) -> str | None:
+        """Return a short tag for the first fatal condition in an ngspice log.
+
+        ngspice frequently prints a fatal error and exits 0, so this is the only
+        reliable failure signal. Callers must treat a non-None result as a hard
+        failure -- silently returning NaN metrics makes a broken deck look like
+        a bad design, which steers the optimiser for no reason.
+        """
+        low = log.lower()
+        for benign in cls.BENIGN:
+            low = low.replace(benign, "")
+        for pat, tag in cls.FATAL_PATTERNS:
+            if pat in low:
+                return tag
+        return None
+
     def _run(self, deck: str, tag: str) -> tuple[bool, str]:
         deck_path = self.workdir / f"{tag}.sp"
         deck_path.write_text(deck)
+        self.n_launches += 1
         try:
             r = subprocess.run(
                 [self.ngspice, "-b", str(deck_path)],
                 cwd=self.workdir, capture_output=True, text=True,
                 timeout=self.timeout,
             )
-            return True, (r.stdout + "\n" + r.stderr)
+            log = r.stdout + "\n" + r.stderr
+            err = self.scan_log(log)
+            if err is None and r.returncode != 0:
+                # Negative codes are signals. -9 is SIGKILL, which on this box
+                # overwhelmingly means the OOM killer: 16 parallel ngspice
+                # processes on 7.6 GiB is enough to trigger it. That is a
+                # RESOURCE failure, not a bad design, and the distinction
+                # matters -- scoring it as a design would teach the optimiser
+                # to avoid a perfectly good region of the space.
+                err = {-9: "killed-oom", -11: "segfault"}.get(
+                    r.returncode, f"exit-{r.returncode}")
+            if err is not None:
+                self.last_error = err
+                return False, f"FATAL[{err}] deck={tag}\n" + log
+            return True, log
         except subprocess.TimeoutExpired:
-            return False, "TIMEOUT"
+            self.last_error = "timeout"
+            return False, f"FATAL[timeout] deck={tag} after {self.timeout}s"
         except FileNotFoundError:
-            return False, "ngspice-not-found"
+            self.last_error = "ngspice-not-found"
+            return False, "FATAL[ngspice-not-found]"
 
     @staticmethod
     def _read_wrdata(path: Path) -> np.ndarray | None:
@@ -152,14 +328,31 @@ class Simulator:
         control = (
             ".control\n"
             "ac dec 40 1e6 20e9\n"
-            f'wrdata {out.name} vdb(voutp,voutn)\n'
+            # column 1 = CTLE stage (peaking/f_peak are specified there),
+            # column 2 = the summing node, which is what the slicer sees
+            f'wrdata {out.name} vdb(outp_ctle,outn_ctle) vdb(outp_dfe,outn_dfe) vdb(vinp,vinn)\n'
             ".endc\n"
         )
         ok, log = self._run(self._assemble(p, corner, "ac", control), tag)
+        if not ok:
+            return {"ok": False, "log": log, "note": _fatal_tag(log)}
         d = self._read_wrdata(out)
         if d is None or d.shape[1] < 2:
-            return {"ok": False, "log": log}
+            return {"ok": False, "log": log, "note": "ac produced no data"}
         f, gdb = d[:, 0], d[:, 1]
+        # wrdata repeats the x column per expression: cols are
+        # f, ctle, f, summing-node, f, equaliser-input
+        gdb_sum = d[:, 3] if d.shape[1] >= 4 else None
+        # Reference both to the EQUALISER's input. With a channel in front, the
+        # raw traces include its loss, and "peaking" would then describe the
+        # channel+equaliser cascade -- but the brief's 3-12 dB boost is a
+        # property of the equaliser. Without a channel v(vinp,vinn) is the 1 V
+        # AC drive (0 dB) and this subtraction changes nothing.
+        if d.shape[1] >= 6:
+            gin = d[:, 5]
+            gdb = gdb - gin
+            if gdb_sum is not None:
+                gdb_sum = gdb_sum - gin
         # dc gain ~ lowest frequency point
         dc = float(gdb[0])
         ipk = int(np.argmax(gdb))
@@ -172,65 +365,109 @@ class Simulator:
         for i in range(ipk, len(f)):
             if gdb[i] <= target:
                 bw = float(f[i]); break
-        return {"ok": True, "dc_gain_db": dc, "peak_gain_db": peak,
-                "peaking_db": peak - dc, "f_peak": fpk, "gain_2g5_db": g25,
-                "bw_3db": bw}
+        out_d = {"ok": True, "dc_gain_db": dc, "peak_gain_db": peak,
+                 "peaking_db": peak - dc, "f_peak": fpk, "gain_2g5_db": g25,
+                 "bw_3db": bw}
+        if gdb_sum is not None:
+            out_d["sum_dc_gain_db"] = float(gdb_sum[0])
+            out_d["sum_peak_gain_db"] = float(np.max(gdb_sum))
+            out_d["sum_gain_2g5_db"] = float(np.interp(2.5e9, f, gdb_sum))
+        return out_d
 
     def op(self, p: CtleParams, corner: pdk.Corner, tag: str = "op") -> dict:
         # Derived from netlist.NFET, never hardcoded: the sky130 subckt names its
         # internal MOS "m<subckt-name>", so the probe path must track the device
         # flavour. A mismatch here fails silently (no rows parsed -> ok=False ->
         # saturated=False -> reward capped at 0.2 for every candidate).
-        dev = f"@m.x1.m{nl.NFET}"      # input pair
+        dev = f"@m.x1.m{nl.NFET}"      # CTLE input pair
         tail = f"@m.xt1.m{nl.NFET}"    # real tail device -- headroom now matters
+        # Summing stage: the tap weight is gmF/gm1, so both must be measured.
+        gm1 = f"@m.xg1p.m{nl.NFET}"
+        gmf = f"@m.xgfp.m{nl.NFET}"
         control = (
             ".control\n"
             "op\n"
             f"print {dev}[id] {dev}[gm] {dev}[vds] {dev}[vdsat] {dev}[vgs]\n"
             f"print {tail}[id] {tail}[vds] {tail}[vdsat]\n"
+            f"print {gm1}[gm] {gm1}[id] {gm1}[vds] {gm1}[vdsat]\n"
+            f"print {gmf}[gm] {gmf}[id] {gmf}[vds] {gmf}[vdsat]\n"
             "print i(Vdd)\n"          # true total supply current
             ".endc\n"
         )
         ok, log = self._run(self._assemble(p, corner, "op", control), tag)
+        if not ok:
+            return {"ok": False, "log": log, "note": _fatal_tag(log)}
         v = _parse_prints(log)
         need = [f"{dev}[{k}]" for k in ("id", "gm", "vds", "vdsat", "vgs")]
+        # The TAIL probe is required too. Leaving it optional reproduced exactly
+        # the failure this file already fixed for the input pair: a stale probe
+        # path yields ok=True with saturated=False, specs.score() then caps
+        # every candidate at reward 0.2, and the search goes flat with no error.
+        need += [f"{tail}[{k}]" for k in ("id", "vds", "vdsat")]
         if not all(k in v for k in need):
-            return {"ok": False, "log": log}
-        idv, gm, vds, vdsat, vgs = (v[k] for k in need)
-        t_id = v.get(f"{tail}[id]", float("nan"))
-        t_vds = v.get(f"{tail}[vds]", float("nan"))
-        t_vdsat = v.get(f"{tail}[vdsat]", float("nan"))
+            missing = [k for k in need if k not in v]
+            return {"ok": False, "log": log,
+                    "note": f"op probe missing {missing}"}
+        idv, gm, vds, vdsat, vgs = (v[f"{dev}[{k}]"] for k in
+                                    ("id", "gm", "vds", "vdsat", "vgs"))
+        t_id = v[f"{tail}[id]"]
+        t_vds = v[f"{tail}[vds]"]
+        t_vdsat = v[f"{tail}[vdsat]"]
         # ngspice reports source current flowing INTO the + terminal, so the
         # supply draw is the magnitude.
         isup = abs(v.get("i(vdd)", float("nan")))
         tail_sat = (t_vds == t_vds) and (t_vds > t_vdsat + 0.02)
+        g1 = v.get(f"{gm1}[gm]", float("nan"))
+        gf = v.get(f"{gmf}[gm]", float("nan"))
+        # REALISED tap weight. CtleParams.tap_weight_ratio() is a square-law
+        # estimate; these devices are nowhere near square law, so this measured
+        # value is the one to quote.
+        tap_ratio = (gf / g1) if (g1 == g1 and g1 > 0) else float("nan")
+
+        def _sat(pre):
+            vds = v.get(f"{pre}[vds]", float("nan"))
+            vdsat = v.get(f"{pre}[vdsat]", float("nan"))
+            return (vds == vds) and (vds > vdsat + 0.02)
+        summer_sat = _sat(gm1) and _sat(gmf)
         return {"ok": True, "id_m1": idv, "gm_m1": gm, "vds_m1": vds,
                 "vdsat_m1": vdsat, "vgs_m1": vgs,
                 "id_tail": t_id, "vds_tail": t_vds, "vdsat_tail": t_vdsat,
                 "tail_saturated": tail_sat, "i_supply": isup,
-                "saturated": (vds > vdsat + 0.02) and (idv > 1e-9) and tail_sat}
+                "gm_g1": g1, "gm_gf": gf, "tap_ratio": tap_ratio,
+                "summer_saturated": summer_sat,
+                # every stage must bias correctly, not just the CTLE
+                "saturated": ((vds > vdsat + 0.02) and (idv > 1e-9)
+                              and tail_sat and summer_sat)}
 
     def tap_weight(self, p: CtleParams, corner: pdk.Corner) -> dict:
-        """Measure the realised DFE tap weight: steer the pair both ways, diff.
+        """Measure the realised tap injection at the SUMMING node.
 
-        Expect |dV| ~ 2*Itap*RL. A much smaller number means the pair is not
-        fully switching (Wfb too small, or the feedback swing too weak).
+        Steer the GmF pair fully each way and take the difference at
+        outp_dfe/outn_dfe. Expect |dV| ~ Igf * Rsum * 2 when fully switched;
+        much less means GmF is not fully steering on the 0.8/1.4 V drive.
+
+        Also returns the injection as a FRACTION of the main path's full swing
+        (Ig1 * Rsum), which is the number that actually matters -- a 1-tap DFE
+        must cancel a post-cursor that is some fraction of the cursor.
         """
         vals = {}
         for sign, tag in ((+1.0, "pos"), (-1.0, "neg")):
-            control = (".control\nop\nprint v(voutp) v(voutn)\n.endc\n")
+            control = ".control\nop\nprint v(outp_dfe) v(outn_dfe)\n.endc\n"
             mode = "pos" if sign > 0 else "neg"
             ok, log = self._run(
                 self._assemble(p, corner, "op", control, dfe=mode),
                 f"tap_{tag}")
             v = _parse_prints(log)
-            if "v(voutp)" not in v or "v(voutn)" not in v:
+            if "v(outp_dfe)" not in v or "v(outn_dfe)" not in v:
                 return {"ok": False, "log": log}
-            vals[tag] = v["v(voutp)"] - v["v(voutn)"]
+            vals[tag] = v["v(outp_dfe)"] - v["v(outn_dfe)"]
         dv = abs(vals["pos"] - vals["neg"])
-        ideal = 2.0 * p.Itap * p.RL
+        ideal = 2.0 * p.Igf * p.Rsum
+        main = p.Ig1 * p.Rsum
         return {"ok": True, "tap_dv": dv, "tap_ideal": ideal,
-                "tap_efficiency": (dv / ideal) if ideal > 0 else float("nan")}
+                "tap_efficiency": (dv / ideal) if ideal > 0 else float("nan"),
+                "tap_frac_of_main": (0.5 * dv / main) if main > 0 else float("nan"),
+                "v_pos": vals["pos"], "v_neg": vals["neg"]}
 
     def tran_hd3(self, p: CtleParams, corner: pdk.Corner,
                  amp: float = 0.1, freq: float = 100e6, tag: str = "tran") -> dict:
@@ -243,15 +480,17 @@ class Simulator:
         control = (
             ".control\n"
             f"tran {tstep:.6g} {tstop:.6g} 0 {tstep:.6g}\n"
-            f'wrdata {out.name} v(voutp,voutn)\n'
+            f'wrdata {out.name} v(outp_ctle,outn_ctle)\n'
             ".endc\n"
         )
         ok, log = self._run(
             self._assemble(p, corner, "tran", control, tran_amp=amp,
                            tran_freq=freq), tag)
+        if not ok:
+            return {"ok": False, "log": log, "note": _fatal_tag(log)}
         d = self._read_wrdata(out)
         if d is None or d.shape[1] < 2:
-            return {"ok": False, "log": log}
+            return {"ok": False, "log": log, "note": "hd3 produced no data"}
         t, v = d[:, 0], d[:, 1]
         return {"ok": True, "hd3_db": _hd3_from_wave(t, v, freq)}
 
@@ -276,22 +515,25 @@ class Simulator:
         control = (
             ".control\n"
             f"tran {ts:.6g} {tstop:.6g} 0 {ts:.6g}\n"
-            f"wrdata {out.name} v(voutp,voutn) v(vfbp)\n"
+            f"wrdata {out.name} v(outp_dfe,outn_dfe) v(vfbp)\n"
             ".endc\n"
         )
         ok, log = self._run(
             self._assemble(p, corner, "tran", control, dfe="closed",
-                           src_override=src), tag)
+                           src_override=src, ui=ui), tag)
+        if not ok:
+            return {"ok": False, "log": log, "note": _fatal_tag(log)}
         d = self._read_wrdata(out)
         if d is None or d.shape[1] < 2:
-            return {"ok": False, "log": log}
+            return {"ok": False, "log": log, "note": "eye produced no data"}
         t, v = d[:, 0], d[:, 1]
         vfb = d[:, 3] if d.shape[1] >= 4 else None
         eye = dfe_mod.eye_from_waveform(t, v, ui)
         return {"ok": True, "eye": eye, "t": t, "v": v, "vfb": vfb,
                 "n_bits": n_bits}
 
-    def noise(self, p: CtleParams, corner: pdk.Corner, tag: str = "noise") -> dict:
+    def noise(self, p: CtleParams, corner: pdk.Corner, tag: str = "noise",
+              channel: bool | None = False) -> dict:
         """Integrated input-referred noise.
 
         ngspice's own `inoise_total` is unreliable here: at 5 of 9 PVT corners it
@@ -306,14 +548,24 @@ class Simulator:
             out.unlink()
         control = (
             ".control\n"
-            "noise v(voutp,voutn) Vinp dec 20 10e6 5e9\n"
+            "noise v(outp_ctle,outn_ctle) Vinp dec 20 10e6 5e9\n"
             "setplot noise1\n"
             f"wrdata {out.name} inoise_spectrum\n"
             "setplot noise2\n"
             "print inoise_total\n"
             ".endc\n"
         )
-        ok, log = self._run(self._assemble(p, corner, "noise", control), tag)
+        # channel=False by default ON PURPOSE. ngspice refers noise back to a
+        # SOURCE, so with a channel in front the result is referred to the
+        # transmitter and the channel's loss inflates it -- a design that meets
+        # the spec fails it spuriously. The brief's "input-referred noise" is a
+        # property of the EQUALISER, whose input is the channel's output, so
+        # the equaliser is measured on its own. Same reasoning as referencing
+        # peaking to v(vinp,vinn).
+        ok, log = self._run(self._assemble(p, corner, "noise", control,
+                                           channel=channel), tag)
+        if not ok:
+            return {"ok": False, "log": log, "note": _fatal_tag(log)}
         d = self._read_wrdata(out)
         if d is not None and d.shape[1] >= 2:
             f, sd = d[:, 0], d[:, 1]
@@ -344,19 +596,242 @@ class Simulator:
         # hand-computed onoise/|Adiff| before quoting it as final.
         return {"ok": True, "vn_in_rms": val}
 
+    def _evaluate_combined(self, p: CtleParams, corner: pdk.Corner,
+                           do_eye: bool = False) -> Metrics:
+        m = Metrics()
+        failed: list[str] = []
+        r = self._combined(p, corner)
+        if not r.get("launch_ok"):
+            # The whole deck died. This is NOT a bad design -- record the cause
+            # so it cannot be mistaken for one by the scorer or a reader.
+            m.note = f"combined-deck-failed[{r.get('fatal', '?')}]"
+            return m
+
+        acr = r["ac"]
+        if not acr.get("ok"):
+            m.note = f"ac-failed[{acr.get('note', '?')}]"
+            return m
+        for k in ("dc_gain_db", "peak_gain_db", "peaking_db", "f_peak",
+                  "gain_2g5_db", "bw_3db"):
+            setattr(m, k, acr[k])
+
+        opr = r["op"]
+        if opr.get("ok"):
+            for k in ("id_m1", "gm_m1", "vds_m1", "vdsat_m1", "id_tail",
+                      "vds_tail", "vdsat_tail", "tail_saturated", "i_supply",
+                      "saturated", "gm_g1", "gm_gf", "summer_saturated"):
+                setattr(m, k, opr[k])
+            m.tap_ratio = opr["tap_ratio"]
+        else:
+            failed.append(f"op[{opr.get('note', '?')}]")
+
+        if m.i_supply == m.i_supply:
+            m.power_w = corner.vdd * m.i_supply
+        else:
+            m.power_w = corner.vdd * ((2.0 + 1.0 / nl.MIRROR_RATIO) * p.Itail
+                                      + p.Ig1 + p.Igf)
+        m.area_mm2 = p.area_um2()["total_mm2"]
+
+        if r["hd3"].get("ok"):
+            m.hd3_db = r["hd3"]["hd3_db"]
+        else:
+            failed.append(f"hd3[{r['hd3'].get('note', '?')}]")
+        nz = r["noise"]
+        if self.use_channel:
+            # the combined deck carries the channel, so redo noise without it
+            nz = self.noise(p, corner, channel=False)
+        if nz.get("ok"):
+            m.vn_in_rms = nz["vn_in_rms"]
+        else:
+            failed.append(f"noise[{nz.get('note', '?')}]")
+
+        if do_eye:
+            ey = self.tran_eye(p, corner)
+            if ey.get("ok"):
+                m.eye_height_v = ey["eye"].height_v
+                m.eye_width_ui = ey["eye"].width_ui
+            else:
+                failed.append(f"eye[{ey.get('note', '?')}]")
+        return _finish(m, failed)
+
+    # ---- combined deck: one launch instead of four ---------------------
+    def _combined(self, p: CtleParams, corner: pdk.Corner,
+                  hd3_amp: float = 0.1, hd3_freq: float = 100e6,
+                  tag: str = "combo") -> dict:
+        """Run op + ac + tran(HD3) + noise from ONE deck, one ngspice launch.
+
+        These four analyses differ only in the ANALYSIS card -- they share the
+        same netlist and the same DFE bias (tap held at common mode). Running
+        them separately re-parses 1.24 MB of models four times over for nothing:
+        measured, the parse is ~99.9% of each launch.
+
+        One source serves all of them: a SPICE source may carry DC, AC and a
+        transient function simultaneously, and each analysis picks the part it
+        needs.
+
+        Every analysis is checked INDIVIDUALLY afterwards. A combined deck has
+        one genuine hazard -- an early analysis failing takes the rest with it
+        -- so "the file exists and parsed" is verified per analysis rather than
+        inferred from the launch succeeding.
+        """
+        dev = f"@m.x1.m{nl.NFET}"
+        tail = f"@m.xt1.m{nl.NFET}"
+        gm1 = f"@m.xg1p.m{nl.NFET}"
+        gmf = f"@m.xgfp.m{nl.NFET}"
+        f_ac = self.workdir / f"{tag}_ac.dat"
+        f_tr = self.workdir / f"{tag}_tran.dat"
+        f_nz = self.workdir / f"{tag}_noise.dat"
+        for f in (f_ac, f_tr, f_nz):
+            if f.exists():
+                f.unlink()
+
+        ncyc, tstop = 20, 20 / hd3_freq
+        tstep = 1.0 / (hd3_freq * 512)
+        src = (f"Vinp vinp 0 DC {{Vcm}} AC 0.5 0 "
+               f"SIN({{Vcm}} {hd3_amp/2:.6g} {hd3_freq:.6g})\n"
+               f"Vinn vinn 0 DC {{Vcm}} AC 0.5 180 "
+               f"SIN({{Vcm}} {-hd3_amp/2:.6g} {hd3_freq:.6g})\n")
+        control = (
+            ".control\n"
+            "op\n"
+            f"print {dev}[id] {dev}[gm] {dev}[vds] {dev}[vdsat] {dev}[vgs]\n"
+            f"print {tail}[id] {tail}[vds] {tail}[vdsat]\n"
+            f"print {gm1}[gm] {gm1}[id] {gm1}[vds] {gm1}[vdsat]\n"
+            f"print {gmf}[gm] {gmf}[id] {gmf}[vds] {gmf}[vdsat]\n"
+            "print i(Vdd)\n"
+            "ac dec 40 1e6 20e9\n"
+            f"wrdata {f_ac.name} vdb(outp_ctle,outn_ctle) vdb(outp_dfe,outn_dfe) vdb(vinp,vinn)\n"
+            f"tran {tstep:.6g} {tstop:.6g} 0 {tstep:.6g}\n"
+            f"wrdata {f_tr.name} v(outp_ctle,outn_ctle)\n"
+            # noise LAST: setplot switches the active plot and would strand the
+            # wrdata calls above.
+            "noise v(outp_ctle,outn_ctle) Vinp dec 20 10e6 5e9\n"
+            "setplot noise1\n"
+            f"wrdata {f_nz.name} inoise_spectrum\n"
+            "setplot noise2\n"
+            "print inoise_total\n"
+            ".endc\n"
+        )
+        ok, log = self._run(
+            self._assemble(p, corner, "ac", control, src_override=src), tag)
+        res: dict = {"launch_ok": ok, "log": log}
+        if not ok:
+            res["fatal"] = _fatal_tag(log)
+            return res
+
+        # --- op ---
+        v = _parse_prints(log)
+        need = [f"{dev}[{k}]" for k in ("id", "gm", "vds", "vdsat", "vgs")]
+        need += [f"{tail}[{k}]" for k in ("id", "vds", "vdsat")]
+        missing = [k for k in need if k not in v]
+        res["op"] = ({"ok": False, "note": f"op probe missing {missing}"}
+                     if missing else self._op_from_prints(v, dev, tail, gm1, gmf))
+        # --- ac ---
+        res["ac"] = self._ac_from_file(f_ac)
+        # --- hd3 ---
+        d = self._read_wrdata(f_tr)
+        if d is None or d.shape[1] < 2:
+            res["hd3"] = {"ok": False, "note": "hd3 produced no data"}
+        else:
+            res["hd3"] = {"ok": True,
+                          "hd3_db": _hd3_from_wave(d[:, 0], d[:, 1], hd3_freq)}
+        # --- noise ---
+        res["noise"] = self._noise_from_file(f_nz, log)
+        return res
+
+    def _op_from_prints(self, v, dev, tail, gm1, gmf) -> dict:
+        idv, gm, vds, vdsat, vgs = (v[f"{dev}[{k}]"] for k in
+                                    ("id", "gm", "vds", "vdsat", "vgs"))
+        t_id, t_vds, t_vdsat = (v[f"{tail}[{k}]"] for k in ("id", "vds", "vdsat"))
+        isup = abs(v.get("i(vdd)", float("nan")))
+        tail_sat = (t_vds == t_vds) and (t_vds > t_vdsat + 0.02)
+        g1 = v.get(f"{gm1}[gm]", float("nan"))
+        gf = v.get(f"{gmf}[gm]", float("nan"))
+        tap_ratio = (gf / g1) if (g1 == g1 and g1 > 0) else float("nan")
+
+        def _sat(pre):
+            a = v.get(f"{pre}[vds]", float("nan"))
+            b = v.get(f"{pre}[vdsat]", float("nan"))
+            return (a == a) and (a > b + 0.02)
+        summer_sat = _sat(gm1) and _sat(gmf)
+        return {"ok": True, "id_m1": idv, "gm_m1": gm, "vds_m1": vds,
+                "vdsat_m1": vdsat, "vgs_m1": vgs, "id_tail": t_id,
+                "vds_tail": t_vds, "vdsat_tail": t_vdsat,
+                "tail_saturated": tail_sat, "i_supply": isup,
+                "gm_g1": g1, "gm_gf": gf, "tap_ratio": tap_ratio,
+                "summer_saturated": summer_sat,
+                "saturated": ((vds > vdsat + 0.02) and (idv > 1e-9)
+                              and tail_sat and summer_sat)}
+
+    def _ac_from_file(self, path: Path) -> dict:
+        d = self._read_wrdata(path)
+        if d is None or d.shape[1] < 2:
+            return {"ok": False, "note": "ac produced no data"}
+        f, gdb = d[:, 0], d[:, 1]
+        gdb_sum = d[:, 3] if d.shape[1] >= 4 else None
+        # Same referencing as ac(): with a channel in front the raw traces
+        # include its loss, and "peaking" would describe the cascade rather
+        # than the equaliser. This helper is the one the COMBINED deck uses,
+        # and it was missed when ac() was fixed -- so evaluate() silently
+        # reported cascade peaking while ac() reported equaliser peaking.
+        if d.shape[1] >= 6:
+            gin = d[:, 5]
+            gdb = gdb - gin
+            if gdb_sum is not None:
+                gdb_sum = gdb_sum - gin
+        dc = float(gdb[0])
+        ipk = int(np.argmax(gdb))
+        peak, fpk = float(gdb[ipk]), float(f[ipk])
+        bw = float("nan")
+        for i in range(ipk, len(f)):
+            if gdb[i] <= peak - 3.0:
+                bw = float(f[i]); break
+        out = {"ok": True, "dc_gain_db": dc, "peak_gain_db": peak,
+               "peaking_db": peak - dc, "f_peak": fpk,
+               "gain_2g5_db": float(np.interp(2.5e9, f, gdb)), "bw_3db": bw}
+        if gdb_sum is not None:
+            out["sum_dc_gain_db"] = float(gdb_sum[0])
+            out["sum_peak_gain_db"] = float(np.max(gdb_sum))
+            out["sum_gain_2g5_db"] = float(np.interp(2.5e9, f, gdb_sum))
+        return out
+
+    def _noise_from_file(self, path: Path, log: str) -> dict:
+        d = self._read_wrdata(path)
+        if d is not None and d.shape[1] >= 2:
+            f, sd = d[:, 0], d[:, 1]
+            good = np.isfinite(f) & np.isfinite(sd) & (sd >= 0)
+            if good.sum() >= 2:
+                rms = float(np.sqrt(np.trapezoid(sd[good] ** 2, f[good])))
+                return {"ok": True, "vn_in_rms": rms,
+                        "ngspice_inoise_total": _parse_scalar(log, "inoise_total"),
+                        "n_spectrum_pts": int(good.sum())}
+        return {"ok": False, "note": "noise produced no usable spectrum"}
+
     # ---- top-level -----------------------------------------------------
     def evaluate(self, p: CtleParams, corner: pdk.Corner,
                  do_hd3: bool = True, do_noise: bool = True,
-                 do_eye: bool = False) -> Metrics:
+                 do_eye: bool = False, combined: bool = True) -> Metrics:
+        """Measure one design at one corner.
+
+        ``combined`` runs op/ac/hd3/noise from a single deck (one ngspice
+        launch instead of four). Set it False to take the slow path -- the
+        per-analysis methods are kept because they are what the tests pin, and
+        because the combined deck is worth being able to bisect against.
+        """
         m = Metrics()
+        failed: list[str] = []
+        if combined and do_hd3 and do_noise:
+            return self._evaluate_combined(p, corner, do_eye=do_eye)
         acr = self.ac(p, corner)
         if not acr.get("ok"):
-            m.note = "ac-failed: " + acr.get("log", "")[-200:]
+            m.note = f"ac-failed[{acr.get('note', '?')}]"
             return m
         for k in ("dc_gain_db", "peak_gain_db", "peaking_db", "f_peak",
                   "gain_2g5_db", "bw_3db"):
             setattr(m, k, acr[k])
         opr = self.op(p, corner)
+        if not opr.get("ok"):
+            failed.append(f"op[{opr.get('note', '?')}]")
         if opr.get("ok"):
             m.id_m1 = opr["id_m1"]; m.gm_m1 = opr["gm_m1"]
             m.vds_m1 = opr["vds_m1"]; m.vdsat_m1 = opr["vdsat_m1"]
@@ -365,6 +840,8 @@ class Simulator:
             m.tail_saturated = opr["tail_saturated"]
             m.i_supply = opr["i_supply"]
             m.saturated = opr["saturated"]
+            m.gm_g1 = opr["gm_g1"]; m.gm_gf = opr["gm_gf"]
+            m.summer_saturated = opr["summer_saturated"]
         # Power from the MEASURED supply current. The old analytic
         # `vdd * 2 * Itail` was wrong twice over: it ignored the mirror
         # reference branch, and the mirror does not actually deliver Itail
@@ -372,17 +849,24 @@ class Simulator:
         if m.i_supply == m.i_supply:
             m.power_w = corner.vdd * m.i_supply
         else:
-            m.power_w = corner.vdd * (2.0 + 1.0 / nl.MIRROR_RATIO) * p.Itail
+            # The summing stage draws Ig1 + Igf off the same supply; omitting
+            # them understated the fallback badly now that it is a real stage.
+            m.power_w = corner.vdd * ((2.0 + 1.0 / nl.MIRROR_RATIO) * p.Itail
+                                      + p.Ig1 + p.Igf)
         m.area_mm2 = p.area_um2()["total_mm2"]
         if do_hd3:
             tr = self.tran_hd3(p, corner)
             if tr.get("ok"):
                 m.hd3_db = tr["hd3_db"]
+            else:
+                failed.append(f"hd3[{tr.get('note', '?')}]")
         if do_noise:
             nz = self.noise(p, corner)
             if nz.get("ok"):
                 m.vn_in_rms = nz["vn_in_rms"]
-        m.tap_weight_v = p.tap_weight_v()
+            else:
+                failed.append(f"noise[{nz.get('note', '?')}]")
+        m.tap_ratio = opr.get("tap_ratio", float("nan")) if opr.get("ok") else float("nan")
         if do_eye:
             # Closed-loop PRBS through the real DFE loop. Measured cost is only
             # ~1.3 s of solve on top of the PDK parse, so with a trimmed library
@@ -392,8 +876,39 @@ class Simulator:
             if ey.get("ok"):
                 m.eye_height_v = ey["eye"].height_v
                 m.eye_width_ui = ey["eye"].width_ui
+            else:
+                failed.append(f"eye[{ey.get('note', '?')}]")
+        # `ok` means "this result is SCOREABLE" (the AC parsed), not
+        # "everything worked" -- specs.score() already maps each missing metric
+        # to 0.0 through its NaN guards, which keeps a graded reward instead of
+        # a cliff. Clearing ok here would make score() return an EMPTY pass
+        # dict, and any caller aggregating `for k, v in sc["pass"].items()`
+        # would then record no failures at all for a corner that did not
+        # simulate. `partial` + `note` carry that visibility instead.
         m.ok = True
+        m.partial = bool(failed)
+        if failed:
+            m.note = ("analyses failed: " + ",".join(failed)
+                      + ("; " + m.note if m.note else ""))
         return m
+
+
+def _finish(m: Metrics, failed: list[str]) -> Metrics:
+    """Common tail: ok means SCOREABLE, partial records what did not run."""
+    m.ok = True
+    m.partial = bool(failed)
+    if failed:
+        m.note = ("analyses failed: " + ",".join(failed)
+                  + ("; " + m.note if m.note else ""))
+    return m
+
+
+def _fatal_tag(log: str) -> str:
+    """Pull the FATAL[...] tag out of a log for reporting."""
+    i = log.find("FATAL[")
+    if i < 0:
+        return "unknown-failure"
+    return log[i + 6: log.find("]", i)]
 
 
 # ---- parsing helpers ---------------------------------------------------
@@ -416,29 +931,6 @@ def _parse_prints(log: str) -> dict[str, float]:
         except ValueError:
             continue
     return out
-
-
-def _parse_print_row(log: str, keys: list[str]) -> list[float] | None:
-    """Parse ngspice ``print a b c`` output lines of the form ``name = value``.
-
-    ngspice prints one ``<expr> = <value>`` per line for scalar prints.
-    """
-    found: dict[str, float] = {}
-    for line in log.splitlines():
-        if "=" not in line:
-            continue
-        lhs, _, rhs = line.partition("=")
-        lhs = lhs.strip().lower()
-        rhs = rhs.strip().split()[0] if rhs.strip() else ""
-        for k in keys:
-            if lhs.endswith(f"[{k}]") or lhs.endswith(k):
-                try:
-                    found[k] = float(rhs)
-                except ValueError:
-                    pass
-    if all(k in found for k in keys):
-        return [found[k] for k in keys]
-    return None
 
 
 def _parse_scalar(log: str, name: str) -> float | None:

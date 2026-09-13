@@ -5,9 +5,8 @@
 (2) verifies the winner across the full PVT grid, and (3) emits the final sized
 SPICE schematic, a JSON report, and diagnostic plots.
 """
-from __future__ import annotations
-
 import json
+import math
 from dataclasses import asdict
 from pathlib import Path
 
@@ -19,18 +18,43 @@ from . import netlist as nl
 from .env import Objective
 from .spice import Simulator
 from .agents import cem as cem_agent
+from . import analytic
+
+
+def _sized_header(params: nl.CtleParams, corner: pdk.Corner, what: str) -> str:
+    """Comment block recording BOTH the requested values and the geometry that
+    was actually instantiated -- res/cap values are quantised onto real device
+    geometry, so the two are not always the same number."""
+    g = params.geometry()
+    return f"""* ==================================================================
+* PCIe Gen2 equalizer (CTLE + 1-tap DFE summer) -- auto-sized by RL (CEM)
+* {what}
+* Requested (W/L in um, R in ohm, C in F, I in A):
+*   W={params.W:.4g}  L={params.L:.4g}  RL={params.RL:.6g}  Rs={params.Rs:.6g}
+*   Cs={params.Cs:.6g}  Itail={params.Itail:.6g}  Wtail={params.Wtail:.4g}
+*   Rsum={params.Rsum:.6g}  Wg1={params.Wg1:.4g}  Ig1={params.Ig1:.6g}
+*   tap_pct={params.tap_pct:.4g}%  -> Wgf={params.Wgf:.4g} Igf={params.Igf:.6g}
+*   CL={params.CL:.6g}  Vcm={params.Vcm:.4g}
+* Realised geometry:
+*   RL -> l={g['rl_l']:.4g} m={g['rl_mult']} ({g['rl_actual']:.6g} ohm)
+*   Rs -> l={g['rs_l']:.4g} m={g['rs_mult']} ({g['rs_actual']:.6g} ohm)
+*   Cs -> {g['cs_s']:.4g} x {g['cs_s']:.4g} um ({g['cs_actual']:.6g} F)
+*   Rsum -> l={g['rsum_l']:.4g} m={g['rsum_mult']} ({g['rsum_actual']:.6g} ohm)
+*   Iref={g['iref']:.6g}  Wref={g['w_ref']:.4g}
+*   Gm1 tail W={g['wg1_tail']:.4g}   GmF tail W={g['wgf_tail']:.4g}
+*   nominal tap weight gmF/gm1 = {params.tap_weight_ratio():.4g}
+* corner: {corner.name}
+* =================================================================="""
 
 
 def _export_deck(params: nl.CtleParams, corner: pdk.Corner, path: Path) -> None:
-    """Write a standalone, human-openable CTLE AC deck with the sized values."""
+    """Write a standalone, human-openable AC deck with the sized values.
+
+    The GmF pair MUST be biased. Emitting the netlist alone leaves vfbp/vfbn
+    floating -- the deck looks complete and does not simulate.
+    """
     lib = pdk.find_sky130_lib()
-    deck = f"""* ==================================================================
-* PCIe Gen2 CTLE  --  auto-sized by RL (CEM) framework
-* Sized device parameters (W/L in um, R in ohm, C in F, I in A):
-*   W={params.W:.4g}  L={params.L:.4g}  RL={params.RL:.6g}
-*   Rs={params.Rs:.6g}  Cs={params.Cs:.6g}  Itail={params.Itail:.6g}
-*   CL={params.CL:.6g}  Vcm={params.Vcm:.4g}
-* ==================================================================
+    deck = f"""{_sized_header(params, corner, "forward path, DFE loop OPEN")}
 .lib "{lib}" {corner.lib_section}
 .temp {corner.temp:.4g}
 .param Vcm={params.Vcm:.4g}
@@ -38,17 +62,53 @@ def _export_deck(params: nl.CtleParams, corner: pdk.Corner, path: Path) -> None:
 Vdd vdd 0 DC {corner.vdd:.4g}
 Vinp vinp 0 DC {{Vcm}} AC 0.5 0
 Vinn vinn 0 DC {{Vcm}} AC 0.5 180
-
-{params.core_netlist()}
+{nl.dfe_static_bias()}
+{params.full_netlist()}
 .control
 ac dec 40 1e6 20e9
-* differential gain (dB) vs frequency
-plot vdb(voutp,voutn)
-wrdata ctle_ac.dat vdb(voutp,voutn)
+wrdata ctle_ac.dat vdb(outp_ctle,outn_ctle) vdb(outp_dfe,outn_dfe)
 .endc
 .end
 """
     path.write_text(deck)
+
+
+def _export_eye_deck(params: nl.CtleParams, corner: pdk.Corner, path: Path,
+                     n_bits: int = 200, ui: float = 200e-12) -> None:
+    """Write the CLOSED-loop deck, so the reported eye is reproducible from the
+    artifact rather than only from inside the framework."""
+    from . import dfe as dfe_mod
+    lib = pdk.find_sky130_lib()
+    bits = dfe_mod.prbs(n_bits)
+    ts = ui / 50.0
+    deck = f"""{_sized_header(params, corner, "closed-loop eye, DFE loop CLOSED")}
+.lib "{lib}" {corner.lib_section}
+.temp {corner.temp:.4g}
+
+Vdd vdd 0 DC {corner.vdd:.4g}
+Vinp vinp 0 {dfe_mod.nrz_pwl(bits, ui, 0.05, params.Vcm)}
+Vinn vinn 0 {dfe_mod.nrz_pwl(bits, ui, 0.05, params.Vcm, invert=True)}
+{nl.dfe_decision_path(ui_s=ui)}
+{params.full_netlist()}
+.control
+tran {ts:.6g} {n_bits * ui:.6g} 0 {ts:.6g}
+wrdata eye.dat v(outp_dfe,outn_dfe) v(vfbp)
+.endc
+.end
+"""
+    path.write_text(deck)
+
+
+def _json_safe(o):
+    """Replace non-finite floats with null: json.dumps emits a bare `NaN`
+    token by default, which is not valid JSON and which strict parsers reject."""
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: _json_safe(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_json_safe(v) for v in o]
+    return o
 
 
 def _plot(report: dict, obj: Objective, best, out_dir: Path) -> None:
@@ -92,24 +152,53 @@ def run_design(spec: sp.EqualizerSpec | None = None,
                out_dir: str | Path = "results",
                cem_cfg: cem_agent.CemConfig | None = None,
                search_robust: bool = False,
-               verify_full_pvt: bool = True,
+               pvt_grid: str = "spec",
+               do_eye: bool = True,
+               use_channel: bool = False,
+               analytic_init: bool = True,
+               jobs: int | None = None,
                fixed: dict | None = None,
                verbose: bool = True) -> dict:
     spec = spec or sp.EqualizerSpec()
     out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
-    sim = Simulator(workdir)
+    sim = Simulator(workdir, use_channel=use_channel)
 
-    # search corners: typical only (fast) or a 3-corner robust subset
+    # Search corners: typical only (fast) or a robust subset.
     if search_robust:
-        search_corners = [pdk.Corner("tt", pdk.VDD_NOM, 27.0),
-                          pdk.Corner("ss", pdk.VDD_CORNERS["lo"], 125.0),
-                          pdk.Corner("ff", pdk.VDD_CORNERS["hi"], 0.0)]
+        search_corners = [
+            pdk.Corner("tt", pdk.VDD_NOM, 27.0),
+            pdk.Corner("ss", pdk.VDD_CORNERS["lo"], 125.0),
+            pdk.Corner("ff", pdk.VDD_CORNERS["hi"], 0.0),
+            # The R/C axis MUST be in the robust set. sky130's named process
+            # corners move MOSFETs only, and R/C moves f_peak by 29.7% -- more
+            # than process does. `ll` is the worst f_peak corner, and f_peak is
+            # the single binding constraint, so a "robust" search without it
+            # converges to a design that fails full PVT on exactly that spec.
+            pdk.Corner("tt", pdk.VDD_NOM, 27.0, rc="ll"),
+        ]
     else:
         search_corners = [pdk.typical_corner()]
 
     obj = Objective(spec, sim, corners=search_corners,
-                    fixed=fixed or {}, robust="min")
+                    fixed=fixed or {}, robust="min", do_eye=do_eye, jobs=jobs,
+                    use_channel=use_channel)
 
+    cem_cfg = cem_cfg or cem_agent.CemConfig()
+    if analytic_init:
+        # Derive the starting point from the small-signal equations, with the
+        # device parameters MEASURED at run time and the result calibrated
+        # against SPICE in a closed loop. No human in the loop -- this is smart
+        # initialisation, not a hand-tuned seed.
+        if verbose:
+            print("=== analytic initialisation ===")
+        try:
+            cem_cfg.init_mean = analytic.initial_u(spec, sim, verbose=verbose)
+            # tighter first population: starting from a known-good point, not
+            # from ignorance
+            cem_cfg.init_std = cem_cfg.seeded_std
+        except Exception as e:                      # noqa: BLE001
+            if verbose:
+                print(f"  [analytic] failed ({e}); starting from the box centre")
     if verbose:
         print(f"=== RL sizing: {len(search_corners)} search corner(s), "
               f"agent=CEM ===")
@@ -118,38 +207,80 @@ def run_design(spec: sp.EqualizerSpec | None = None,
     if best is None:
         raise RuntimeError("optimization produced no valid candidate")
 
-    # --- full PVT verification of the winner ---
-    pvt = pdk.pvt_grid(full=verify_full_pvt)
-    pvt_report = {}
-    worst_pass = {k: True for k in
-                  ["peaking", "fpeak", "gain2g5", "power", "hd3", "noise", "bias"]}
-    for c in pvt:
-        m = sim.evaluate(best.params, c)
-        sc = sp.score(m, spec)
-        pvt_report[c.name] = {"metrics": m.as_dict(), "pass": sc["pass"],
-                              "reward": sc["reward"]}
+    # --- PVT verification of the winner, in parallel over corners ---
+    # pvt_grid(full=<bool>) silently mapped False -> the 9-corner "quick" grid,
+    # so the default run "verified across PVT" on 9 corners while reporting a
+    # field called pvt_meets_all. Grids are named explicitly now.
+    pvt = pdk.pvt_grid(pvt_grid)
+    verify = Objective(spec, sim, corners=pvt, fixed=fixed or {},
+                       robust="min", do_eye=do_eye, jobs=jobs,
+                       use_channel=use_channel)
+    vres = verify(best.u)
+    pvt_report, worst_pass = {}, {}
+    unscoreable = []
+    for cname, sc in vres.per_corner.items():
+        m = sc["metrics"]
+        pvt_report[cname] = {"metrics": m.as_dict(), "pass": sc["pass"],
+                             "reward": sc["reward"],
+                             "partial": bool(getattr(m, "partial", False)),
+                             "note": m.note}
+        # A corner that produced no scorecard must not vanish from the
+        # aggregate: iterating an empty pass dict records no failures, so the
+        # design would read as passing PVT with a corner silently missing.
+        if not sc["pass"] or getattr(m, "partial", False):
+            unscoreable.append(cname)
+        # Keys are derived from the scorecard, never hand-maintained: the two
+        # drifted the moment `area` was added and run_design died with a
+        # KeyError after spending the entire search budget.
         for k, v in sc["pass"].items():
-            worst_pass[k] = worst_pass[k] and bool(v)
+            worst_pass[k] = worst_pass.get(k, True) and bool(v)
 
     # --- export artifacts ---
+    # Evaluate the winner at the TYPICAL corner explicitly: the search grids
+    # never contain it (spec/full use VDD+-5% and 0/125 C only), and the
+    # exported decks are written at it, so without this the report has no
+    # numbers that correspond to the artifact it ships.
     typ = pdk.typical_corner()
+    typ_scored = sp.score(sim.evaluate(best.params, typ, do_eye=do_eye), spec)
     _export_deck(best.params, typ, out_dir / "ctle_final.sp")
+    _export_eye_deck(best.params, typ, out_dir / "ctle_final_eye.sp")
 
     report = {
         "spec": asdict(spec),
         "agent": "CEM",
-        "n_simulations": obj.n_sims,
-        "n_evaluations": res.n_eval,
+        # Three different costs, previously conflated under "n_simulations":
+        "n_candidates": res.n_eval,              # distinct designs simulated
+        "n_corner_evals": obj.n_sims,            # candidates x search corners
+        "n_ngspice_launches": obj.n_launches,    # the real wall-clock driver
+        "n_ngspice_launches_verify": verify.n_launches,
         "search_corners": [c.name for c in search_corners],
+        "pvt_grid": pvt_grid,
+        "n_pvt_corners": len(pvt),
+        "eye_scored": do_eye,
+        "channel": use_channel,
+        "analytic_init": analytic_init,
         "curve": res.curve,
         "final_params": best.params.as_dict(),
-        "typ_metrics": best.scored["metrics"].as_dict(),
-        "typ_pass": best.scored["pass"],
+        "final_geometry": best.params.geometry(),
+        # NOT the typical corner: Objective reports the WORST search corner,
+        # because that is what the stopping rule must test. Labelling it "typ"
+        # made the exported (typical-corner) deck look 25% off when it was
+        # exactly right -- tt_ll pushes f_peak up ~33%.
+        "worst_search_corner": best.scored_corner,
+        "worst_search_corner_metrics": best.scored["metrics"].as_dict(),
+        "worst_search_corner_pass": best.scored["pass"],
+        "typ_metrics": typ_scored["metrics"].as_dict(),
+        "typ_pass": typ_scored["pass"],
+        "typ_corner": typ.name,
         "pvt": pvt_report,
         "pvt_all_pass": worst_pass,
-        "pvt_meets_all": all(worst_pass.values()),
+        "pvt_unscoreable_corners": unscoreable,
+        # A corner that failed to simulate is NOT a pass.
+        "pvt_meets_all": (bool(worst_pass) and all(worst_pass.values())
+                          and not unscoreable),
     }
-    (out_dir / "report.json").write_text(json.dumps(report, indent=2, default=str))
+    (out_dir / "report.json").write_text(
+        json.dumps(_json_safe(report), indent=2, default=str, allow_nan=False))
     _plot(report, obj, best, out_dir)
 
     if verbose:
@@ -160,7 +291,8 @@ def run_design(spec: sp.EqualizerSpec | None = None,
 def _print_summary(r: dict) -> None:
     m = r["typ_metrics"]; p = r["final_params"]
     print("\n" + "=" * 62)
-    print("FINAL DESIGN (typical corner)")
+    print(f"FINAL DESIGN  (metrics at {r['typ_corner']}, the corner the "
+          f"exported decks use)")
     print("=" * 62)
     print(f"  W={p['W']:.3g}um L={p['L']:.3g}um RL={p['RL']:.0f}ohm "
           f"Rs={p['Rs']:.0f}ohm Cs={p['Cs']*1e15:.1f}fF It={p['Itail']*1e6:.0f}uA")
@@ -170,6 +302,18 @@ def _print_summary(r: dict) -> None:
     print(f"  Power      : {m['power_w']*1e3:.2f} mW")
     print(f"  HD3        : {m['hd3_db']:.1f} dBc")
     print(f"  In. noise  : {m['vn_in_rms']*1e3:.3f} mVrms")
-    print(f"  Sims used  : {r['n_simulations']}")
-    print(f"  PVT meets all specs: {r['pvt_meets_all']}  {r['pvt_all_pass']}")
+    _ew = m.get("eye_width_ui")
+    if _ew is not None and math.isfinite(_ew):
+        print(f"  Eye        : {m['eye_height_v']*1e3:.1f} mV x "
+              f"{m['eye_width_ui']:.3f} UI")
+    print(f"  Candidates : {r['n_candidates']}  "
+          f"(ngspice launches: {r['n_ngspice_launches']} search + "
+          f"{r['n_ngspice_launches_verify']} verify)")
+    print(f"  PVT ({r['pvt_grid']}, {r['n_pvt_corners']} corners) meets all: "
+          f"{r['pvt_meets_all']}")
+    if r.get("pvt_unscoreable_corners"):
+        print(f"  !! {len(r['pvt_unscoreable_corners'])} corner(s) did not "
+              f"fully simulate: {r['pvt_unscoreable_corners'][:4]}")
+    for k, v in sorted(r['pvt_all_pass'].items()):
+        print(f"     {k:10s} {'ok' if v else 'FAIL'}")
     print("=" * 62)

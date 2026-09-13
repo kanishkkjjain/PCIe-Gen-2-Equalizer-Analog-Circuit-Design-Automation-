@@ -11,8 +11,6 @@ Examples
   python scripts/plot_wave.py /tmp/eqrl_lvt/tran.dat -o /tmp/tran.png --open
   python scripts/plot_wave.py ac.dat --kind ac --title "CTLE, Rs=3k"
 """
-from __future__ import annotations
-
 import argparse
 import subprocess
 import sys

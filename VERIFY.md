@@ -10,6 +10,60 @@ cd ~/pcie_eq_rl
 
 ---
 
+## 0. Run the test suite
+
+The fastest check that nothing is broken. The pure tier needs no PDK and no
+ngspice, so it runs anywhere in under a second:
+
+```bash
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 64 tests, < 1 s
+python3 -m pytest tests/ -q                      # + 15 ngspice tests, ~3 min
+```
+
+Two of those tests are worth reading on their own, because they pin device-model
+conventions the entire design rests on and which the documentation had wrong:
+
+```bash
+# `mult=` does NOTHING on a sky130 resistor; `m=` is the real multiplier
+python3 -m pytest tests/test_spice.py::test_resistor_parallel_units_need_m_not_mult -q
+
+# W is TOTAL width, not per-finger (W=40/nf=4 == 4x W=10/nf=1, bit-identical)
+python3 -m pytest tests/test_spice.py::test_nfet_w_is_total_width -q
+```
+
+Reproduce the `mult=` result by hand in ten lines of SPICE:
+
+```bash
+cat > /tmp/rtest.sp <<'EOF'
+.lib "$PDK_ROOT/sky130A/libs.tech/ngspice/sky130.lib.spice" tt
+.temp 27
+Va a 0 DC 1
+Vb b 0 DC 1
+Vc c 0 DC 1
+XA a 0 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=5
+XB b 0 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=5 mult=4
+XC c 0 0 sky130_fd_pr__res_high_po_1p41 w=1.41 l=5 m=4
+.control
+op
+print abs(1/i(Va)) abs(1/i(Vb)) abs(1/i(Vc))
+.endc
+.end
+EOF
+ngspice -b /tmp/rtest.sp
+#   one unit 1407.6 ohm | mult=4 1407.6 ohm (!) | m=4 351.9 ohm
+```
+
+Then read the model source and see why — `mult` appears only in the mismatch
+terms, never in the two resistance elements:
+
+```bash
+awk '/^\.subckt  *sky130_fd_pr__res_high_po_1p41/,/^\.ends/' \
+  $PDK_ROOT/sky130A/libs.ref/sky130_fd_pr/spice/sky130_fd_pr__res_high_po_1p41.model.spice \
+  | grep -nE "mult|^rend|^rhrpoly"
+```
+
+---
+
 ## 1. See the schematic
 
 ```bash
@@ -21,7 +75,8 @@ xschem netlists/ctle_tb.sch      # older CTLE-only version, kept for reference
 **Press `f` first.** The DFE tap pair (`M3`/`M4`/`Mtf`) sits at x≈1100-1320, far
 right of the CTLE at x≈300-720 — off-screen until you zoom to fit.
 
-`Mtf`'s width sets the tap current (`wfb_tail = Wtail·Itap/Itail`):
+⚠️ These schematics show the **OLD merged topology** and are stale — see
+`HANDOVER.md` §11. The historical note below refers to that version:
 W=30 → 300 µA (eye closed, 0.031 UI), W=5 → 50 µA (eye open, 0.797 UI).
 Click `Mtf`, press `q`, change `W`.
 
@@ -67,7 +122,7 @@ The Python netlist is what the framework actually simulates:
 
 ```bash
 python3 -c "import sys;sys.path.insert(0,'.');\
-from eqrl.netlist import CtleParams;print(CtleParams().core_netlist())"
+from eqrl.netlist import CtleParams;print(CtleParams().full_netlist())"
 ```
 
 Resolved geometry and area:
@@ -77,7 +132,7 @@ python3 -c "import sys;sys.path.insert(0,'.');\
 from eqrl.netlist import CtleParams;p=CtleParams();\
 print('geometry:',{k:round(v,3) for k,v in p.geometry().items()});\
 print('area    :',{k:round(v,2) for k,v in p.area_um2().items()});\
-print('tap wt  :',p.tap_weight_v()*1e3,'mV')"
+print('tap wt  :',p.tap_weight_ratio(),'= gmF/gm1 nominal')"
 ```
 
 ---
@@ -98,7 +153,7 @@ grep -oE "net[0-9]+" ~/.xschem/simulations/eq_tb.spice | sort -u
 # (b) compare device-by-device
 grep -E "^X|^CL" ~/.xschem/simulations/eq_tb.spice | grep -v '^\*'
 python3 -c "import sys;sys.path.insert(0,'.');\
-from eqrl.netlist import CtleParams;print(CtleParams().core_netlist())"
+from eqrl.netlist import CtleParams;print(CtleParams().full_netlist())"
 ```
 
 **Expected differences that are NOT bugs:**
@@ -130,7 +185,7 @@ Run one by hand:
 cd /tmp/eqrl_smoke
 cp $PDK_ROOT/sky130A/libs.tech/ngspice/spinit .spiceinit   # REQUIRED
 ngspice -b ac.sp                       # batch
-ngspice ac.sp                          # interactive; then:  plot vdb(voutp,voutn) xlog
+ngspice ac.sp                          # interactive; then:  plot vdb(outp_ctle,outn_ctle) xlog
 ```
 
 Run the schematic's own netlist:
@@ -151,8 +206,8 @@ ngspice -b eq_tb.spice
 
 ```bash
 # eye diagram (closed-loop DFE, real XSPICE slicer + 1 UI latch)
-python3 scripts/plot_eye.py --itap 10e-6  -o /tmp/eye_good.png
-python3 scripts/plot_eye.py --itap 300e-6 -o /tmp/eye_bad.png
+python3 scripts/plot_eye.py --igf 50e-6  -o /tmp/eye_small_tap.png
+python3 scripts/plot_eye.py --igf 300e-6 -o /tmp/eye_big_tap.png
 
 # any wrdata dump; auto-detects AC vs transient
 python3 scripts/plot_wave.py /tmp/eqrl_smoke/ac.dat   --open
@@ -210,9 +265,9 @@ time ngspice -b /tmp/eqrl_smoke/op.sp >/dev/null 2>&1    # ~7 s
 python3 -c "import sys;sys.path.insert(0,'.');\
 from eqrl import pdk;from eqrl.netlist import CtleParams;from eqrl.spice import Simulator;\
 s=Simulator('/tmp/v4',timeout=600)
-for it in (10e-6,50e-6,150e-6,300e-6):
-    r=s.tran_eye(CtleParams(Itap=it),pdk.typical_corner(),n_bits=160,tag=f'e{int(it*1e6)}')
-    e=r['eye'];print(f\"  Itap={it*1e6:5.0f}uA  height={e.height_v*1e3:6.1f}mV  width={e.width_ui:5.3f}UI\")"
+for it in (1.0,5.0,10.0,30.0):
+    r=s.tran_eye(CtleParams(tap_pct=it),pdk.typical_corner(),n_bits=160,tag=f'e{int(it)}')
+    e=r['eye'];print(f\"  tap={it:5.1f}%  height={e.height_v*1e3:6.1f}mV  width={e.width_ui:5.3f}UI\")"
 ```
 
 ### Full PVT — and why "5 corners" is a miscount
@@ -221,8 +276,8 @@ corners, not 5. sky130 keeps R/C on a *separate* axis, so the named corners move
 MOSFETs only — `--grid full` adds it.
 
 ```bash
-python3 scripts/pvt_sweep.py --grid spec --eye --set Itap=50e-6   #  20 corners ->  4 fail, worst f_peak 2.517 GHz
-python3 scripts/pvt_sweep.py --grid full --eye --set Itap=50e-6   #  60 corners -> 18 fail, worst f_peak 2.991 GHz
+python3 scripts/pvt_sweep.py --grid spec --eye --set tap_pct=5.0   # the brief's 20 corners
+python3 scripts/pvt_sweep.py --grid full --eye --set tap_pct=5.0   # + the R/C axis, 60 corners
 ```
 Reporting only the spec grid understates the worst case by 19%.
 
@@ -311,3 +366,128 @@ print('tail saturated:',o['tail_saturated'],' vds',round(o['vds_tail']*1e3),'mV 
 | `net1`, `net2` in a netlist | a wire misses a pin → floating node |
 | metric is `nan` | analysis failed; check the deck in `/tmp/eqrl_*/` and run it by hand |
 | every candidate scores 0.2 | `op()` probe mismatch — check `netlist.NFET` matches the device |
+
+---
+
+## 9. The two-stage topology — check the summing node is real
+
+The single claim that matters: **both transconductors drain into the same load
+pair.** If `GmF` had its own loads it would be a separate stage and nothing
+would sum.
+
+```bash
+python3 -c "import sys;sys.path.insert(0,'.');\
+from eqrl.netlist import CtleParams;print(CtleParams().summer_netlist())"
+```
+
+`XG1n`, `XGFn` and `XRsp` must all name `outp_dfe`; `XG1p`, `XGFp`, `XRsn` must
+all name `outn_dfe`. Node-by-node:
+
+```bash
+python3 - <<'EOF'
+import sys; sys.path.insert(0,'.')
+from eqrl.netlist import CtleParams, NFET, RES, CAP
+PORTS={NFET:["d","g","s","b"],RES:["r0","r1","b"],CAP:["c0","c1"]}
+net={}
+for line in CtleParams().full_netlist().splitlines():
+    if not line or line.startswith("*"): continue
+    t=line.split(); body=[x for x in t[1:] if "=" not in x]
+    if t[0].startswith("X"): nodes,pn=body[:-1],PORTS.get(body[-1],[])
+    elif t[0].startswith("C"): nodes,pn=body[:2],["+","-"]
+    elif t[0].startswith("I"): nodes,pn=body[:2],["from","to"]
+    else: nodes,pn=body,[]
+    for i,nd in enumerate(nodes):
+        net.setdefault(nd,[]).append(f"{t[0]}.{pn[i] if i<len(pn) else i}")
+for nd in sorted(net,key=lambda x:(-len(net[x]),x)):
+    print(f"{nd:10s} {', '.join(net[nd])}")
+EOF
+```
+
+Expected: `outp_dfe` = `XRsp.r1, XG1n.d, XGFn.d`, and only four one-connection
+nodes (`vinp`, `vinn`, `vfbp`, `vfbn`) — those are **ports**, not floating nets.
+
+## 10. The channel — measure its loss yourself
+
+```bash
+python3 -c "import sys;sys.path.insert(0,'.');\
+from eqrl.netlist import channel_netlist;print(channel_netlist())" | head -5
+```
+
+Its measured response (`HANDOVER.md` §10b): −0.93 / −4.95 / −11.10 / −16.56 dB
+at 0.1 / 1 / 2.5 / 5 GHz. To confirm the equaliser's own peaking is reported
+independently of it — the `ac()` result must be the **same** either way:
+
+```bash
+python3 - <<'EOF'
+import sys; sys.path.insert(0,'.')
+from eqrl import pdk
+from eqrl.netlist import CtleParams
+from eqrl.spice import Simulator
+p, c = CtleParams(), pdk.typical_corner()
+for ch in (False, True):
+    a = Simulator(f"/tmp/v_ch{ch}", use_channel=ch).ac(p, c)
+    print(f"channel={'ON ' if ch else 'OFF'} peaking {a['peaking_db']:.2f} dB @ {a['f_peak']/1e9:.3f} GHz")
+EOF
+```
+
+## 11. The DFE earns its keep (or does not) — sweep the tap
+
+Scaled the reference's way: `tap_pct` moves **both** width and current.
+
+```bash
+python3 scripts/pvt_sweep.py --grid quick --eye --set tap_pct=1.0
+python3 scripts/pvt_sweep.py --grid quick --eye --set tap_pct=5.0
+python3 scripts/pvt_sweep.py --grid quick --eye --set tap_pct=30.0
+```
+
+Expect the eye to peak near 5 % and collapse by 30 % — the same shape the
+reference design reports (`HANDOVER.md` §17).
+
+## 12. The analytic starting point beats the box centre
+
+```bash
+python3 - <<'EOF'
+import sys; sys.path.insert(0,'.')
+from eqrl import pdk, analytic, netlist as nl, specs as sp
+from eqrl.netlist import CtleParams
+from eqrl.spice import Simulator
+sim, spec = Simulator("/tmp/v_an", use_channel=True), sp.EqualizerSpec()
+for name, p in (("analytic",   analytic.initial_design(spec, sim)),
+                ("box centre", CtleParams(**nl.denorm([0.5]*len(nl.PARAM_NAMES))))):
+    sc = sp.score(sim.evaluate(p, pdk.typical_corner(), do_eye=True), spec)
+    print(f"{name:12s} reward {sc['reward']:.3f}  pass {sum(sc['pass'].values())}/{len(sc['pass'])}")
+EOF
+```
+
+Measured: analytic 0.999 (9/9), box centre 0.522 (5/9).
+
+## 13. The reward can actually see a spec boundary
+
+The bug that stalled a whole run (`HANDOVER.md` §10 bug 20) — a design 10 MHz
+over the `f_peak` limit used to score 0.99972 against 1.00000 for one that
+passes, which is below sampling noise:
+
+```bash
+python3 -m pytest tests/test_pure.py -q -k "boundary or all_pass_design or more_specs"
+```
+
+## 14. Reproduce the headline result
+
+```bash
+python3 scripts/build_trimlib.py --grid spec        # ~11 min, one-time
+python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel \
+        --pop 48 --iters 15 --seed 0
+```
+
+Then check the exported deck reproduces its own report:
+
+```bash
+cd results && ngspice -b ctle_final.sp && python3 -c "
+import numpy as np, json
+d=np.loadtxt('ctle_ac.dat'); g=d[:,1]-d[:,5]; i=int(np.argmax(g))
+r=json.load(open('report.json'))['typ_metrics']
+print('deck  ', round(d[i,0]/1e9,4),'GHz', round(g[i]-g[0],2),'dB')
+print('report', round(r['f_peak']/1e9,4),'GHz', round(r['peaking_db'],2),'dB')"
+```
+
+Measured agreement: **0.000 %**.

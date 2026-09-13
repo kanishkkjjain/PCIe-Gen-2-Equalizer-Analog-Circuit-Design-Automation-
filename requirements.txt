@@ -1,0 +1,15 @@
+# Python dependencies for the PCIe Gen2 equalizer RL sizing framework.
+#
+# Versions are the ones this project was developed and measured against
+# (Python 3.12.3). Install with:
+#   pip install -r requirements.txt
+# or, on a PEP-668 system Python (Debian/Ubuntu):
+#   pip install --user --break-system-packages -r requirements.txt
+#
+# NOT installable from here: ngspice-42 (needs XSPICE + KLU), xschem 3.4.4, and
+# the SKY130 PDK (via volare). See HANDOVER.md section 2.
+numpy>=2.0
+scipy>=1.11
+matplotlib>=3.8
+gymnasium>=1.0      # only needed for the CtleEnv deep-RL interface
+pytest>=8.0         # test suite

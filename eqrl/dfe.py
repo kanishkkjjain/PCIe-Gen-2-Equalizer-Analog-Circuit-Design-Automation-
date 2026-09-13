@@ -6,18 +6,17 @@ Two complementary paths, deliberately:
   transient (the XSPICE slicer -> 1 UI latch -> tap feedback loop). Faithful,
   but a 200-500 UI transient is expensive -- reserved for verifying a winner.
 
-* :func:`eye_from_pulse_response` runs peak-distortion analysis on the sampled
-  **pulse response**: one cheap transient gives h[k], the 1-tap DFE cancels
-  h[1] exactly, and the residual ISI bounds the eye. Exact for a linear front
-  end plus an ideal slicer, and cheap enough for the RL inner loop.
+(A cheap ``eye_from_pulse_response`` peak-distortion surrogate was written for
+the RL inner loop and has been REMOVED: it never had a caller, and the measured
+cost breakdown says the closed-loop eye is ~1.3 s of actual solve on top of a
+PDK parse that every analysis pays anyway -- so the surrogate bought nothing
+while being a second, untested definition of "eye".)
 
 Note on the current state: with no channel in front of the equalizer, the
 post-cursor h[1] is small, so the DFE has almost nothing to cancel and the tap
 weight is not yet determined by anything physical. That is expected -- the tap
 is structural until the channel lands.
 """
-from __future__ import annotations
-
 from dataclasses import dataclass
 
 import numpy as np
@@ -132,37 +131,33 @@ def eye_from_waveform(t: np.ndarray, v: np.ndarray, ui: float,
     ])
     jbest = int(np.nanargmax(heights))
     height = float(heights[jbest])
-    open_frac = float(np.sum(heights > 0) / n_phase)
     centre = float(np.mean(eye[:, jbest]))
-    return Eye(height_v=max(0.0, height), width_ui=open_frac,
+    return Eye(height_v=max(0.0, height),
+               width_ui=_contiguous_open_fraction(heights > 0),
                center_v=centre, n_ui=n_ui)
 
 
-def eye_from_pulse_response(t: np.ndarray, v: np.ndarray, ui: float,
-                            n_taps: int = 1, sample_phase: float = 0.5) -> Eye:
-    """Peak-distortion eye from a single-bit pulse response.
+def _contiguous_open_fraction(is_open: np.ndarray) -> float:
+    """Longest CONTIGUOUS run of open phases, as a fraction of the UI.
 
-    Samples h[k] at one point per UI, treats the largest |h| as the cursor,
-    cancels the first ``n_taps`` post-cursors (what the DFE does), and bounds
-    the worst-case eye by the sum of the remaining |h|.
+    Counting the total number of open phases (the obvious thing) overstates the
+    eye whenever it opens in two disjoint regions: a waveform that is open at
+    the start and end of the UI but slammed shut across the middle scores 2/3
+    of a UI when the usable opening is only 1/3. A receiver samples at ONE
+    phase, so only a contiguous opening is worth anything.
 
-    This is the cheap path used inside the RL loop: one transient per candidate
-    instead of a few-hundred-UI closed-loop run.
+    The run is measured circularly -- the eye's opening is not aligned to the
+    fold's phase-0 boundary, so an opening that straddles it is still one
+    opening.
     """
-    if t.size < 8:
-        return Eye(note="pulse response too short")
-    t_s = np.arange(t[0] + sample_phase * ui, t[-1], ui)
-    h = np.interp(t_s, t, v)
-    if h.size < 3:
-        return Eye(note="too few UI in pulse response")
-    k0 = int(np.argmax(np.abs(h)))
-    cursor = abs(h[k0])
-    post = np.abs(h[k0 + 1:])
-    pre = np.abs(h[:k0])
-    cancelled = post[:n_taps].sum()
-    residual = post[n_taps:].sum() + pre.sum()
-    height = 2.0 * (cursor - residual)
-    return Eye(height_v=max(0.0, height), width_ui=float("nan"),
-               center_v=0.0, n_ui=int(h.size),
-               note=f"cursor={cursor:.4g} cancelled={cancelled:.4g} "
-                    f"residual={residual:.4g}")
+    n = int(is_open.size)
+    if n == 0 or not is_open.any():
+        return 0.0
+    if is_open.all():
+        return 1.0
+    # doubling the array lets a wrapped run be found by a linear scan
+    best = run = 0
+    for v in np.concatenate([is_open, is_open]):
+        run = run + 1 if v else 0
+        best = max(best, run)
+    return float(min(best, n)) / n

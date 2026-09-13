@@ -10,8 +10,6 @@ Supply voltage and temperature are *not* part of that section; they are applied
 separately (VDD source value and the ``.temp`` card), which is exactly what we
 need to walk the PVT grid the spec calls for.
 """
-from __future__ import annotations
-
 import os
 from dataclasses import dataclass
 from pathlib import Path

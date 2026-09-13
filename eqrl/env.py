@@ -17,7 +17,10 @@ repeated candidates never re-simulate.
 """
 from __future__ import annotations
 
+import hashlib
+import os
 from dataclasses import dataclass
+from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
@@ -33,16 +36,40 @@ from . import netlist as nl
 from . import pdk
 from . import specs as sp
 from .netlist import CtleParams, PARAM_NAMES
-from .spice import Simulator, Metrics
+from .spice import Simulator, safe_job_count
+
+
+def _eval_task(task):
+    """Evaluate one (candidate, corner) pair in a worker process.
+
+    Module-level and self-contained so it pickles. Each worker builds its OWN
+    Simulator in its OWN directory: the analyses write fixed filenames
+    (ac.dat, tran.dat, eye.dat), so sharing a workdir across processes means one
+    worker parses another's dump. scripts/pvt_sweep.py hit this first and works
+    around it the same way.
+    """
+    key, workroot, params, corner, do_eye, timeout, use_ch = task
+    # Per (candidate, CORNER) -- not per candidate. The corners of one candidate
+    # run concurrently, so keying the directory on the candidate alone puts four
+    # workers in one directory all writing ac.dat / tran.dat / eye.dat, and they
+    # overwrite each other's dumps. Verified: a candidate directory held exactly
+    # one ac.dat shared by four corner tasks.
+    sim = Simulator(Path(workroot) / f"c{key}" / corner.name, timeout=timeout,
+                    use_channel=use_ch)
+    m = sim.evaluate(CtleParams(**params), corner, do_eye=do_eye)
+    return key, corner.name, m, sim.n_launches
 
 
 @dataclass
 class EvalResult:
     u: tuple                    # normalised parameter vector
     reward: float
-    scored: dict                # scorer output at the reporting corner
+    scored: dict                # scorer output at `scored_corner` (the WORST)
     params: CtleParams
     per_corner: dict            # corner.name -> scored
+    scored_corner: str = ""     # which corner `scored` describes -- it is the
+                                # worst one, NOT the typical one, and callers
+                                # that label it must say so
 
 
 class Objective:
@@ -50,41 +77,92 @@ class Objective:
 
     def __init__(self, spec: sp.EqualizerSpec, sim: Simulator,
                  corners: list[pdk.Corner] | None = None,
-                 fixed: dict | None = None, robust: str = "min"):
+                 fixed: dict | None = None, robust: str = "min",
+                 do_eye: bool = False, jobs: int | None = None,
+                 use_channel: bool = False):
         self.spec = spec
         self.sim = sim
         self.corners = corners or [pdk.typical_corner()]
         self.fixed = fixed or {}          # non-optimised context (CL, Vcm)
         self.robust = robust              # 'min' -> worst corner, 'mean'
+        # do_eye applies to the WHOLE population or none of it. specs.score()
+        # normalises by the weights it actually used, so an eye-scored reward
+        # and a non-eye-scored one are on different scales and must never be
+        # compared against each other inside one search.
+        self.do_eye = do_eye
+        self.use_channel = use_channel
+        # Capped by RAM as well as cores: an OOM-killed worker looks like a
+        # failed candidate to the scorer, which would steer the search for a
+        # reason that has nothing to do with the circuit.
+        self.jobs = safe_job_count(jobs)
         self._cache: dict[tuple, EvalResult] = {}
-        self.n_sims = 0
+        self.n_sims = 0                   # (candidate, corner) evaluations
+        self.n_launches = 0               # actual ngspice invocations
         self.history: list[EvalResult] = []
 
     def params_from_u(self, u) -> CtleParams:
         phys = nl.denorm(list(u))
         return CtleParams(**phys, **self.fixed)
 
+    @staticmethod
+    def _key(u) -> tuple:
+        return tuple(round(float(x), 5) for x in u)
+
     def __call__(self, u) -> EvalResult:
-        key = tuple(round(float(x), 5) for x in u)
-        if key in self._cache:
-            return self._cache[key]
-        p = self.params_from_u(u)
-        per_corner: dict[str, dict] = {}
-        rewards = []
-        for c in self.corners:
-            m = self.sim.evaluate(p, c)
-            self.n_sims += 1
-            sc = sp.score(m, self.spec)
-            per_corner[c.name] = sc
-            rewards.append(sc["reward"])
-        agg = min(rewards) if self.robust == "min" else float(np.mean(rewards))
-        # report against the first (typical) corner for readability
-        report = per_corner[self.corners[0].name]
-        res = EvalResult(u=key, reward=float(agg), scored=report,
-                         params=p, per_corner=per_corner)
-        self._cache[key] = res
-        self.history.append(res)
-        return res
+        return self.evaluate_batch([u])[0]
+
+    def evaluate_batch(self, us: list) -> list[EvalResult]:
+        """Evaluate a whole population, running (candidate x corner) in parallel.
+
+        The search was previously serial: ~30 s per candidate x 160 candidates
+        is ~80 minutes on a 16-core box, while scripts/pvt_sweep.py was already
+        getting a 15x speedup from the same pattern.
+        """
+        keys = [self._key(u) for u in us]
+        todo = [k for k in dict.fromkeys(keys) if k not in self._cache]
+        if todo:
+            params = {k: self.params_from_u(k) for k in todo}
+            root = self.sim.workdir
+            tasks = [(self._digest(k), str(root), params[k].as_dict(), c,
+                      self.do_eye, self.sim.timeout, self.use_channel)
+                     for k in todo for c in self.corners]
+            by_key = {self._digest(k): k for k in todo}
+            results: dict[tuple, dict] = {k: {} for k in todo}
+            if self.jobs > 1 and len(tasks) > 1:
+                with Pool(min(self.jobs, len(tasks))) as pool:
+                    out = pool.map(_eval_task, tasks)
+            else:
+                out = [_eval_task(t) for t in tasks]
+            for dig, cname, m, launches in out:
+                results[by_key[dig]][cname] = sp.score(m, self.spec)
+                self.n_sims += 1
+                self.n_launches += launches
+            for k in todo:
+                per_corner = results[k]
+                rewards = [per_corner[c.name]["reward"] for c in self.corners]
+                agg = (min(rewards) if self.robust == "min"
+                       else float(np.mean(rewards)))
+                # Report the WORST corner, not the first. Reporting the typical
+                # corner let the stopping rule declare success on a design that
+                # failed elsewhere in the search set.
+                worst = min(self.corners,
+                            key=lambda c: per_corner[c.name]["reward"])
+                res = EvalResult(u=k, reward=float(agg),
+                                 scored=per_corner[worst.name],
+                                 params=params[k], per_corner=per_corner,
+                                 scored_corner=worst.name)
+                self._cache[k] = res
+                self.history.append(res)
+        return [self._cache[k] for k in keys]
+
+    @staticmethod
+    def _digest(key: tuple) -> str:
+        """Stable short id for a candidate, used to name its private workdir."""
+        return hashlib.sha1(repr(key).encode()).hexdigest()[:12]
+
+    def all_pass_everywhere(self, res: EvalResult) -> bool:
+        """True only when EVERY search corner passes every spec."""
+        return all(sp.all_pass(sc) for sc in res.per_corner.values())
 
 
 if _HAVE_GYM:
@@ -108,6 +186,9 @@ if _HAVE_GYM:
             self.step_scale = step_scale
             self.action_space = spaces.Box(-1.0, 1.0, (self.n,), np.float32)
             # obs: n params + [dc_gain, peaking, fpeak, gain2g5, power, reward]
+            # Observations are CLIPPED into this box below: f_peak/2.5e9 alone
+            # exceeds 5 for any candidate peaking above 12.5 GHz, which
+            # gymnasium's env_checker rejects outright.
             self.observation_space = spaces.Box(-5.0, 5.0, (self.n + 6,), np.float32)
             self._u = None
             self._t = 0
@@ -124,8 +205,10 @@ if _HAVE_GYM:
                 (m.power_w or 0) / self.obj.spec.power_max_w,
                 res.reward,
             ]
-            feats = [0.0 if (x != x) else x for x in feats]
-            return np.asarray(list(self._u) + feats, dtype=np.float32)
+            feats = [0.0 if (x != x) else float(x) for x in feats]
+            obs = np.asarray(list(self._u) + feats, dtype=np.float32)
+            return np.clip(obs, self.observation_space.low,
+                           self.observation_space.high)
 
         def reset(self, *, seed=None, options=None):
             super().reset(seed=seed)

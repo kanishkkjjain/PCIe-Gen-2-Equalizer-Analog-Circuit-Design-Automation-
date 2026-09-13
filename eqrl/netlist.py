@@ -1,22 +1,43 @@
-"""Parametric SPICE netlist builder for the source-degenerated CTLE.
+"""Parametric SPICE netlist builder: CTLE + a separate DFE summing stage.
 
-Topology (1-stage CTLE with source degeneration, differential), all devices now
-real SKY130 parts -- no ideal R, C or current sources in the signal path:
+TWO stages, matching the reference architecture. The DFE is NOT merged into the
+CTLE loads -- it is its own summing stage fed by two transconductors:
 
+    STAGE 1: CTLE (source-degenerated diff pair)
         VDD                         VDD
          |                           |
         RLn (res_high_po)           RLp
          |                           |
-       voutn ---+                 +--- voutp
-         |      |                 |      |
-        CLn    M1                M2     CLp
-         |   (vinp)            (vinn)    |
-        GND     |                 |     GND
-                sp --[Rs||Cs]-- sn          Rs = poly res, Cs = MIM cap
-                |                 |
-              Mt1               Mt2         REAL NMOS tail pair, gate=vbias
-                |                 |
-               GND               GND
+     outn_ctle --+               +-- outp_ctle
+         |       |               |       |
+        CLn     X1              X2      CLp
+         |    (vinp)          (vinn)     |
+        GND      |               |      GND
+                 sp --[Rs||Cs]-- sn        Rs = poly res, Cs = MIM cap
+                 |               |
+               Xt1             Xt2         REAL NMOS tail, gate=vbias
+
+    STAGE 2: DFE summing stage (Gm1 + GmF share ONE pair of loads)
+        VDD                         VDD
+         |                           |
+       XRsn (Rsum)                 XRsp
+         |                           |
+     outn_dfe -----+-------+       outp_dfe -----+-------+
+         |         |       |           |         |       |
+       XG1p      XGFp      |         XG1n      XGFn      |
+     (outp_ctle) (vfbp)    |       (outn_ctle) (vfbn)    |
+         |         |       |           |         |       |
+        sgm1     sgmf      +-----------+---------+
+         |         |
+        XT1       XTF                  separate tails, both off vbias
+
+Summing happens in XRsp/XRsn: Gm1 carries the equalised signal, GmF injects the
+previous decision, and the two drain currents add in the shared loads. Tap
+weight is therefore the RATIO gmF/gm1 -- set independently of the CTLE gain,
+which is the whole point of splitting the stages.
+
+The decision path (slicer + 1 UI latch) samples outp_dfe/outn_dfe and is
+deliberately IDEAL (XSPICE code models), as in the reference schematic.
 
 The tail is a 4:1 NMOS current mirror (Mref diode-connected off an ideal Iref
 reference -- a bandgap legitimately lives off-block). This matters: an ideal
@@ -44,9 +65,8 @@ Fixed context (not optimised):
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 
-from . import pdk
 
 # Ordered design-variable names -> (min, max) bounds. The RL agent operates on a
 # normalised [0,1] vector; these bounds map it to physical values.
@@ -58,13 +78,34 @@ PARAM_BOUNDS: dict[str, tuple[float, float]] = {
     "Cs":    (10e-15,  3e-12),      # F
     "Itail": (50e-6,   2.0e-3),     # A (per side)
     "Wtail": (5.0,     200.0),      # um (tail device; headroom vs area)
-    "Itap":  (10e-6,   1.0e-3),     # A  (DFE tap current; tap weight = Itap*RL)
-    "Wfb":   (1.0,     50.0),       # um (DFE feedback pair width)
+    # --- DFE summing stage -------------------------------------------------
+    # Tap weight is now the ratio gmF/gm1, not an absolute current, so `Itap`
+    # and `Wfb` are gone. Both transconductors get their own width and tail
+    # current; Rsum is shared (it IS the summing node).
+    "Rsum":  (100.0,   2000.0),     # ohm  (summing-node load, each side)
+    "Wg1":   (1.0,     100.0),      # um   (Gm1 = main signal transconductor)
+    "Ig1":   (100e-6,  4.0e-3),     # A    (Gm1 tail current)
+    # TAP WEIGHT AS ONE VARIABLE, not two. A current-steering DFE tap is a
+    # SCALED COPY of the main transconductor: both its width and its tail
+    # current are tap_pct of the main branch, so it runs at the same current
+    # density (same Vgs, same Vdsat, same switching behaviour) and its gm
+    # scales LINEARLY with tap_pct:
+    #     I_TAP  = tap% * I_MAIN
+    #     W_TAP  = tap% * W_MAIN
+    # Sizing W and I independently -- which this used to do -- puts the tap
+    # devices at a different current density from the pair they are supposed
+    # to match, and makes gm go as sqrt(W*I) instead of linearly, so "30% tap"
+    # did not mean 30% of the main path at all.
+    #
+    # Range: a 1-tap DFE optimum is a few percent. Measured on this design the
+    # eye peaks near 5% and collapses by 30% -- matching the reference sweep
+    # (5% best, 30% worse than no equalisation at all).
+    "tap_pct": (1.0,   30.0),       # % of the main Gm1 branch
 }
 PARAM_NAMES = tuple(PARAM_BOUNDS.keys())
 
 # Which variables are best explored on a logarithmic scale (span >~1 decade).
-LOG_PARAMS = {"RL", "Rs", "Cs", "Itail", "Itap"}
+LOG_PARAMS = {"RL", "Rs", "Cs", "Itail", "Rsum", "Ig1"}
 
 # ---------------------------------------------------------------------------
 # Device flavours. NFET is the SINGLE SOURCE OF TRUTH: the ngspice device-probe
@@ -92,6 +133,25 @@ RES_R_PER_UM = 223.4     # ohm per um of length
 RES_L_MIN, RES_L_MAX = 0.5, 60.0
 RES_MULT_MAX = 32
 
+# PARALLEL UNITS MUST USE `m=`, NOT `mult=`. Measured, not assumed: in
+# sky130_fd_pr__res_high_po_1p41 the `mult` parameter appears ONLY inside the
+# Monte-Carlo mismatch expressions (`res_match`, `rend`) and never divides the
+# two resistance elements, so `mult=N` leaves the resistance UNCHANGED. With
+# MC_MM_SWITCH=0 (the default) it does nothing whatsoever.
+#
+#   forcing 1 V through w=1.41 l=5:
+#     one unit            1407.6 ohm
+#     mult=4              1407.6 ohm   <- no effect at all
+#     m=4                  351.9 ohm   <- correct, = 1407.6/4
+#     4 explicit parallel  351.9 ohm   <- ground truth, matches m=
+#
+# `m` is ngspice's subcircuit multiplier and replicates the whole subckt. This
+# was silently wrong for every R below ~450 ohm (the contact-resistance floor,
+# where res_geometry starts returning mult>1): Rs=50 was simulated as 450 ohm,
+# 9x too large. The DEFAULTS all resolve to mult=1, which is why every measured
+# number recorded so far is self-consistent -- it would have fired the moment
+# the optimiser explored the low end of the RL/Rs bounds.
+
 # --- MIM cap value <-> geometry, MEASURED ------------------------------------
 # 10x10um -> 206.6 fF, 12.25x12.25um -> 308.2 fF, matching
 #   C = CAP_AREA * s^2 + CAP_PERIM * 4s      (s = side in um)
@@ -103,8 +163,9 @@ CAP_S_MIN, CAP_S_MAX = 2.0, 60.0
 MIRROR_RATIO = 4.0       # Itail = Iref * MIRROR_RATIO
 L_TAIL = 0.5             # um; long for output resistance + matching
 
-# --- DFE feedback pair -------------------------------------------------------
-L_FB = 0.15              # um; minimum length -- this is a current SWITCH
+# --- DFE summing stage -------------------------------------------------------
+L_GM = 0.18              # um; length of both Gm1 and GmF devices
+L_FB = 0.15              # um; retained: minimum length for a current SWITCH
 # Feedback logic levels driving the tap pair. NOT 0/VDD: a 0..1.8 swing has a
 # 0.9 V common mode, which would leave the feedback tail's source at only
 # 0.9-0.77 = 0.13 V and push it into triode (the same trap the input tail hit).
@@ -152,6 +213,34 @@ def _nf(w: float, per_finger: float = 10.0) -> int:
     return max(1, int(round(w / per_finger)))
 
 
+# Widest sky130 nfet model bin: wmin=7e-6, wmax=1.0e-4 -> a single device
+# instance may not exceed 100 um of TOTAL width. Measured, because the bin
+# table alone is misleading: most bins top out at 7.005 um, but one wide bin
+# covers 7..100 um. Beyond that ngspice says "could not find a valid
+# modelname" and refuses to run.
+#
+# `nf` does NOT help -- binning is on total W, not width per finger:
+#   W=100 nf=10 (10 um/finger)  ok
+#   W=120 nf=12 (10 um/finger)  FAIL
+#   W=150 nf=30 ( 5 um/finger)  FAIL
+#
+# So a wide device must be built from PARALLEL UNIT devices with `m=`, which is
+# verified to work on MOSFETs (m=4 of W=10 measures bit-identical to W=40).
+# This matters most for the summing-stage tails: wg1_tail = Wtail*Ig1/Itail
+# reaches ~16000 um at the corners of the parameter box.
+W_MAX_UM = 100.0
+W_MIN_UM = 0.42     # sky130 minimum drawn nfet width
+
+
+def w_mult(w: float) -> tuple[float, int]:
+    """Total width -> (width per unit device, number of parallel units).
+
+    ``w_unit * m == w`` exactly, and ``w_unit <= W_MAX_UM``.
+    """
+    m = max(1, math.ceil(w / W_MAX_UM))
+    return (w / m, m)
+
+
 @dataclass
 class CtleParams:
     """Physical design variables plus fixed environment context."""
@@ -163,8 +252,16 @@ class CtleParams:
     Cs: float = 300e-15
     Itail: float = 600e-6
     Wtail: float = 60.0
-    Itap: float = 300e-6
-    Wfb: float = 20.0
+    # --- DFE summing stage ---
+    # Rsum=400 matches the reference. Note 400 ohm is BELOW the ~450 ohm
+    # contact-resistance floor, so it resolves to two units in parallel
+    # (l=2.085, m=2) -- i.e. this default sits squarely in the code path where
+    # `mult=` was silently inert. See the RES notes above.
+    Rsum: float = 400.0
+    Wg1: float = 40.0
+    Ig1: float = 1.0e-3
+    # 5%: measured optimum on this design, and the reference's best tap too.
+    tap_pct: float = 5.0
     # fixed context
     CL: float = 40e-15
     # Raised from 0.9: with a REAL NMOS tail, Vcm=0.9 put it in triode
@@ -176,52 +273,123 @@ class CtleParams:
     def geometry(self) -> dict:
         rl_l, rl_m = res_geometry(self.RL)
         rs_l, rs_m = res_geometry(self.Rs)
+        rsum_l, rsum_m = res_geometry(self.Rsum)
         cs_s = cap_side(self.Cs)
         return {
             "rl_l": rl_l, "rl_mult": rl_m, "rl_actual": res_value(rl_l, rl_m),
             "rs_l": rs_l, "rs_mult": rs_m, "rs_actual": res_value(rs_l, rs_m),
+            "rsum_l": rsum_l, "rsum_mult": rsum_m,
+            "rsum_actual": res_value(rsum_l, rsum_m),
             "cs_s": cs_s, "cs_actual": cap_value(cs_s),
             "iref": self.Itail / MIRROR_RATIO,
             "w_ref": self.Wtail / MIRROR_RATIO,
-            # The feedback tail shares vbias, so its current ratios purely by
-            # width: Itap/Itail = Wfb_tail/Wtail.
-            "wfb_tail": max(0.5, self.Wtail * self.Itap / self.Itail),
+            # Both summing-stage tails share vbias with the CTLE tail, so each
+            # one's current ratios purely by width against Itail.
+            "wg1_tail": max(0.5, self.Wtail * self.Ig1 / self.Itail),
+            "wgf_tail": max(0.5, self.Wtail * self.Igf / self.Itail),
+            "w_gf": self.Wgf, "i_gf": self.Igf,
         }
 
+    # ---- tap branch, derived from tap_pct (never sized independently) ----
+    @property
+    def Igf(self) -> float:
+        """GmF tail current = tap_pct % of the main Gm1 current."""
+        return self.Ig1 * self.tap_pct / 100.0
+
+    @property
+    def Wgf(self) -> float:
+        """GmF width = tap_pct % of the main Gm1 width.
+
+        Floored at the PDK's minimum drawn width. Below that floor the branch
+        is no longer a scaled copy and gm stops tracking tap_pct linearly, so
+        the floor is reported in geometry() rather than hidden.
+        """
+        return max(W_MIN_UM, self.Wg1 * self.tap_pct / 100.0)
+
     def core_netlist(self) -> str:
-        """Return the device/topology section (no supply, analysis, or .lib)."""
+        """CTLE stage only: devices and topology, no supply/analysis/.lib.
+
+        Outputs are outp_ctle / outn_ctle. The DFE tap is NOT here any more --
+        it lives in its own summing stage (:meth:`summer_netlist`), fed from
+        these nodes. Merging the tap onto the CTLE loads (the old topology)
+        made tap weight a function of RL and let the tap capacitively load the
+        equaliser's output node.
+        """
         g = self.geometry()
-        nf_in = _nf(self.W)
-        nf_t = _nf(self.Wtail)
-        nf_r = _nf(g["w_ref"])
-        nf_fb = _nf(self.Wfb)
-        nf_ft = _nf(g["wfb_tail"])
-        return f"""* --- CTLE core: source-degenerated diff pair, all-real SKY130 devices ---
+        w_in, m_in = w_mult(self.W)
+        nf_in = _nf(w_in)
+        w_r, m_r = w_mult(g["w_ref"])
+        nf_r = _nf(w_r)
+        return f"""* --- STAGE 1: CTLE, source-degenerated diff pair, real SKY130 devices ---
 * input pair
-X1 voutn vinp sp 0 {NFET} L={self.L:.4g} W={self.W:.4g} nf={nf_in} mult=1
-X2 voutp vinn sn 0 {NFET} L={self.L:.4g} W={self.W:.4g} nf={nf_in} mult=1
+X1 outn_ctle vinp sp 0 {NFET} L={self.L:.4g} W={w_in:.4g} nf={nf_in} m={m_in}
+X2 outp_ctle vinn sn 0 {NFET} L={self.L:.4g} W={w_in:.4g} nf={nf_in} m={m_in}
 * degeneration: real poly resistor + real MIM cap  (b = body tie to substrate)
-XRs sp sn 0 {RES} w={RES_W} l={g['rs_l']:.4g} mult={g['rs_mult']}
+XRs sp sn 0 {RES} w={RES_W} l={g['rs_l']:.4g} m={g['rs_mult']}
 XCs sp sn {CAP} w={g['cs_s']:.4g} l={g['cs_s']:.4g} mf=1
-* loads: real poly resistors
-XRLp vdd voutp 0 {RES} w={RES_W} l={g['rl_l']:.4g} mult={g['rl_mult']}
-XRLn vdd voutn 0 {RES} w={RES_W} l={g['rl_l']:.4g} mult={g['rl_mult']}
+* loads
+XRLp vdd outp_ctle 0 {RES} w={RES_W} l={g['rl_l']:.4g} m={g['rl_mult']}
+XRLn vdd outn_ctle 0 {RES} w={RES_W} l={g['rl_l']:.4g} m={g['rl_mult']}
 * CL stays ideal: it models the NEXT stage's input capacitance
-CLp voutp 0 {self.CL:.6g}
-CLn voutn 0 {self.CL:.6g}
-* tail: {MIRROR_RATIO:g}:1 NMOS current mirror (Iref sourced from vdd)
+CLp outp_ctle 0 {self.CL:.6g}
+CLn outn_ctle 0 {self.CL:.6g}
+* tail: {MIRROR_RATIO:g}:1 NMOS current mirror (Iref sourced from vdd).
+* Xt1/Xt2 are the SAME unit device as Xref, replicated m={MIRROR_RATIO:g} times --
+* a mirror ratios by multiplicity, not by making one device wider.
 Iref vdd vbias DC {g['iref']:.6g}
-Xref vbias vbias 0 0 {NFET} L={L_TAIL} W={g['w_ref']:.4g} nf={nf_r} mult=1
-Xt1  sp vbias 0 0 {NFET} L={L_TAIL} W={self.Wtail:.4g} nf={nf_t} mult=1
-Xt2  sn vbias 0 0 {NFET} L={L_TAIL} W={self.Wtail:.4g} nf={nf_t} mult=1
-* --- DFE 1-tap feedback pair: MERGED current summer ---
-* Shares RLp/RLn with the CTLE rather than being a separate gain stage, so the
-* two drain currents sum directly in the loads. Fully steered, this moves the
-* differential output by Itap*RL -- that product IS the tap weight.
-X3 voutn vfbp stap 0 {NFET} L={L_FB} W={self.Wfb:.4g} nf={nf_fb} mult=1
-X4 voutp vfbn stap 0 {NFET} L={L_FB} W={self.Wfb:.4g} nf={nf_fb} mult=1
-Xtf stap vbias 0 0 {NFET} L={L_TAIL} W={g['wfb_tail']:.4g} nf={nf_ft} mult=1
+Xref vbias vbias 0 0 {NFET} L={L_TAIL} W={w_r:.4g} nf={nf_r} m={m_r}
+Xt1  sp vbias 0 0 {NFET} L={L_TAIL} W={w_r:.4g} nf={nf_r} m={m_r * MIRROR_RATIO:g}
+Xt2  sn vbias 0 0 {NFET} L={L_TAIL} W={w_r:.4g} nf={nf_r} m={m_r * MIRROR_RATIO:g}
 """
+
+    def summer_netlist(self) -> str:
+        """STAGE 2: the DFE summing stage -- Gm1 + GmF into shared Rsum loads.
+
+        Gm1 carries the equalised signal from the CTLE; GmF injects the previous
+        decision. Both pairs drain into XRsp/XRsn, so their currents add there:
+        that shared resistor pair IS the summing node, and the tap weight is the
+        ratio gmF/gm1.
+
+        DRAIN CROSSING, and why it is this way round: each device is common
+        source, so it inverts its own drain. XG1p's gate is outp_ctle and its
+        drain is outn_dfe, so outp_ctle rising pulls outn_dfe down and drives
+        (outp_dfe - outn_dfe) POSITIVE -- the stage is non-inverting
+        differentially. GmF is crossed identically, so vfbp high also drives the
+        summing node positive. The tap must SUBTRACT the previous bit, so the
+        INVERTED decision has to reach vfbp -- see dfe_decision_path(). This is
+        the same trap as the old merged topology, where feeding dq (not dqb) to
+        vfbp made the tap reinforce the post-cursor instead of cancelling it,
+        silently. Do not trust this comment: it is measured by
+        tests/test_spice.py::test_tap_opposes_the_main_path.
+        """
+        g = self.geometry()
+        w_g1, m_g1 = w_mult(self.Wg1)
+        w_gf, m_gf = w_mult(self.Wgf)
+        w_t1, m_t1 = w_mult(g["wg1_tail"])
+        w_tf, m_tf = w_mult(g["wgf_tail"])
+        nf_g1, nf_gf = _nf(w_g1), _nf(w_gf)
+        nf_t1, nf_tf = _nf(w_t1), _nf(w_tf)
+        return f"""* --- STAGE 2: DFE summing stage (Gm1 + GmF share one load pair) ---
+* summing-node loads -- these ARE the summer
+XRsp vdd outp_dfe 0 {RES} w={RES_W} l={g['rsum_l']:.4g} m={g['rsum_mult']}
+XRsn vdd outn_dfe 0 {RES} w={RES_W} l={g['rsum_l']:.4g} m={g['rsum_mult']}
+* Gm1: main signal path, gates driven by the CTLE output (drains crossed)
+XG1p outn_dfe outp_ctle sgm1 0 {NFET} L={L_GM} W={w_g1:.4g} nf={nf_g1} m={m_g1}
+XG1n outp_dfe outn_ctle sgm1 0 {NFET} L={L_GM} W={w_g1:.4g} nf={nf_g1} m={m_g1}
+* GmF: feedback tap, gates driven by the held decision (same crossing as Gm1)
+XGFp outn_dfe vfbp sgmf 0 {NFET} L={L_GM} W={w_gf:.4g} nf={nf_gf} m={m_gf}
+XGFn outp_dfe vfbn sgmf 0 {NFET} L={L_GM} W={w_gf:.4g} nf={nf_gf} m={m_gf}
+* separate tails, both mirrored off the same vbias as the CTLE.
+* Names must not collide with the CTLE's Xt1/Xt2 even case-insensitively --
+* ngspice folds case, so `XT1` IS `Xt1` and the deck dies with
+* "device already exists, bail out".
+XTsum1 sgm1 vbias 0 0 {NFET} L={L_TAIL} W={w_t1:.4g} nf={nf_t1} m={m_t1}
+XTsumf sgmf vbias 0 0 {NFET} L={L_TAIL} W={w_tf:.4g} nf={nf_tf} m={m_tf}
+"""
+
+    def full_netlist(self) -> str:
+        """Both stages. This is what actually gets simulated."""
+        return self.core_netlist() + self.summer_netlist()
 
     # ---- area -----------------------------------------------------------
     def area_um2(self) -> dict:
@@ -229,22 +397,26 @@ Xtf stap vbias 0 0 {NFET} L={L_TAIL} W={g['wfb_tail']:.4g} nf={nf_ft} mult=1
         g = self.geometry()
         a_in = 2 * self.W * self.L
         a_tail = 2 * self.Wtail * L_TAIL + g["w_ref"] * L_TAIL
-        a_dfe = 2 * self.Wfb * L_FB + g["wfb_tail"] * L_TAIL
-        a_res = RES_W * (2 * g["rl_l"] * g["rl_mult"] + g["rs_l"] * g["rs_mult"])
+        a_sum = (2 * self.Wg1 * L_GM + 2 * self.Wgf * L_GM
+                 + (g["wg1_tail"] + g["wgf_tail"]) * L_TAIL)
+        a_res = RES_W * (2 * g["rl_l"] * g["rl_mult"]
+                         + g["rs_l"] * g["rs_mult"]
+                         + 2 * g["rsum_l"] * g["rsum_mult"])
         a_cap = g["cs_s"] ** 2
-        total = a_in + a_tail + a_dfe + a_res + a_cap
-        return {"input_pair": a_in, "tail": a_tail, "dfe": a_dfe,
+        total = a_in + a_tail + a_sum + a_res + a_cap
+        return {"input_pair": a_in, "tail": a_tail, "summer": a_sum,
                 "resistors": a_res, "cap": a_cap,
                 "total_um2": total, "total_mm2": total * 1e-6}
 
-    def tap_weight_v(self) -> float:
-        """Nominal DFE tap weight in volts (differential), = Itap * RL.
+    def tap_weight_ratio(self) -> float:
+        """Nominal tap weight gmF/gm1 -- which IS tap_pct/100 by construction.
 
-        This is the *structural* value. What it SHOULD be set to depends on the
-        channel's first post-cursor, which does not exist yet -- so the tap is a
-        free parameter until the channel lands.
+        Because the tap branch is a scaled copy of the main branch (same
+        current density), gm scales linearly with the scale factor rather than
+        as sqrt(W*I). The realised ratio is still measured from .op, and will
+        differ slightly wherever Wgf hits the W_MIN_UM floor.
         """
-        return self.Itap * self.RL
+        return self.tap_pct / 100.0
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -300,37 +472,122 @@ def dfe_static_tap(sign: float = +1.0) -> str:
 
 
 def dfe_decision_path(ui_s: float = 200e-12) -> str:
-    """Closed-loop 1-tap DFE: slicer -> 1 UI latch -> differential tap drive.
+    """Closed-loop 1-tap DFE: clocked comparator -> 1 UI latch -> tap drive.
 
-    Built from XSPICE code models (verified available in this ngspice build).
-    Gotcha: adc_bridge/dac_bridge take BRACKETED vector ports, but d_dff takes
-    SCALAR ports (data clk set reset out Nout) -- mixing them up gives
-    "Scalar connection expected, [ found".
+    Mirrors the reference architecture's two clocked elements:
 
-    The slicer/latch is deliberately behavioural: a transistor-level StrongARM
-    closing 200 ps clock-to-Q is a separate project and is not what the RL
-    sizes. The analog front end is.
+        outp_dfe,outn_dfe -> adc_bridge -> d_dff (clocked comparator) -> D1
+                                           d_dff (1 UI hold)          -> Q1/Q1_b
+
+    Both flops are clocked on the SAME edge, so the second captures what the
+    first held before that edge. Net feedback delay is therefore exactly one
+    UI -- the bit whose post-cursor the tap must cancel.
+
+    POLARITY: Q1_b (not Q1) drives vfbp. summer_netlist() crosses GmF the same
+    way as Gm1, so vfbp high drives (outp_dfe - outn_dfe) positive. Feeding the
+    previous decision straight through would therefore REINFORCE its
+    post-cursor; the tap must subtract, so the inverted output drives vfbp.
+    This exact mistake was made once already in the merged topology and was
+    invisible in every metric (0.078 UI vs 0.453 UI once corrected), so it is
+    asserted by tests/test_spice.py::test_tap_opposes_the_main_path rather
+    than trusted.
+
+    Slicer and latch are deliberately IDEAL XSPICE code models, as they are in
+    the reference schematic ("Clocked Comparator (Ideal)", "D Flipflop
+    (Ideal)"). No offset, no metastability, no kickback, and clk->Q of 20 ps
+    against 50-150 ps for a real StrongARM -- so the eye is optimistic by an
+    amount this framework does not quantify.
     """
     f_clk = 1.0 / ui_s
-    return f"""* --- DFE decision path (behavioural, XSPICE) ---
-Bdiff vdiff 0 V=V(voutp)-V(voutn)
+    return f"""* --- DFE decision path (IDEAL, XSPICE) ---
+* sampled at the SUMMING NODE, not the CTLE output
+Bdiff vdiff 0 V=V(outp_dfe)-V(outn_dfe)
 Vclk clk 0 DC 0 PULSE(0 1.8 {0.5*ui_s:.6g} 10p 10p {0.4*ui_s:.6g} {ui_s:.6g})
 adc_in  [vdiff] [ddata] adc_sl
 adc_clk [clk]   [dclk]  adc_ck
-aff ddata dclk NULL NULL dq dqb dff_1tap
-* POLARITY: dqb (NOT dq) drives vfbp. X3's drain is voutn, so vfbp high pulls
-* voutn down and drives (voutp-voutn) POSITIVE. Feeding the previous decision
-* dq straight to vfbp therefore REINFORCES that bit -- the opposite of what a
-* DFE must do. The tap has to SUBTRACT the post-cursor, so the inverted output
-* drives vfbp. Measured at Itap=150uA: dq->vfbp gives 0.078 UI, dqb->vfbp gives
-* 0.453 UI.
-adac_p [dqb] [vfbp] dac_fb
-adac_n [dq]  [vfbn] dac_fb
+* clocked comparator: decide on this edge
+acomp ddata dclk NULL NULL d1 d1b dff_1tap
+* 1 UI hold: captures what the comparator held BEFORE this edge
+ahold d1 dclk NULL NULL q1 q1b dff_1tap
+* inverted decision drives vfbp so the tap SUBTRACTS (see docstring)
+adac_p [q1b] [vfbp] dac_fb
+adac_n [q1]  [vfbn] dac_fb
 .model adc_sl  adc_bridge(in_low=-0.001 in_high=0.001)
 .model adc_ck  adc_bridge(in_low=0.7 in_high=1.1)
 .model dac_fb  dac_bridge(out_low={VFB_LO:.4g} out_high={VFB_HI:.4g} out_undef={VFB_CM:.4g} t_rise=15p t_fall=15p)
 .model dff_1tap d_dff(clk_delay=20p rise_delay=15p fall_delay=15p)
 """
+
+
+# ---------------------------------------------------------------------------
+# Lossy channel (PCIe Gen2 FR4-like), measured and tuned
+# ---------------------------------------------------------------------------
+# Without a channel the whole spec set is incoherent: there is no post-cursor,
+# so the mandated 1-tap DFE has nothing to cancel and its injection is pure
+# uncorrelated error (measured: the tap alone caused 6 of 20 PVT eye failures,
+# and disabling it fixed 20/20). The peaking spec likewise has no loss to
+# compensate. This model gives all three specs something real to act on.
+#
+# Structure: lumped LC ladder with a frequency-dependent series resistance --
+# two staggered R||L stages approximating skin effect. A plain RLGC ladder is
+# NOT enough: correctly sized it is a flat attenuator (measured 2.2 dB of tilt
+# across 1-5 GHz), and ngspice's LTRA gives -0.16 dB at 2.5 GHz because its `r`
+# is frequency-independent. Dispersion is what creates ISI; flat loss does not.
+#
+# Measured response of the defaults below (40 sections/leg):
+#     0.1 GHz   -0.93 dB
+#     1.0 GHz   -4.95 dB
+#     2.5 GHz  -11.10 dB   <- Nyquist; typical Gen2 is -10..-15 dB
+#     5.0 GHz  -16.56 dB
+#   equalizable tilt 0.1 -> 2.5 GHz = 10.2 dB, inside the 3-12 dB boost spec.
+CH_SECTIONS = 40
+CH_TD_TOTAL = 1.2e-9      # s, ~7 inch of FR4
+CH_Z0 = 50.0              # ohm per leg (100 ohm differential)
+CH_RDC = 0.02             # ohm per section, ohmic (flat) loss
+CH_SKIN = ((4.0, 0.45e-9), (12.0, 0.06e-9))   # (R, L) staggered R||L stages
+CH_RSRC = 50.0            # source series resistance per leg
+CH_RTERM = 100.0          # differential termination at the receiver
+
+# Node names. The stimulus drives chsrc_*; the channel output IS vinp/vinn, so
+# the equaliser itself is unchanged whether or not a channel is present.
+CH_SRC_P, CH_SRC_N = "chsrc_p", "chsrc_n"
+
+
+def channel_netlist(n_sections: int = CH_SECTIONS, td_total: float = CH_TD_TOTAL,
+                    z0: float = CH_Z0, rdc: float = CH_RDC,
+                    skin: tuple = CH_SKIN, rsrc: float = CH_RSRC,
+                    rterm: float = CH_RTERM) -> str:
+    """Differential lossy channel from chsrc_p/chsrc_n to vinp/vinn.
+
+    DC common mode is preserved on purpose: the termination is DIFFERENTIAL
+    (between vinp and vinn, not to ground) and the shunt capacitors are open at
+    DC, so no DC current flows and the CTLE still sees Vcm at its gates. A
+    termination to ground would drag the common mode down and unbias the input
+    pair -- one of the three problems HANDOVER 10b flagged.
+    """
+    td = td_total / n_sections
+    L, C = z0 * td, td / z0
+    out = [f"* --- lossy channel: {n_sections} sections/leg, "
+           f"{td_total*1e12:.0f} ps, skin-effect series R ---",
+           f"Rsrc_p {CH_SRC_P} chp_in {rsrc:.6g}",
+           f"Rsrc_n {CH_SRC_N} chn_in {rsrc:.6g}"]
+    for leg, start, end in (("p", "chp_in", "vinp"), ("n", "chn_in", "vinn")):
+        prev = start
+        for i in range(n_sections):
+            nxt = end if i == n_sections - 1 else f"ch{leg}{i}"
+            a = f"{leg}{i}"
+            node = f"{a}x"
+            out.append(f"Rch{a}dc {prev} {node} {rdc:.6g}")
+            for k, (Rk, Lk) in enumerate(skin):
+                nx = f"{a}k{k}"
+                out.append(f"Rch{a}s{k} {node} {nx} {Rk:.6g}")
+                out.append(f"Lch{a}s{k} {node} {nx} {Lk:.6g}")
+                node = nx
+            out.append(f"Lch{a}m {node} {nxt} {L:.6g}")
+            out.append(f"Cch{a} {nxt} 0 {C:.6g}")
+            prev = nxt
+    out.append(f"Rterm vinp vinn {rterm:.6g}")
+    return "\n".join(out) + "\n"
 
 
 def build_source_lines(analysis: str, ac_amp: float = 1.0,

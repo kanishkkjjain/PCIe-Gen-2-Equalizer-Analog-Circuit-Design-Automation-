@@ -14,14 +14,15 @@ from eqrl.netlist import CtleParams
 from eqrl.spice import Simulator
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--itap", type=float, default=10e-6)
+ap.add_argument("--igf", type=float, default=None,
+                help="GmF tail current (tap strength); default = CtleParams default")
 ap.add_argument("--bits", type=int, default=200)
 ap.add_argument("--ui", type=float, default=200e-12)
 ap.add_argument("-o", "--out", default="/tmp/eye.png")
 a = ap.parse_args()
 
 sim = Simulator("/tmp/eqrl_eye", timeout=600)
-p = CtleParams(Itap=a.itap)
+p = CtleParams(**({'Igf': a.igf} if a.igf else {}))
 r = sim.tran_eye(p, pdk.typical_corner(), n_bits=a.bits, ui=a.ui)
 if not r.get("ok"):
     print("sim failed:", r.get("log", "")[-400:]); raise SystemExit(1)
@@ -38,7 +39,8 @@ for k in range(n_ui - 1):
     ax.plot(ph, np.interp(tk, t, v) * 1e3, color="#2b6cb0", lw=0.5, alpha=0.25)
 ax.axhline(0, color="k", lw=0.8, alpha=0.5)
 ax.set_xlabel("phase (UI)"); ax.set_ylabel("differential output (mV)")
-ax.set_title(f"Eye @ 5 Gb/s | Itap={a.itap*1e6:.0f}uA (tap {p.tap_weight_v()*1e3:.0f} mV)\n"
+ax.set_title(f"Eye at the summing node, 5 Gb/s | Igf={p.Igf*1e6:.0f}uA "
+             f"(nominal gmF/gm1 = {p.tap_weight_ratio():.2f})\n"
              f"height {e.height_v*1e3:.1f} mV (>100)  width {e.width_ui:.3f} UI (>0.4)")
 ax.grid(alpha=0.3)
 fig.tight_layout(); fig.savefig(a.out, dpi=120)

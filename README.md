@@ -78,7 +78,8 @@ eqrl/
   agents/cem.py Cross-Entropy-Method policy search
   design.py     orchestrator: specs in -> sized decks + report.json
 tests/          145 total: 111 pure (no PDK, ~5 s) + 34 against real ngspice
-scripts/        run_design, build_trimlib, pvt_sweep, smoke_test, plotting
+scripts/        run_design, build_trimlib, pvt_sweep, smoke_test, plotting,
+                baseline (random search at equal budget -- written, unrun)
 netlists/       xschem schematics -- CROSS-CHECK ONLY, currently STALE
 ```
 

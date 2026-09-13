@@ -191,6 +191,7 @@ shipping an `environment.yml` remains an open conformance item.
 ├── scripts/
 │   ├── run_design.py        CLI entry point
 │   ├── build_trimlib.py     build + VALIDATE trimmed model libraries
+│   ├── baseline.py          random search at an equal budget (UNRUN, §11)
 │   ├── pvt_sweep.py         parallel PVT sweep of every spec, with timing
 │   ├── smoke_test.py        SPICE-layer sanity checks (asserts)
 │   ├── plot_eye.py          render the closed-loop eye diagram
@@ -883,3 +884,503 @@ circuit and was never moved when the circuit changed.
     `--help`'d. The audit now covers attribute access, kwargs and string keys.
 
 ### Corrections to earlier claims in this file
+
+- **"The mirror's unequal finger widths are a matching defect."** Retracted.
+  Measured, `W=40 nf=4` and `m=4` of `W=10 nf=1` are **bit-identical**
+  (1661.613 µA). The effect on supply current is 0.23 %. The mirror was
+  rewritten as identical unit devices anyway, but as layout intent, not a fix.
+- **"The eye fails because the gain is insufficient."** Wrong. There is
+  **1017 mV pp** at the slicer while the eye opening is 112 mV. Amplitude was
+  never the problem — the DFE tap was (§10b).
+- **"h[1] is only 0.7 % of the cursor, so the DFE has nothing to cancel."**
+  Measured at the **wrong node**. That was after the CTLE had already removed
+  the post-cursor. At the channel output — where the reference measures it — it
+  is **37.6 %**.
+- **`sf` and `ss` ship DIFFERENT nfet models.** They include different
+  `.pm3.spice` files, so `sf` is not "`ss` with a different pfet" even in an
+  all-NMOS circuit. This is why `sf`@125 °C behaved unlike `ss`@125 °C.
+
+### Predictions that were wrong (corrected by measurement)
+- **`rsheet` is not Ω/square** — it's Ω per µm of length. The formula gave
+  1.52 µm where the true answer is 3.88 µm.
+- **Adding the DFE pair raised `f_peak`** (2.376 → 2.517 GHz), not lowered it. I
+  only accounted for added drain capacitance; the pair's **output resistance
+  appears in parallel** at the same node, lowering the effective load and
+  pushing the output pole up. That dominates.
+- **A 100 Ω load does NOT collapse `peaking`** — I wrote a sanity check claiming
+  it would. Peaking actually *rises* (9.03 → 11.55 dB); it is the **peak gain**
+  that collapses (8.91 → 4.76 dB). A small `RL` pushes the output pole up so more
+  of the degeneration boost is realised even as absolute gain falls.
+- **"The monotonic eye collapse confirms correct feedback polarity"** — invalid
+  reasoning, and it was masking bug 4. With no channel *either* polarity adds an
+  uncorrelated ±w term and closes the eye, so that test cannot distinguish them.
+- **"A channel is essential"** — stated repeatedly as fact; it is judgment. The
+  brief does not require one and no spec depends on it (§10b).
+- **HD3 and noise both degraded** with real devices, as expected but by more
+  than guessed: HD3 −81.6 → **−67.0 dBc** (resistor voltage coefficients), noise
+  0.292 → **0.390 mVrms** (an ideal tail contributes *no* noise; a real one does).
+
+---
+
+## 10b. Channel — BUILT, and the spec set is incoherent without it
+
+Earlier revisions of this file argued the channel was optional because the brief
+never mentions one. That was correct about the brief and **wrong about the
+engineering**, and it is now measured.
+
+### Why it is not optional
+
+With no channel there is no post-cursor, so the mandated 1-tap DFE has nothing
+to cancel and its injection is pure uncorrelated error. Measured on the brief's
+20 PVT corners, no channel, tap active vs tap held at common mode:
+
+| | eye failures | eye height range |
+|---|---|---|
+| DFE tap ON | **6/20** | 19.7 – 151 mV |
+| DFE tap OFF | **0/20** | 191 – 263 mV |
+
+The tap cost roughly half the eye height at every corner. Every "eye failure"
+was caused by the DFE itself. The peaking spec is equally hollow with no loss
+to compensate, and the optimiser correctly responded by abandoning equalisation
+altogether — it was optimising an ill-posed problem, not misbehaving.
+
+### What works, and what does not
+
+| approach | loss @ 2.5 GHz | tilt 1–5 GHz | |
+|---|---|---|---|
+| ngspice `LTRA` | −0.16 dB | none | its `r` is frequency-independent |
+| naive RLGC ladder | −302 dB | — | badly parameterised, just a big RC |
+| correctly-sized ladder | −15.3 dB | 2.2 dB | **flat attenuator — no dispersion, no ISI** |
+| **ladder + frequency-dependent series R** | −16.8 dB | **10.6 dB** | ✅ what is built |
+
+Flat loss creates no ISI. **Dispersion is the whole point.**
+
+### The model as built (`netlist.channel_netlist`)
+
+40 sections per leg, 1.2 ns total delay (~7 inch of FR4), `Z0` = 50 Ω per leg,
+each section carrying `Rdc` + two staggered `R‖L` skin-effect stages + `L`, with
+shunt `C`. 50 Ω series at the source, **100 Ω differential** termination at the
+receiver. Measured:
+
+```
+0.1 GHz   -6.20 dB        2.5 GHz  -16.77 dB   <- Nyquist
+1.0 GHz  -10.33 dB        5.0 GHz  -22.07 dB
+equalizable tilt 0.1 -> 2.5 GHz = 10.6 dB, inside the brief's 3-12 dB boost window
+```
+
+Pulse response at the **channel output** (the reference's measurement point):
+pre-1 9.4 %, cursor 232 mV, **post-1 37.6 %**, post-2 15.5 % — against the
+reference's 48.8 % post-cursor at 12 Gb/s. Comparable, and the difference is
+the data rate: the same channel produces far more ISI per UI at 83 ps than at
+200 ps.
+
+### Three problems it raises, and how each is solved
+
+- **Common mode.** The termination is **differential** (`vinp`–`vinn`, not to
+  ground) and the shunt caps are open at DC, so no DC current flows and the CTLE
+  still sees `Vcm` at its gates. A termination to ground would unbias the input
+  pair.
+- **Convergence.** 80 inductors break ngspice's default `abstol` (1e-12):
+  transients die with *"timestep too small, trouble with node ...#branch"*.
+  `abstol=1e-10` fixes it. Deliberately **not** `method=gear`, which would damp
+  the ladder's ringing and understate the ISI being measured.
+- **Cost.** 563 extra elements. The eye transient is now the dominant runtime
+  (1.67 s of a 2.99 s evaluation) and it is real solve time, so the trimmed
+  library does not help it.
+
+### What it did NOT fix
+
+Even with the channel, a correctly-scaled tap, and a swept tap weight, the DFE's
+best contribution on this design was **+0.8 % eye height at 5 %**, degrading
+beyond 10 %. The optimiser then drove `tap_pct` to 1.38 %. That agrees with the
+reference's own sweep shape and with its closing remark: *"The system may not
+need to use DFE (or higher-tap DFE) if CTLE can give an enough eye opening."*
+At 5 Gb/s with 11 dB of loss and 8 dB of CTLE boost, one tap has little left to
+do. See §16.
+
+---
+
+## 11. Known issues / open items
+
+### Defects found in review (2026-09-13) — both since FIXED in checkpoint 2
+
+These were found by a reviewer reading the shipped artifacts, after this file
+already claimed they had been verified. **Both are now fixed** (§10 bugs 22–26
+are the same review round); the descriptions are kept because the failure mode
+is more instructive than the patch.
+
+**D1 — FIXED. `results/ctle_final_eye.sp` had no channel and did not reproduce
+the report.** Now verified to match to **0.00 %** (it was 213 % wrong).
+
+`design.py::_export_eye_deck()` writes the PRBS sources straight onto
+`vinp`/`vinn`. When the framework runs an eye with the channel enabled,
+`spice.py::_assemble()` instead retargets those sources to
+`chsrc_p`/`chsrc_n`, appends `nl.channel_netlist()`, **and** adds
+`.options abstol=1e-10 vntol=1e-6`. The exporter does none of it, and the run
+that produced `report.json` had `channel: true`.
+
+```
+results/ctle_final_eye.sp   591.8 mV x 0.750 UI
+report.json typ_metrics     189.0 mV x 0.547 UI      -> 3.1x optimistic
+```
+
+The failure direction is the bad one: the deck **exits 0**, logs nothing worse
+than a benign `m=xx` warning, and hands a reviewer a *better* eye than this
+project claims. A fix must add the channel **and** the `abstol` option — with
+80 inductors and the default 1e-12, the deck would die with "timestep too
+small".
+
+`ctle_final.sp` (AC) is missing the channel too, but `ac()` divides out
+`vdb(vinp,vinn)`, so peaking and `f_peak` are **channel-invariant by
+construction** — the AC deck agrees with the report to 0.000 % and therefore
+cannot expose this. **VERIFY.md §14 cross-checks only that deck**, i.e. the one
+whose metric cannot fail. That is why the defect shipped.
+
+Root cause: when the channel was added, `use_channel` was threaded through
+`Simulator`, `Objective`, `env._eval_task`, `run_design` and the CLI — but not
+the two exporters, which take `(params, corner, path)` and cannot know. Same
+family as bugs 16 and 17: **two code paths building the same thing, one
+patched.** The fix should route the exporters through `Simulator._assemble`
+(forcing `use_trimmed=False`, since a trimmed library is not portable) rather
+than adding a third copy of the deck-building logic.
+
+**D2 — FIXED. `Igf` was no longer settable; three call sites still passed it
+and three tests failed.** A **fourth** site was found later (§10 bug 26).
+
+`Igf`/`Wgf` became read-only properties of `tap_pct` (§7). Three sites were
+missed:
+
+| site | symptom |
+|---|---|
+| `scripts/plot_eye.py:25` | `TypeError: CtleParams.__init__() got an unexpected keyword argument 'Igf'` |
+| `tests/test_spice.py:240-241` | same TypeError — `test_an_oversized_tap_closes_the_eye` never runs |
+
+and two further tests encode **stale assertion bounds** from when the default
+tap was ~34 % rather than today's 5 %:
+
+| test | asserts | actual | why |
+|---|---|---|---|
+| `test_tap_weight_is_realised` | `tap_frac_of_main > 0.05` | 0.0397 | a 5 % tap injects ~4 % of the main path — correct |
+| `test_measured_tap_ratio_is_sane` | `0.1 < tap_ratio` | 0.0462 | `gmF/gm1` ≈ 0.046 for a 5 % tap — correct |
+
+**All three failures are test staleness, not circuit defects.** The measured
+values are exactly what a 5 % tap should produce.
+
+`plot_eye.py`'s flag should be `--tap-pct`. Note also that its
+`if a.igf else {}` treats `0` as "not supplied", so `--tap-pct 0` would be
+silently ignored; it wants `is not None`.
+
+**VERIFY.md §5 documents the broken invocation twice** — those two commands
+were written into the docs *after* the breakage and have never worked.
+
+### Why these shipped, and the pattern worth fixing
+
+The same fact living in several places, updated in some and not others:
+
+| defect | what drifted |
+|---|---|
+| D1 | `_assemble` gained `use_channel`; the exporters did not |
+| D2 | `tap_pct` threaded through 3 files; 3 call sites missed |
+| pvt_sweep status (fixed) | regenerated; 1 of 3 notes updated |
+| test counts (fixed) | changed; 2 of 3 docs updated |
+
+And the verification then sampled the copy that could not fail: `--help` instead
+of a real invocation, the AC deck instead of the eye deck, the fast tier instead
+of the full suite. **Check the path that can fail, or the check is decorative.**
+
+
+| Item | Notes |
+|---|---|
+| **`netlists/*.sch` are STALE** | They describe the OLD merged topology. They are a cross-check only — never simulated — but they no longer match `netlist.py`, so the device-for-device diff in VERIFY.md §3 will not agree until they are regenerated. |
+| **No sweep-vs-RL baseline (UNRUN)** | The brief asks for *"significantly lower time than sweeping"*. The exhaustive side is arithmetic — a 5-point grid over 11 variables is 5¹¹ = **48.8 million** designs. The fair comparison, **random search at an equal 189-candidate budget**, has **not** been run; `scripts/baseline.py` does exactly that (`--budget 189 --channel --eye`, ~16 min). **Largest unmet requirement.** |
+| **No schematic export** | The brief asks for "the final schematic"; we emit `.sp` netlists. xschem's `.sch` is a text format, so generating one from `full_netlist()` is tractable and unbuilt. |
+| **"Tunable" has no mechanism** | The brief says *tunable 1.25–2.5 GHz* and *variable Rs, Cs*. `Cs` is a design-time constant; a switchable cap bank with a control word is not built, and nothing tests tunability (§0). |
+| **No sweep-vs-RL baseline** | The Problem Statement asks for *"significantly lower time than sweeping"*. The exhaustive side is arithmetic: a 5-point grid over 11 variables is 5¹¹ = **48.8 million** designs, which at the measured cost is millennia — not a close contest. The *fair* comparison a reviewer would ask for, **random search at an equal 189-candidate budget**, has NOT been run. `scripts/baseline.py` exists and does exactly that (`--budget 189 --channel --eye`, ~16 min). **Still the largest unmet requirement.** |
+| **`ad`/`as`/`pd`/`ps` pinned to 0** | Junction capacitance is zero in the netlist, so output capacitance is understated and every `f_peak` is optimistic. Measured `Cdd` = 0.14 fF, which is the tell. |
+| **Slicer/latch are ideal** | XSPICE code models with 20 ps clk→Q against 50–150 ps for a real StrongARM, no offset, no metastability, no kickback. The <200 ps loop-delay budget is asserted, not proven. The reference labels its own comparator and flop "(Ideal)" too. |
+| **No CDR** | The sampling clock phase is fixed, not recovered. Swept across 8 phases it changed the eye by under 2 %, so it is not currently binding — but a real link needs one. |
+| **`f_peak` can be reported at the sweep edge** | A response still rising at 20 GHz reports `f_peak = 20 GHz`, which is "no peak in range", not a peak. The scorer handles it (plateau → 0) but the number misleads in logs. |
+| **Noise referral is approximate** | Referred to `Vinp` alone, which carries half the differential drive; may be off by ~2×. |
+| **HD3 amplitude is an assumption** | 100 mV differential; the brief states the frequency but not the amplitude. |
+| **No conda `environment.yml`** | `requirements.txt` exists; Anaconda is named in the brief's Tools. |
+
+---
+
+## 12. What is NOT built
+
+- **LLM natural-language wrapper** — the bonus deliverable.
+- **Schematic output** — netlists only (§11).
+- **Runtime tunability** — no cap bank, no control word (§0).
+- **Sweep/random-search baseline** — the headline claim is unmeasured (§11).
+- **Transistor-level slicer and latch** — behavioural by design.
+- **Candidate batching** — one deck per candidate; ~16× still available (§9).
+
+---
+
+## 12b. Version control
+
+Initialised 2026-09-12. Initial commit `177fb74` — 24 files, 7,322 insertions.
+
+**Identity is set repo-LOCAL, not global**, so nothing machine-wide was changed:
+```
+user.name  = kanishk                                  <- from the Linux account
+user.email = f20230748@pilani.bits-pilani.ac.in
+```
+Change with `git config --local user.name "..."` if that attribution is wrong.
+
+**`.gitignore` covers** `__pycache__`, `*.dat`/`*.raw`/`*.out` (SPICE dumps),
+`.spiceinit`, generated `*.png`/`*.svg`/`*.pdf`, and editor dirs.
+
+**`results/` is tracked deliberately** as evidence:
+
+| file | what it is |
+|---|---|
+| `report.json` | the RL run's full output — sizing, resolved geometry, cost, per-corner PVT. **The current result (§16).** |
+| `ctle_final.sp` | the sized equaliser, DFE loop open — runs standalone |
+| `ctle_final_eye.sp` | the sized equaliser, loop closed |
+| `pvt_sweep.{json,csv}` | the same design swept by a different **driver** |
+
+`pvt_sweep.{json,csv}` was regenerated for the final design with the channel on
+and reports **0 of 20 corners failing**, matching `report.json`.
+
+⚠️ **This is NOT an independent confirmation, and earlier revisions of this file
+called it one.** Both go through `Simulator.evaluate()`; only the driver above
+it differs. Two files agreeing to every digit is what happens when they run the
+same code. It confirms the *reporting and aggregation* paths, nothing about the
+physics. Regenerate with:
+
+```bash
+python3 scripts/pvt_sweep.py --grid spec --eye --channel --set tap_pct=1.37903 ...
+```
+
+(the full `--set` list is in the git log for this file's commit).
+
+No remote is configured. `git remote add origin <url>` when you have one.
+
+## 13. Recipes
+
+```bash
+export PDK_ROOT=/home/kanishk/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b
+
+# tests: 135 total -- 108 fast (no PDK) + 27 against real ngspice.
+# 3 of the ngspice tests currently FAIL; see 11.
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 111, ~5 s
+python3 -m pytest tests/ -q                      # all 145, ~2 min
+
+# SPICE layer sanity (asserts, so it can fail)
+python3 scripts/smoke_test.py
+
+# build + VALIDATE trimmed model libraries (22.4x faster evaluations)
+python3 scripts/build_trimlib.py --grid spec
+python3 scripts/build_trimlib.py --check          # what is validated
+
+# THE DELIVERABLE: specs in -> sized design out
+python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
+python3 scripts/run_design.py --no-analytic-init  # unseeded, for comparison
+
+# what actually gets simulated, for any design point
+python3 -c "import sys;sys.path.insert(0,'.');\
+from eqrl.netlist import CtleParams;print(CtleParams().full_netlist())"
+python3 -c "import sys;sys.path.insert(0,'.');\
+from eqrl.netlist import channel_netlist;print(channel_netlist())"
+
+# PVT sweep of one design point (--set overrides any CtleParams field)
+python3 scripts/pvt_sweep.py --grid spec --eye --set tap_pct=5.0
+
+# eye diagram
+python3 scripts/plot_eye.py -o /tmp/eye.png
+
+# schematics (CROSS-CHECK ONLY, and currently stale -- see 11)
+xschem netlists/eq_tb.sch
+
+# version control
+git log --oneline
+```
+
+---
+
+## 14. Recommended next step
+
+Ranked by what the brief actually grades:
+
+1. **Measure RL vs a sweep.** The Problem Statement asks for *"significantly
+   lower time than sweeping all MOS, R, C, L parameter space"* and there is no
+   measurement. Run random search at an equal evaluation budget (189
+   candidates) and report both. This is the headline claim and it is currently
+   unsupported. Cheap now: ~10 minutes.
+2. **Export a schematic.** The deliverable says *"outputs the final
+   schematic"*; we emit netlists, and `netlists/*.sch` are stale (§11). xschem's
+   format is text, so generating one from `full_netlist()` is tractable.
+3. **Batch candidates into one deck** (§9) — ~16× and the only large speed win
+   left, now that parsing is no longer dominant.
+4. **Then** the runtime cap bank for "tunable" (§0), a transistor-level slicer,
+   and the LLM wrapper. All three are credibility investments rather than
+   coverage gaps.
+
+Housekeeping: no conda `environment.yml`. (`results/pvt_sweep.*` is **not**
+stale — it was regenerated for the final design and corroborates `report.json`
+exactly; see §12b.)
+
+---
+
+## 15. Test suite
+
+`pytest`, in two tiers, because an ngspice launch costs ~8 s of PDK model
+parsing no matter how small the circuit — so anything provable without a
+simulator should be.
+
+```bash
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 111 tests, ~5 s, no PDK
+python3 -m pytest tests/ -q                      # all 145, ~2 min
+```
+
+| tier | file | needs | covers |
+|---|---|---|---|
+| pure | `tests/test_pure.py` (111) | nothing | value↔geometry round trips, `denorm`/`norm`, corner→`.lib` section names, PRBS, eye metrics, the scorer's NaN and gating behaviour, netlist text invariants, the Gymnasium env |
+| spice | `tests/test_spice.py` (34) | PDK + ngspice | device-model conventions (`m=` vs `mult=`, `W` total vs per-finger), every analysis, the tap polarity, the combined deck's equivalence, trimmed-library equivalence, `evaluate()` end to end |
+
+`tests/conftest.py` defines the `needs_pdk` marker and skips that tier when
+`find_sky130_lib()` raises, so the fast tier runs on a machine with no PDK.
+
+**Tests that exist because the bug actually happened** — these are the ones to
+keep if anything is ever trimmed:
+
+| test | guards |
+|---|---|
+| `test_resistor_parallel_units_need_m_not_mult` | §10 bug 0 — `mult=` is inert, R below ~450 Ω was up to 9× too large |
+| `test_nfet_w_is_total_width` | the W/finger convention every current in the design depends on |
+| `test_eye_from_waveform_reports_a_closed_eye_as_closed` | §10 bug 5 — the circular width metric that returned 1.000 UI for any input |
+| `test_eye_width_counts_only_a_contiguous_opening` | width counted disjoint openings as one eye |
+| `test_dfe_feedback_polarity_is_inverted` | §10 bug 4 — `dq` vs `dqb` driving `vfbp` |
+| `test_a_stale_device_probe_fails_loudly` | §10 bug 7 — a stale probe capped every candidate's reward at 0.2, silently |
+| `test_pass_keys_are_stable_and_complete` | the `KeyError: 'area'` that killed `run_design()` after the whole search |
+| `test_dfe_clock_period_follows_the_requested_ui` | the DFE clock pinned at 200 ps while the PRBS followed the requested UI |
+| `test_partial_results_stay_scoreable_and_flagged` | a corner that fails to simulate must not read as a passing corner |
+| `test_each_candidate_corner_pair_gets_its_own_workdir` | parallel workers sharing `ac.dat`/`eye.dat` |
+| `test_nan_metrics_never_score_as_a_pass` | §10 bug 3 — NaN slipping through a `< 0` guard |
+| `test_instance_names_are_unique_case_insensitively` | §10 bug 13 — `XT1` IS `Xt1` to ngspice |
+| `test_no_instance_exceeds_the_width_limit_anywhere_in_the_box` | §10 bug 14 — the 100 µm model-bin ceiling |
+| `test_tap_branch_is_a_scaled_copy_of_the_main_branch` | §10 bug 15 — gm must scale linearly with `tap_pct` |
+| `test_peaking_is_the_equalisers_not_the_cascades` | §10 bug 16 — two AC paths, one patched |
+| `test_reward_has_a_real_step_at_each_spec_boundary` | §10 bug 20 — the saturation that stalled a whole run |
+| `test_first_population_contains_the_starting_mean` | §10 bug 19 — seeding without injection does nothing |
+| `test_summer_stage_is_a_real_summing_node` | both transconductors must share one load pair |
+| `test_tap_opposes_the_main_path` | the polarity trap, re-opened by the topology change |
+| `test_combined_deck_is_bit_identical_to_separate_analyses` | one launch instead of four must change no number |
+| `test_resource_failures_are_distinguished_from_design_failures` | an OOM-killed worker is not a bad design |
+
+---
+
+## 16. The RL loop, run end to end
+
+**Command** (~17 min on 16 cores):
+```bash
+python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel \
+        --pop 48 --iters 15 --seed 0
+```
+
+### Result: all 8 brief specs pass at all 20 of the brief's PVT corners
+
+With the lossy channel in front and the DFE active. **0 of 20 corners fail
+anything.**
+
+| spec | worst case over 20 corners | limit | |
+|---|---|---|---|
+| HF peaking | 7.33 dB | 3–12 dB | pass |
+| **f_peak** | **1.887 GHz** | 1.25–2.5 GHz | **binding, +13.2%** |
+| HD3 | -59.9 dBc | < −30 dBc | pass |
+| input noise | 0.655 mVrms | < 1.5 mVrms | pass |
+| power | 3.41 mW | < 15 mW | pass |
+| area | 0.000327 mm² | < 0.05 mm² | pass |
+| eye height | 126.8 mV | > 100 mV | pass |
+| eye width | 0.484 UI | > 0.4 UI | pass |
+
+The scorecard shows **9** entries; the ninth (`bias`) is an internal "are the
+devices actually in saturation" check, **not a customer requirement**. Quote 8.
+
+**Quote the margin from the BINDING edge.** `f_peak` is a two-sided spec and the
+worst corner sits **1.887 GHz**, +13.2% of the band from
+its nearest limit. Earlier revisions quoted it against the 2.5 GHz ceiling,
+which is the comfortable side and flatters. `report.json` records
+`binding_spec` and `margins_worst` so this cannot drift again.
+
+### Sizing found
+
+```
+W=24.27um  L=0.2um  RL=782.9ohm  Rs=2208.7ohm  Cs=257.8fF
+Itail=635.0uA  Wtail=97.93um  Rsum=1732.9ohm
+Wg1=42.94um  Ig1=407.0uA  tap_pct=1.379%
+```
+
+### Cost
+
+| | |
+|---|---|
+| candidates simulated | **189** |
+| (candidate × corner) evaluations | 756 |
+| ngspice launches, search | 1512 |
+| ngspice launches, 20-corner verify | 40 |
+| convergence | `[0.9767, 0.988, 0.988, 0.998]`, stopped early at iteration **4 of 15** |
+
+Two launches per evaluation: one channel-free deck carrying op/ac/tran/noise,
+one closed-loop eye with the channel. An earlier version ran four — the combined
+deck was needlessly carrying the channel and HD3/noise were then re-run without
+it. See §9.
+
+⚠️ `stop_on_pass` halts at the **first design that passes**, which is
+first-feasible, not the *"near-optimal"* the brief asks for. And the
+sweep/random-search comparison the Problem Statement requests has **not** been
+run (§11) — `scripts/baseline.py` exists for it. An exhaustive grid over these
+11 variables is 5¹¹ = 48.8 million designs, which is arithmetic rather than a
+measurement.
+
+### What made it work — three fixes, each found by a run that failed
+
+| run | result | what it showed |
+|---|---|---|
+| unseeded, box centre | never found the basin in 15 rounds | 11-D is too big to start blind |
+| seeded, no injection | 0.765 at round 1 | `mu` was never evaluated (§10 bug 19) |
+| seeded + injected | 0.986, then stalled at 0.998 | the reward saturated at the boundary (§10 bug 20) |
+| **+ hard-pass bonus** | **crossed at round 4** | `f_peak` 2.52 → 1.89 GHz |
+
+### The DFE result, stated plainly
+
+**`tap_pct` converged to 1.38 %** — near the bottom of its 1–30 %
+range. The optimiser kept the mandated 1-tap DFE and turned it down as far as
+allowed. A manual sweep peaked at 5 % with **+0.8 %** eye height and degraded
+past 10 %; the reference design's own sweep has the same shape and concludes
+*"the system may not need to use DFE ... if CTLE can give an enough eye
+opening."* At 5 Gb/s with this channel and 8 dB of CTLE boost, one tap has
+little left to cancel. It would matter at 12 Gb/s.
+
+### Caveats
+
+- **`ad`/`as`/`pd`/`ps` are 0**, so junction capacitance is missing and every
+  `f_peak` is optimistic — and `f_peak` is the **binding** spec, so the tightest
+  margin sits on the least trustworthy number.
+- The slicer and latch are ideal with 20 ps clk→Q; the loop-delay budget is
+  asserted, not proven. Power excludes them entirely.
+- The eye is measured at **200 mV pp** drive — conservative
+  against a real Gen2 transmitter's ~800 mV, so it understates rather than
+  flatters.
+- Verified on the brief's **20** corners; the 60-corner R/C grid is a project
+  addition and was not re-run for this design.
+
+---
+
+## 17. The reference design this architecture follows
+
+`github.com/muhammadaldacher/SERDES-Design-of-RX-Decision-Feedback-Equalizer`
+— a 1-tap DFE for 12 Gb/s NRZ over 14-inch FR4. Three things were taken from
+its report and corrected long-standing errors here:
+
+1. **Tap scaling**: `I_TAP = tap%·I_MAIN` **and** `W_TAP = tap%·W_MAIN`
+   together (§7).
+2. **Measure the pulse response at the CHANNEL OUTPUT**, not after the CTLE.
+   Its numbers: pre-1 46 %, cursor 483 mV, **post-1 48.8 %**, post-2 23.9 %.
+3. **Output CM at mid-supply**: `0.5·I_Gm1·R_Gm1 = VDD/2`.
+
+Its measured tap sweep — eye improving to ~10 % then collapsing by 30 % — is the
+same shape reproduced here, and its stated mechanism matches: *"the DFE improves
+the high-frequency components of the data at the expense of the low-frequency
+components."*

@@ -127,8 +127,22 @@ def assemble(records, fit: PhysFit, meas) -> dict:
             "params": params, "corner_fields": cfs}
 
 
-def residual_targets(Yr: np.ndarray, Br: np.ndarray) -> np.ndarray:
-    """What the residual head must learn: y - base (dB) or log(y / base)."""
+#: below this much measured peaking there is no peak to locate, and SPICE
+#: reports f_peak at the sweep START (1 MHz) rather than a real maximum.
+PEAK_FLOOR_DB = 0.5
+
+
+def residual_targets(Yr: np.ndarray, Br: np.ndarray,
+                     peaking: np.ndarray | None = None) -> np.ndarray:
+    """What the residual head must learn: y - base (dB) or log(y / base).
+
+    ``peaking`` masks the f_peak target where there IS no peak. A flat design
+    reports f_peak = 1 MHz (the sweep start), which makes the residual target
+    log(1e6 / 1.8e9) ~ -7.5 -- an outlier an order of magnitude larger than any
+    real correction, and it dominates the f_peak loss. Both the real and the
+    predicted design fail the fpeak band in that case regardless, so masking
+    costs no pass/fail agreement.
+    """
     R = np.full_like(Yr, np.nan)
     for j, k in enumerate(RESIDUAL_TARGETS):
         y, b = Yr[:, j], Br[:, j]
@@ -138,7 +152,21 @@ def residual_targets(Yr: np.ndarray, Br: np.ndarray) -> np.ndarray:
             with np.errstate(all="ignore"):
                 ok = (y > 0) & (b > 0)
                 R[ok, j] = np.log(y[ok] / b[ok])
+        if k == "f_peak" and peaking is not None:
+            R[~(np.asarray(peaking, float) >= PEAK_FLOOR_DB), j] = np.nan
     return R
+
+
+#: Largest correction the residual heads may apply on a ratio scale, as a
+#: natural log. 2.0 is a factor of 7.4 either way -- far beyond the ~1.8x bias
+#: actually measured, but bounded.
+#:
+#: The bound is not cosmetic. Where a target is masked (f_peak on a design with
+#: no peak) the head gets no gradient and its output on those rows is
+#: arbitrary; un-clipped, exp() turned that into an f_peak of 4e13 Hz and a
+#: held-out R^2 of -6859. A prediction may be wrong, but it must stay in the
+#: range where "wrong" still means something.
+MAX_LOG_RESIDUAL = 2.0
 
 
 def apply_residual(R: np.ndarray, Br: np.ndarray) -> np.ndarray:
@@ -148,7 +176,8 @@ def apply_residual(R: np.ndarray, Br: np.ndarray) -> np.ndarray:
         if k in DB_TARGETS:
             Y[:, j] = Br[:, j] + R[:, j]
         else:
-            Y[:, j] = Br[:, j] * np.exp(np.clip(R[:, j], -10, 10))
+            Y[:, j] = Br[:, j] * np.exp(np.clip(R[:, j], -MAX_LOG_RESIDUAL,
+                                                MAX_LOG_RESIDUAL))
     return Y
 
 
@@ -205,13 +234,22 @@ class Surrogate:
     """An ensemble of `Net`s plus everything needed to use it standalone."""
 
     def __init__(self, fit: PhysFit, x_mean, x_std, d_mean, d_std,
-                 members=None, meas=None, config=None):
+                 members=None, meas=None, config=None, r_std=None):
         self.fit = fit
+        # Residual columns live on wildly different scales -- peaking is dB
+        # (+-10), f_peak is a log ratio (+-1), power a log ratio (+-0.5). Summed
+        # at equal weight in the loss, f_peak (the weakest head, and the spec
+        # with the worst pass agreement) is simply drowned. Each column is
+        # trained standardised and rescaled here.
+        self.r_std = (np.ones(len(RESIDUAL_TARGETS), np.float32)
+                      if r_std is None else np.asarray(r_std, np.float32))
         self.x_mean = np.asarray(x_mean, np.float32)
         self.x_std = np.asarray(x_std, np.float32)
         self.d_mean = np.asarray(d_mean, np.float32)
         self.d_std = np.asarray(d_std, np.float32)
         self.members = members or []
+        for m in self.members:          # once, not on every forward pass
+            m.eval()
         self.meas = meas or MeasCond()
         self.config = config or {}
 
@@ -229,13 +267,13 @@ class Surrogate:
         res, dirs, flags = [], [], []
         with torch.no_grad():
             for m in self.members:
-                m.eval()
                 r, d, f = m(xt)
                 res.append(r.numpy())
                 dirs.append(d.numpy())
                 flags.append(f.numpy())
-        R = np.mean(res, 0)
-        R_sd = np.std(res, 0) if len(res) > 1 else np.zeros_like(R)
+        R = np.mean(res, 0) * self.r_std
+        R_sd = (np.std(res, 0) * self.r_std if len(res) > 1
+                else np.zeros_like(R))
         D = np.mean(dirs, 0) * self.d_std + self.d_mean
         D_sd = (np.std(dirs, 0) * self.d_std if len(dirs) > 1
                 else np.zeros_like(D))
@@ -245,14 +283,18 @@ class Surrogate:
         out = {k: Yr[:, j] for j, k in enumerate(RESIDUAL_TARGETS)}
         out.update({k: D[:, j] for j, k in enumerate(DIRECT_TARGETS)})
         out.update({k: F[:, j] for j, k in enumerate(FLAG_TARGETS)})
-        out["_std"] = {**{k: np.abs(Yr[:, j]) * R_sd[:, j]
+        # A dB residual is ADDITIVE, so its spread is the residual spread
+        # itself; a log-ratio residual is multiplicative, so its spread scales
+        # with the predicted value.
+        out["_std"] = {**{k: (R_sd[:, j] if k in DB_TARGETS
+                              else np.abs(Yr[:, j]) * R_sd[:, j])
                           for j, k in enumerate(RESIDUAL_TARGETS)},
                        **{k: D_sd[:, j]
                           for j, k in enumerate(DIRECT_TARGETS)}}
         out["area_mm2"] = area_mm2(params)
         return out
 
-    def predict_metrics(self, params, corner_fields) -> list:
+    def predict_metrics(self, params, corner_fields, raw=None) -> list:
         """-> a list of real `Metrics`, so `specs.score` can be used unchanged.
 
         Using the same scorer as the search is the point: a second scorer
@@ -260,7 +302,10 @@ class Surrogate:
         'good' to drift, and this project has been bitten by duplicated facts
         three times already.
         """
-        p = self.predict_raw(params, corner_fields)
+        # `raw` lets a caller that already has the prediction avoid paying for
+        # a second forward pass -- the env needs both the metrics and the
+        # ensemble spread, and computing them separately doubled its step cost.
+        p = raw if raw is not None else self.predict_raw(params, corner_fields)
         n = len(p["peaking_db"])
         out = []
         for i in range(n):
@@ -284,7 +329,7 @@ class Surrogate:
         d.mkdir(parents=True, exist_ok=True)
         self.fit.save(d / "physfit.json")
         np.savez(d / "stats.npz", x_mean=self.x_mean, x_std=self.x_std,
-                 d_mean=self.d_mean, d_std=self.d_std)
+                 d_mean=self.d_mean, d_std=self.d_std, r_std=self.r_std)
         for i, m in enumerate(self.members):
             torch.save(m.state_dict(), d / f"member_{i}.pt")
         (d / "config.json").write_text(json.dumps(
@@ -316,7 +361,8 @@ class Surrogate:
             net.eval()
             members.append(net)
         return cls(fit, st["x_mean"], st["x_std"], st["d_mean"], st["d_std"],
-                   members, meas, cfg)
+                   members, meas, cfg,
+                   r_std=st["r_std"] if "r_std" in st else None)
 
 
 def latest_path() -> Path | None:

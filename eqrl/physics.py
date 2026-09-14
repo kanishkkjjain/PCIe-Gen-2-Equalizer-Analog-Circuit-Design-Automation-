@@ -54,7 +54,8 @@ class PhysFit:
     #: square-law starting point, replaced by `fit`
     DEFAULT = dict(gm_a=-5.0, gm_wl=0.5, gm_id=0.5, gm_t=0.0,
                    gmg_a=-5.0, gmg_wl=0.5, gmg_id=0.5, gmg_t=0.0, gmg_v=0.0,
-                   cout_c0=40e-15, cout_c1=1.0e-15, cout_c2=1.0e-15)
+                   cout_c0=40e-15, cout_c1=1.0e-15, cout_c2=1.0e-15,
+                   k_pk=1.0, k_f=1.0)
 
     def __init__(self, coef: dict | None = None, n_fit: int = 0,
                  quality: dict | None = None):
@@ -159,7 +160,39 @@ class PhysFit:
             coef.update(gmg_a=b[0], gmg_wl=b[1], gmg_id=b[2], gmg_t=b[3],
                         gmg_v=b[4])
             quality["gm_g1"] = q
-        return cls(coef, n_fit=len(rows), quality=quality)
+
+        # How optimistic the closed form is, measured rather than assumed --
+        # the job analytic.calibrate() does with live SPICE calls, done here
+        # from data already collected so a starting design can be derived for a
+        # NEW spec without simulating anything.
+        #
+        # It must be measured with the FITTED gm, not the square-law default:
+        # computing it against an unfitted PhysFit folds the gm error into the
+        # calibration factor and gave k_pk = 0.81 where the real optimism is
+        # ~1.8x.
+        self = cls(coef, n_fit=len(rows), quality=quality)
+        peaked = [r for r in rows
+                  if r["metrics"].get("peaking_db", 0) >= 0.5
+                  and r["metrics"].get("f_peak", 0) > 0]
+        if len(peaked) >= 20:
+            base = analytic_baseline([r["params"] for r in peaked],
+                                     [r["corner_fields"] for r in peaked],
+                                     self, None)
+            with np.errstate(all="ignore"):
+                k_pk = float(np.nanmedian(
+                    np.asarray(base["peaking_db"])
+                    / np.array([r["metrics"]["peaking_db"] for r in peaked])))
+                k_f = float(np.nanmedian(
+                    np.asarray(base["f_peak"])
+                    / np.array([r["metrics"]["f_peak"] for r in peaked])))
+            self.coef["k_pk"] = float(np.clip(k_pk, 0.25, 4.0))
+            self.coef["k_f"] = float(np.clip(k_f, 0.25, 4.0))
+            self.quality["calibration"] = {
+                "n": len(peaked), "k_pk": self.coef["k_pk"],
+                "k_f": self.coef["k_f"],
+                "meaning": "closed form reads this many times high; the start "
+                           "targets are pre-divided by it"}
+        return self
 
     # -- persistence ------------------------------------------------------
     def to_dict(self) -> dict:
@@ -351,6 +384,84 @@ def analytic_baseline(params, corner_fields, fit: PhysFit, meas) -> dict:
     power = supply_power(vdd, P["Itail"], P["Ig1"], P["tap_pct"])
     return {"peaking_db": pk, "f_peak": fpk, "dc_gain_db": dc,
             "power_w": power}
+
+
+
+#: `analytic.solve` searches an (Rs, Cs) grid against a 900-point frequency
+#: sweep -- hundreds of milliseconds, which made env.reset() 30x the cost of a
+#: step. It depends only on (gm, Cout, target peaking, target f_peak), and gm
+#: and Cout come from FIXED_START and so never vary between episodes. The
+#: targets are therefore rounded and the answer reused. The bins are coarse on
+#: purpose: 0.5 dB and 100 MHz is far below the N(0, 0.1) perturbation applied
+#: to the start in normalised units immediately afterwards, so finer bins buy
+#: no accuracy and only cost cache misses -- at 0.25 dB / 25 MHz the cache held
+#: 9 entries after 400 steps and `analytic._shape` still ran on 2 % of resets,
+#: which was 40 % of the whole step budget.
+_SOLVE_CACHE: dict = {}
+_SOLVE_CACHE_MAX = 4096
+
+
+def _solve_cached(gm, cout, tgt_pk, tgt_f, n_grid):
+    from . import analytic
+    key = (round(gm, 9), round(cout, 18), round(tgt_pk / 0.5),
+           round(tgt_f / 100e6), n_grid)
+    hit = _SOLVE_CACHE.get(key)
+    if hit is None:
+        hit = analytic.solve(gm, cout, tgt_pk, tgt_f, n=n_grid)
+        if len(_SOLVE_CACHE) >= _SOLVE_CACHE_MAX:
+            _SOLVE_CACHE.clear()
+        _SOLVE_CACHE[key] = hit
+    return hit
+
+
+def analytic_start_u(spec, fit: PhysFit, corner_fields: dict | None = None,
+                     tap_pct: float | None = None, n_grid: int = 300) -> list:
+    """A hand-calculated starting design for ANY spec, using no SPICE at all.
+
+    `analytic.initial_design` does this properly -- it measures gm and Cout from
+    an .op and closes a calibration loop against four AC sweeps. That costs five
+    ngspice launches, which is fine once per design run and impossible inside an
+    RL loop that resets thousands of times.
+
+    This is the same derivation with the SPICE replaced by fitted estimates:
+    gm and Cout from `PhysFit`, and the model's optimism corrected by the k_pk /
+    k_f factors measured across the whole collected dataset instead of
+    re-measured per design. It aims at the CENTRE of the spec's windows, which
+    is what buys PVT margin.
+
+    This is what makes the policy's claim a real one: given a new spec, the
+    starting point is derived for THAT spec rather than borrowed from the one
+    the project was tuned on.
+    """
+    from . import analytic
+    from .netlist import CtleParams
+
+    cf = corner_fields or {"process": "tt", "vdd": 1.8, "temp": 27.0, "rc": None}
+    fixed = dict(analytic.FIXED_START)
+    tap = analytic.TAP_PCT_START if tap_pct is None else tap_pct
+
+    gm = float(np.atleast_1d(fit.gm_m1(fixed["W"], fixed["L"],
+                                       fixed["Itail"], cf["temp"]))[0])
+    cout = float(np.atleast_1d(fit.cout(fixed["W"], fixed["L"],
+                                        fixed["Wg1"]))[0])
+
+    tgt_pk = 0.5 * (spec.peaking_min_db + spec.peaking_max_db)
+    tgt_f = 0.5 * (spec.fpeak_lo + spec.fpeak_hi)
+    k_pk = max(0.25, fit.coef.get("k_pk", 1.0))
+    k_f = max(0.25, fit.coef.get("k_f", 1.0))
+
+    RL, Rs, Cs = _solve_cached(gm, cout, tgt_pk * k_pk, tgt_f * k_f, n_grid)
+    rsum = analytic._rsum_for_midsupply(
+        _CornerLike(cf["vdd"]), fixed["Ig1"])
+    p = CtleParams(**fixed, tap_pct=tap, RL=RL, Rs=Rs, Cs=Cs, Rsum=rsum)
+    return nl.norm({k: getattr(p, k) for k in PARAM_NAMES})
+
+
+class _CornerLike:
+    """Just enough of pdk.Corner for `_rsum_for_midsupply`, without a PDK."""
+
+    def __init__(self, vdd: float):
+        self.vdd = vdd
 
 
 def area_mm2(params) -> np.ndarray:

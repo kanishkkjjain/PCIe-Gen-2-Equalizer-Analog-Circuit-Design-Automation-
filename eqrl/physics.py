@@ -411,6 +411,18 @@ def channel_H(f):
     return H
 
 
+#: Tail width for the analytic start. Vdsat_tail goes as Wtail^-0.42, so this
+#: buys bias headroom at no cost to gm; 150 um rather than the 200 um bound
+#: because the last 50 um is worth only ~12 % more margin and sitting on a box
+#: edge leaves a search no room to move that knob downward.
+START_WTAIL_UM = 150.0
+
+#: Grid resolution for the SPICE-free start solve. One value, used by the
+#: environment AND by deployment: different resolutions give slightly
+#: different starting designs, which would put a non-method difference between
+#: the G2 and G3 numbers.
+START_N_GRID = 96
+
 #: time resolution of the pulse response, as a fraction of one UI
 PULSE_OVERSAMPLE = 32
 PULSE_NFFT = 2048
@@ -675,7 +687,8 @@ def _solve_cached(gm, cout, tgt_pk, tgt_f, n_grid):
 
 
 def analytic_start_u(spec, fit: PhysFit, corner_fields: dict | None = None,
-                     tap_pct: float | None = None, n_grid: int = 300,
+                     tap_pct: float | None = None,
+                     n_grid: int = START_N_GRID,
                      tail_margin_v: float = 0.15) -> list:
     """A hand-calculated starting design for ANY spec, using no SPICE at all.
 
@@ -712,7 +725,7 @@ def analytic_start_u(spec, fit: PhysFit, corner_fields: dict | None = None,
     # gm, and trimming Itail raises the tail node (fitted -0.44 on vds_tail),
     # so the largest current that still clears the target is chosen: headroom
     # first, then as much gm as that allows.
-    fixed["Wtail"] = min(nl.PARAM_BOUNDS["Wtail"][1], 150.0)
+    fixed["Wtail"] = min(nl.PARAM_BOUNDS["Wtail"][1], START_WTAIL_UM)
     lo_i, hi_i = nl.PARAM_BOUNDS["Itail"]
     grid = np.linspace(lo_i, hi_i, 96)
     margin = fit.tail_margin(fixed["W"], fixed["L"], grid, fixed["Wtail"])

@@ -68,7 +68,15 @@ GOAL_SCALE = {"peaking_target_db": 12.0, "fpeak_lo": 2.5e9, "fpeak_hi": 2.5e9,
               "hd3_max_db": 40.0, "power_max_w": 15e-3,
               "eye_height_min_v": 0.15}
 
-OBS_DIM = N_U + len(OBS_METRICS) + len(sp.BRIEF_SPECS) + len(GOAL_FIELDS) + 1
+#: +1 for the tail bias margin. The scorer clips reward to 0.2 for a design
+#: that is not biased in saturation, and measured from bias-aware starts a
+#: random policy still spends 24.9 % of its STEPS on the wrong side of that
+#: cliff (p10 of the margin is -0.064 V). Without this the cliff is invisible
+#: in the observation: the policy sees the reward collapse but nothing that
+#: predicts it, so it can only learn to avoid whole regions rather than to
+#: steer along the edge. It is cheap physics the agent should not have to
+#: rediscover.
+OBS_DIM = N_U + len(OBS_METRICS) + len(sp.BRIEF_SPECS) + len(GOAL_FIELDS) + 2
 
 
 @dataclass
@@ -226,8 +234,13 @@ if _HAVE_GYM:
             marg = [float(mg.get(k, np.nan)) for k in sp.BRIEF_SPECS]
             goal = [float(getattr(self._spec, k)) / GOAL_SCALE[k]
                     for k in GOAL_FIELDS]
+            from . import netlist as _nl
+            d = _nl.denorm(list(np.clip(self._u, 0.0, 1.0)))
+            tail_margin = float(np.atleast_1d(self.sur.fit.tail_margin(
+                d["W"], d["L"], d["Itail"], d["Wtail"]))[0])
             v = (list(self._u) + feats + marg + goal
-                 + [(self.max_steps - self._t) / self.max_steps])
+                 + [tail_margin / 0.2,
+                    (self.max_steps - self._t) / self.max_steps])
             v = [0.0 if (x != x) else float(x) for x in v]
             return np.clip(np.asarray(v, np.float32),
                            self.observation_space.low,
@@ -250,8 +263,8 @@ if _HAVE_GYM:
                 # would have dominated the whole training run. The start is
                 # only a starting point and is perturbed by noise immediately
                 # afterwards, so grid resolution buys nothing here.
-                u0 = np.asarray(analytic_start_u(self._spec, self.sur.fit,
-                                                 n_grid=48), float)
+                u0 = np.asarray(analytic_start_u(self._spec, self.sur.fit),
+                                float)
                 u0 = u0 + self._rng.normal(0, 0.1, N_U)
             elif kind == 1:
                 u0 = self._rng.uniform(0.0, 1.0, N_U)

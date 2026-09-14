@@ -37,7 +37,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from eqrl import pdk, specs as sp
+from eqrl import netlist as nl, pdk, specs as sp
 from eqrl.cache import EvalLog, git_sha, write_atomic
 from eqrl.env_goal import GoalSpace, check_meas_compatible
 from eqrl.netlist import PARAM_NAMES
@@ -168,6 +168,65 @@ def run_cem_converged(obj, spec, sur, pop: int = 24, iters: int = 15,
             "curve": [float(x) for x in r.curve]}
 
 
+def run_surrogate_cem(obj, spec, sur, evals: int = 2000, pop: int = 40,
+                      seed: int = 0) -> dict:
+    """CEM against the SURROGATE, then one real evaluation of the winner.
+
+    The strongest baseline the policy has to beat, and the fairest statement of
+    what the learned model is worth on its own. The search itself touches no
+    simulator -- 2 000 evaluations take about two seconds -- so the SPICE cost
+    per spec is just confirming the answer.
+
+    Its weakness is the honest one to report: it still runs a full search for
+    every spec. The policy's claim is that no search is needed at all, and this
+    is the method that tests whether that claim buys anything.
+    """
+    from eqrl.agents.cem import CemConfig, optimize
+
+    corners = obj.corners
+    cfs = [{"process": c.process, "vdd": c.vdd, "temp": c.temp, "rc": c.rc}
+           for c in corners]
+
+    class _Res:
+        def __init__(self, u, r, scored):
+            self.u = tuple(u)
+            self.reward = r
+            self.scored = scored[0]
+            self.per_corner = {c.name: sc for c, sc in zip(corners, scored)}
+            self.scored_corner = corners[0].name
+
+    class _SurObjective:
+        def __init__(self):
+            self.n = 0
+
+        def evaluate_batch(self, us):
+            out = []
+            for u in us:
+                p = nl.denorm(list(np.clip(u, 0, 1)))
+                mets = sur.predict_metrics([p] * len(corners), cfs)
+                scored = [sp.score(m, spec) for m in mets]
+                self.n += 1
+                out.append(_Res(u, min(x["reward"] for x in scored), scored))
+            return out
+
+        def all_pass_everywhere(self, res):
+            return all(sp.all_pass(x) for x in res.per_corner.values())
+
+    u0 = np.asarray(analytic_start_u(spec, sur.fit), float)
+    sobj = _SurObjective()
+    r = optimize(sobj, CemConfig(pop=pop, iters=max(1, evals // pop),
+                                 init_mean=u0, init_std=0.25, seed=seed,
+                                 stop_on_pass=False), verbose=False)
+    u_star = list(r.best.u)
+
+    # the only simulator cost: confirm the model's answer
+    real = obj(u_star)
+    return {"sims": 1, "surrogate_evals": sobj.n,
+            "best_reward": float(min(sc["reward"] for sc in real.per_corner.values())),
+            "predicted_reward": float(r.best_reward),
+            "u": [float(x) for x in u_star], "res": real}
+
+
 def verify(u, spec, sim, jobs, tag) -> dict:
     """All 20 of the brief's PVT corners on one design."""
     from eqrl.design import _worst_margins
@@ -274,7 +333,7 @@ def main() -> int:
                                          "power_max_w", "eye_height_min_v",
                                          "eye_width_min_ui")}}
 
-        methods = ["policy", "cem"]
+        methods = ["policy", "cem", "surrogate_cem"]
         if a.cem_converged:
             methods.append("cem_converged")
         for method in methods:
@@ -295,6 +354,8 @@ def main() -> int:
                                      a.max_steps)
                 elif method == "cem":
                     out = run_cem(obj, spec, a.budget, sur)
+                elif method == "surrogate_cem":
+                    out = run_surrogate_cem(obj, spec, sur)
                 else:
                     out = run_cem_converged(obj, spec, sur, a.cem_pop,
                                             a.cem_iters)
@@ -348,9 +409,11 @@ def _summarise(rows, a) -> None:
     print(f"\n{'=' * 74}\nG3  policy vs CEM at an equal budget of {a.budget} "
           f"SPICE evaluations\n{'=' * 74}")
     has_conv = any("cem_converged" in r for r in rows)
-    cols = ["policy", "cem"] + (["cem_converged"] if has_conv else [])
+    has_sur = any("surrogate_cem" in r for r in rows)
+    cols = (["policy", "cem"] + (["surrogate_cem"] if has_sur else [])
+            + (["cem_converged"] if has_conv else []))
     head = {"policy": "policy", "cem": f"CEM ({a.budget} sims)",
-            "cem_converged": "CEM converged"}
+            "surrogate_cem": "surrogate CEM", "cem_converged": "CEM converged"}
     print("  " + "spec".ljust(7) + "".join(head[c].rjust(24) for c in cols))
     print("  " + "".ljust(7)
           + "".join("reward  sims  20-corner".rjust(24) for c in cols))

@@ -1821,3 +1821,104 @@ designs drawn from the same three clouds, so it could not see this at all — th
 model was accurate on its own distribution and wrong on the policy's. Held-out
 accuracy measured on the training distribution says nothing about a region that
 distribution never visits.
+
+### 18.9 Fixing the start: bias the circuit before shaping its response
+
+The diagnosis in §18.8 was half right, and the half that was wrong is the more
+interesting one.
+
+Adding a per-cloud breakdown to the surrogate's validation (the metric that
+would have caught the original failure, added after it) showed that only
+**42 %** of per-goal analytic starts are saturated *in SPICE*. The plateau the
+policy sat on was therefore largely **real**, not a model artifact — the
+two-sample check in §18.8 had drawn two lucky designs. Both things were true at
+once: the surrogate was miscalibrated there *and* the starts were genuinely bad.
+
+Diagnosing from 110 collected goal-start records, **63 % of the unsaturated
+ones fail because the tail is in triode** — `vds_tail` 0.168 V against
+`vdsat_tail` 0.177 V, missing by 9 mV — where the saturated ones sit at 0.337 V
+against 0.168 V.
+
+**Two fitted relations, not intuition.** From 3 095 records:
+
+```
+vdsat_tail ~ Itail^+0.36 · Wtail^-0.42      R²(log) 0.909
+vds_tail   ~ Itail^-0.44 · (W/L)^+0.51      R²(log) 0.740
+```
+
+Together they predict the *sign* of the tail's saturation margin correctly on
+**89.3 %** of records. `PhysFit.tail_margin()` is those two, and it costs no
+SPICE.
+
+The second is the one that is easy to get backwards. The tail node sits at
+`Vcm − Vgs_M1`, so asking for **more** tail current raises `Vgs` and pushes that
+node **down** into the tail device's own `Vdsat`. More current makes the bias
+*worse*. It shows in the data: designs biased in saturation carry 0.50 mA where
+the unsaturated ones carry 0.66 mA.
+
+`analytic_start_u` now widens the tail (lower `Vdsat` at no cost to `gm`) and
+takes the **largest** current that still clears a 0.15 V margin — headroom
+first, then as much `gm` as that allows.
+
+| | before | after |
+|---|---|---|
+| predicted tail margin | +0.082 V | **+0.154 V** |
+| starts surviving the env's N(0, 0.1) | ~44 % | **92 %** |
+| verified in SPICE at all 4 corners | — | **4 / 4 saturated** |
+
+with real rewards 0.4812, 0.5603, 0.7634, 0.8174 instead of the 0.2 the scorer
+clips an unbiased design to.
+
+**A misreading worth recording.** Binning the data first suggested a *narrower*
+tail was better (70 % saturated at `Wtail` 5–50 against 61 % at 50–90). That was
+confounded — the cloud perturbs all eleven knobs at once — and the isolated
+regression gives `Wtail` a clean negative exponent on `vdsat_tail`. The
+regression was the right instrument; the binning was not.
+
+### 18.10 The cliff is shown to the policy, not smoothed away
+
+Fixing the start was necessary and not sufficient. Measured from bias-aware
+starts with a random policy: 6.7 % of *starts* have negative tail margin, but
+**24.9 % of steps** do, with the 10th percentile at −0.064 V. A policy that
+raises `Itail` for gain — the natural move for a peaking-limited goal — walks
+straight off the 0.2 cliff.
+
+Softening the gate inside the environment would make the landscape easier to
+learn, but it would also have the policy optimise something the real scorer does
+not, and that mismatch surfaces at deployment as an unexplained G2 → G3 drop.
+So the **tail margin became an observation** instead: the policy can see the
+cliff approaching rather than only feeling the reward collapse afterwards, and
+the objective is untouched. `OBS_DIM` 34 → 35.
+
+### 18.11 What the targeted collection bought
+
+Collecting ~650 designs around the *bias-aware* starts, retrained on the same
+25 % split:
+
+| cloud | ρ before | ρ after | saturated real / predicted |
+|---|---|---|---|
+| goal_start | 0.519 | **0.823** | 0.42 / 0.34 → **0.63 / 0.63** |
+
+The classifier is calibrated where the policy operates; it had been
+under-predicting saturation there by eight points, which is what manufactured
+the false plateau.
+
+G1 over saturated held-out designs: **0.854** on 135 designs, against a gate of
+0.9 fixed before the run. It does not pass. The gate stays where it was set —
+the pre-commitment exists precisely so that a number seen afterwards cannot move
+it. What the pre-commitment *does* govern is the fallback, whose trigger was
+`spearman_saturated < 0.8 AND eye agreement < 0.75`; neither holds (0.854, and
+eye 0.90 / 0.82), so the policy trains against the full reward including the eye
+rather than taking the easier path.
+
+### 18.12 Hypotheses that measurement killed
+
+Kept because the discarded ones are as informative as the surviving one, and
+each was plausible enough to have been acted on.
+
+| hypothesis | why it was plausible | what the measurement said |
+|---|---|---|
+| The analytic start collapses the CTLE output common mode for low-`f_peak` goals | `RL` is solved from the `f_peak` target, and `Itail·RL` is a real headroom constraint | **False.** Output CM sits at 0.87–1.06 V across twelve sampled goals, against a floor near 0.70 V |
+| The surrogate is simply wrong about saturation at the starts | Two starts simulated saturated where it predicted otherwise | **Half true.** Only 42 % of starts are genuinely saturated; the model was miscalibrated *and* the starts were bad |
+| A narrower tail improves bias margin | Binned data showed 70 % vs 61 % | **False.** Confounded by eleven knobs moving together; the isolated fit gives `Wtail^-0.42` |
+| The policy cannot reach a solution in 20 steps of 0.1 | "Give it more steps" is the obvious fix for non-convergence | **False.** The seeded CEM's whole journey is 0.288 on its largest knob and 0.399 in L2 — the budget is 7× that, and continuous actions give finer resolution than 0.1 |

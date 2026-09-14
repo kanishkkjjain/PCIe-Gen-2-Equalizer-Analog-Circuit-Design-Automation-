@@ -81,7 +81,10 @@ def run_policy(model, sur, obj, spec, budget: int, max_steps: int) -> dict:
     # A surrogate-backed env is used ONLY to build observations in exactly the
     # layout the policy was trained on; every reward and metric below comes
     # from SPICE, never from it.
-    shim = GoalCtleEnv(sur, GoalSpace(), seed=0, max_steps=max_steps,
+    # GoalSpace.load(), not GoalSpace(): the shim's sampler is unused here
+    # (the spec is set explicitly below) but loading the frozen file keeps one
+    # source of truth and stops this drifting into a second definition.
+    shim = GoalCtleEnv(sur, GoalSpace.load(), seed=0, max_steps=max_steps,
                        uncertainty_penalty=0.0)
     shim._spec = spec
     shim._t = 0

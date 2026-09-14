@@ -1,5 +1,5 @@
 {
- "git_sha": "dcdbc87",
+ "git_sha": "d9d0354",
  "evals": [
   {
    "steps": 51200,
@@ -68,6 +68,23 @@
    "mean_best_reward": 0.8831420244504302,
    "mean_uncertainty": 0.35623397437323423,
    "success_vs_feasible": 0.07692307692307693
+  },
+  {
+   "steps": 51200,
+   "wall_s": 114.69924065099622,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 13,
+    "fraction": 0.65,
+    "n_saturated_designs": 329
+   },
+   "n": 20,
+   "success_rate": 0.0,
+   "mean_steps_to_solve": null,
+   "mean_best_reward": 0.8275019043181464,
+   "mean_uncertainty": 0.08738783559806289,
+   "success_vs_feasible": 0.0
   }
  ]
 }

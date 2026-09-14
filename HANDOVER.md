@@ -1922,3 +1922,71 @@ each was plausible enough to have been acted on.
 | The surrogate is simply wrong about saturation at the starts | Two starts simulated saturated where it predicted otherwise | **Half true.** Only 42 % of starts are genuinely saturated; the model was miscalibrated *and* the starts were bad |
 | A narrower tail improves bias margin | Binned data showed 70 % vs 61 % | **False.** Confounded by eleven knobs moving together; the isolated fit gives `Wtail^-0.42` |
 | The policy cannot reach a solution in 20 steps of 0.1 | "Give it more steps" is the obvious fix for non-convergence | **False.** The seeded CEM's whole journey is 0.288 on its largest knob and 0.399 in L2 — the budget is 7× that, and continuous actions give finer resolution than 0.1 |
+
+### 18.13 An unplanned result: surrogate-assisted CEM
+
+`check_surrogate.py` exists to look for the model's blind spot, not to design
+anything. It runs CEM *inside* the surrogate and then simulates whatever it
+converges on, so that a model which over-rates its own favourite design is
+caught before a policy is trained in it.
+
+At 1 500 designs it caught nothing, and that is the finding:
+
+```
+predicted reward (surrogate) : 0.9986
+real reward (ngspice)        : 0.9977
+optimism gap                 : +0.0009
+ensemble disagreement there  : 0.033 against 3.707 typical
+```
+
+The model predicted its own optimum's reward to nine parts in ten thousand. At
+340 designs the same probe gave +0.031 and a design that did not pass; the
+goal-start data closed both.
+
+**The design it found passes 8/8 brief specs at all 20 PVT corners**, and it is
+better than the shipped checkpoint-3 design on six of eight margins:
+
+| spec | shipped (CEM) | surrogate-assisted |
+|---|---|---|
+| **hd3 (binding)** | **+4.1 %** | **+10.1 %** |
+| eye_h | +31.1 % | +59.9 % |
+| fpeak | +6.9 % | +13.2 % |
+| peaking | +32.1 % | +41.7 % |
+| noise | +58.8 % | +70.6 % |
+| power | +80.7 % | +82.0 % |
+| eye_w | +40.6 % | +17.2 % |
+| area | +99.4 % | +98.8 % |
+
+The binding constraint has 2.5× the margin it had. In absolute terms: hd3
+−36.2 dBc against −31.2, eye height 220.2 mV against 131.1, power 2.48 mW
+against 2.89, eye openness improvement 2.38× against 1.97×.
+
+**The cost, accounted honestly.** This is not "a better design in 1.9 seconds".
+The surrogate cost **11 986 ngspice launches** to train, once. After that:
+
+| | per new spec |
+|---|---|
+| seeded CEM (shipped) | 760 ngspice launches, ~7 min |
+| surrogate-assisted CEM | 2 000 surrogate evaluations (1.9 s, no simulator) + ~44 launches to verify |
+
+Break-even is at roughly **17 specs**. Below that the shipped flow is cheaper;
+above it the surrogate is, and the margin grows without bound. That is the
+amortisation argument for the whole approach, and it is the honest way to state
+it — a one-off investment that only pays back when the tool is used repeatedly,
+which is exactly the case the brief describes.
+
+**What this is and is not.** It is a result for the *surrogate*, not for the
+goal-conditioned policy. Surrogate-assisted CEM still runs a full search per
+spec; it is simply running it against a model that costs microseconds instead
+of a simulator that costs seconds. The policy's claim — one training run,
+then any spec without search — is separate and is decided by G2 and G3.
+
+So the project now has **three** methods to compare, not two:
+
+1. **seeded CEM** — the shipped baseline, one search per spec against ngspice
+2. **surrogate-assisted CEM** — one search per spec against the learned model
+3. **goal-conditioned policy** — no search at all, trained once
+
+One caveat recorded rather than buried: `L` sits on a box edge in this design.
+A knob pinned at its bound means the optimiser wanted to go further and could
+not, so the bound — not the circuit — is setting that dimension.

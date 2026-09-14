@@ -423,6 +423,10 @@ START_WTAIL_UM = 150.0
 #: the G2 and G3 numbers.
 START_N_GRID = 96
 
+#: Grid for the intermediate iterates of the start calibration. The solve cost
+#: goes as n_grid^2 and these are stepping stones, not the answer.
+CALIB_N_GRID = 40
+
 #: time resolution of the pulse response, as a fraction of one UI
 PULSE_OVERSAMPLE = 32
 PULSE_NFFT = 2048
@@ -672,6 +676,14 @@ def analytic_baseline(params, corner_fields, fit: PhysFit, meas) -> dict:
 _SOLVE_CACHE: dict = {}
 _SOLVE_CACHE_MAX = 4096
 
+#: Calibrated starts, keyed on the goal's binned targets. The calibration loop
+#: runs several grid solves, and at ~175 ms each a fresh start per episode
+#: would cost more than the entire rest of the episode -- measured, 706 ms
+#: against a 4 ms step. Goals are continuous but the bins are coarse, so over
+#: tens of thousands of episodes almost every start is a repeat.
+_START_CACHE: dict = {}
+_START_CACHE_MAX = 2048
+
 
 def _solve_cached(gm, cout, tgt_pk, tgt_f, n_grid):
     from . import analytic
@@ -689,7 +701,9 @@ def _solve_cached(gm, cout, tgt_pk, tgt_f, n_grid):
 def analytic_start_u(spec, fit: PhysFit, corner_fields: dict | None = None,
                      tap_pct: float | None = None,
                      n_grid: int = START_N_GRID,
-                     tail_margin_v: float = 0.15) -> list:
+                     tail_margin_v: float = 0.15,
+                     surrogate=None, corners_cf=None,
+                     n_calib: int = 3) -> list:
     """A hand-calculated starting design for ANY spec, using no SPICE at all.
 
     `analytic.initial_design` does this properly -- it measures gm and Cout from
@@ -742,11 +756,82 @@ def analytic_start_u(spec, fit: PhysFit, corner_fields: dict | None = None,
     k_pk = max(0.25, fit.coef.get("k_pk", 1.0))
     k_f = max(0.25, fit.coef.get("k_f", 1.0))
 
-    RL, Rs, Cs = _solve_cached(gm, cout, tgt_pk * k_pk, tgt_f * k_f, n_grid)
     rsum = analytic._rsum_for_midsupply(
         _CornerLike(cf["vdd"]), fixed["Ig1"])
-    p = CtleParams(**fixed, tap_pct=tap, RL=RL, Rs=Rs, Cs=Cs, Rsum=rsum)
-    return nl.norm({k: getattr(p, k) for k in PARAM_NAMES})
+
+    def _build(t_pk, t_f, grid=None):
+        RL, Rs, Cs = _solve_cached(gm, cout, t_pk, t_f, grid or n_grid)
+        p = CtleParams(**fixed, tap_pct=tap, RL=RL, Rs=Rs, Cs=Cs, Rsum=rsum)
+        return nl.norm({k: getattr(p, k) for k in PARAM_NAMES})
+
+    ask_pk, ask_f = tgt_pk * k_pk, tgt_f * k_f
+    if surrogate is None or not corners_cf:
+        return _build(ask_pk, ask_f)
+
+    # Coarse bins on purpose. At 0.5 dB / 50 MHz the cache held 21 entries
+    # after 800 steps and the misses cost 13 ms/step amortised -- three times
+    # the cost of the step itself. 1 dB and 150 MHz gives a few hundred
+    # reachable combinations, which warms in a few thousand episodes, and the
+    # error it introduces is far smaller than the N(0, 0.1) the start is
+    # perturbed by immediately afterwards.
+    ckey = (round(tgt_pk / 1.0), round(spec.fpeak_lo / 150e6),
+            round(spec.fpeak_hi / 150e6), round(fixed["Itail"], 9),
+            round(gm, 9), round(cout, 18), n_grid)
+    hit = _START_CACHE.get(ckey)
+    if hit is not None:
+        return list(hit)
+
+    u = _build(ask_pk, ask_f)
+
+    # Close the loop against the SURROGATE, the way analytic.initial_design
+    # closes it against SPICE -- and for the same reason, except that here it
+    # costs microseconds instead of five ngspice launches.
+    #
+    # Two things make the open-loop answer wrong, and together they cost a
+    # whole training run. The solve corrects the closed form by the fitted
+    # k_pk / k_f, but the environment scores with the SURROGATE, which applies
+    # a LEARNED residual on top of that same closed form -- so the two disagree
+    # about what a given design will do. And the targets are aimed at the band
+    # centre at nominal, while the slow corner sits about 20 % lower in f_peak,
+    # so a design centred at tt puts ss under the floor.
+    #
+    # Measured before this loop: the start landed inside the f_peak band at all
+    # four corners on 1 of 10 sampled goals, and `fpeak` was then the condition
+    # blocking the trained policy on 19 of 20 held-out specs -- by a wide
+    # margin the single reason it could not finish a spec.
+    #
+    # So aim at what the model says the WORST corner will do, not at what the
+    # equations say the typical one will.
+    lo_f, hi_f = float(spec.fpeak_lo), float(spec.fpeak_hi)
+    lo_pk, hi_pk = float(spec.peaking_min_db), float(spec.peaking_max_db)
+    for _ in range(max(0, n_calib)):
+        p = nl.denorm(list(u))
+        mets = surrogate.predict_metrics([p] * len(corners_cf), corners_cf)
+        fps = np.array([m.f_peak for m in mets], float)
+        pks = np.array([m.peaking_db for m in mets], float)
+        if not (np.isfinite(fps).all() and np.isfinite(pks).all()):
+            break
+        # centre the CORNER SPREAD in the band, in log frequency
+        mid_f = float(np.exp(0.5 * (np.log(max(fps.min(), 1.0))
+                                    + np.log(max(fps.max(), 1.0)))))
+        want_f = float(np.exp(0.5 * (np.log(lo_f) + np.log(hi_f))))
+        mid_pk = 0.5 * (pks.min() + pks.max())
+        want_pk = 0.5 * (lo_pk + hi_pk)
+        if mid_f <= 0 or mid_pk <= 0:
+            break
+        # damped, like analytic.CALIB_DAMPING: an undamped ratio update
+        # oscillates because the model's error is not proportional
+        ask_f *= float(np.clip((want_f / mid_f) ** 0.7, 0.5, 2.0))
+        ask_pk *= float(np.clip((want_pk / mid_pk) ** 0.7, 0.5, 2.0))
+        # a coarse grid inside the loop: these iterates are stepping stones,
+        # and the solve cost goes as n_grid^2
+        u = _build(ask_pk, ask_f, grid=CALIB_N_GRID)
+
+    u = _build(ask_pk, ask_f)          # final answer at full resolution
+    if len(_START_CACHE) >= _START_CACHE_MAX:
+        _START_CACHE.clear()
+    _START_CACHE[ckey] = list(u)
+    return u
 
 
 class _CornerLike:

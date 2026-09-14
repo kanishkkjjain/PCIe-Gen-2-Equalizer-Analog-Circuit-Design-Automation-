@@ -263,8 +263,11 @@ if _HAVE_GYM:
                 # would have dominated the whole training run. The start is
                 # only a starting point and is perturbed by noise immediately
                 # afterwards, so grid resolution buys nothing here.
-                u0 = np.asarray(analytic_start_u(self._spec, self.sur.fit),
-                                float)
+                # calibrated against the surrogate over all four corners --
+                # open loop the start missed the f_peak band at 9 of 10 goals
+                u0 = np.asarray(analytic_start_u(
+                    self._spec, self.sur.fit,
+                    surrogate=self.sur, corners_cf=self.cfs), float)
                 u0 = u0 + self._rng.normal(0, 0.1, N_U)
             elif kind == 1:
                 u0 = self._rng.uniform(0.0, 1.0, N_U)

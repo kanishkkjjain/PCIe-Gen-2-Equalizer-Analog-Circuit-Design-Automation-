@@ -107,7 +107,7 @@ def run_policy(model, sur, obj, spec, budget: int, max_steps: int) -> dict:
     # (the spec is set explicitly below) but loading the frozen file keeps one
     # source of truth and stops this drifting into a second definition.
     shim = GoalCtleEnv(sur, GoalSpace.load(), seed=0, max_steps=max_steps,
-                       uncertainty_penalty=0.0)
+                       uncertainty_penalty=0.0, reward_mode="margin")
     shim._spec = spec
     shim._t = 0
 
@@ -249,12 +249,19 @@ def run_surrogate_cem(obj, spec, sur, evals: int = 2000, pop: int = 40,
             "u": [float(x) for x in u_star], "res": real}
 
 
-def verify(u, spec, sim, jobs, tag) -> dict:
-    """All 20 of the brief's PVT corners on one design."""
+def verify(u, spec, sim, jobs, tag, log=None) -> dict:
+    """All 20 of the brief's PVT corners on one design.
+
+    `log` is optional but should almost always be passed. Verification is where
+    most of this project's simulation budget goes -- a best-of-8 run over 10
+    specs is 1,600 evaluations at 20 corners -- and without the log every one
+    of them is computed, read once and thrown away. They are exactly the
+    high-quality, near-feasible records the surrogate is weakest on.
+    """
     from eqrl.design import _worst_margins
     from eqrl.env import Objective
     v = Objective(spec, sim, corners=pdk.pvt_grid("spec"), robust="min",
-                  do_eye=True, jobs=jobs, use_channel=True)
+                  do_eye=True, jobs=jobs, use_channel=True, log=log)
     res = v(list(u))
     agg: dict = {}
     for sc in res.per_corner.values():
@@ -280,6 +287,8 @@ def main() -> int:
     ap.add_argument("--timeout", type=float, default=300.0)
     ap.add_argument("--workdir", default="/tmp/eqrl_deploy")
     ap.add_argument("--policy", default=None)
+    ap.add_argument("--reward-mode", choices=("margin", "score"),
+                    default="margin")
     ap.add_argument("--surrogate", default=None)
     ap.add_argument("--no-verify", dest="verify", action="store_false",
                     default=True)
@@ -298,7 +307,7 @@ def main() -> int:
         Path(a.pidfile).parent.mkdir(parents=True, exist_ok=True)
         Path(a.pidfile).write_text(f"{os.getpid()}\n")
 
-    from stable_baselines3 import PPO
+    from stable_baselines3 import PPO, SAC
     from eqrl.env import Objective
     from eqrl.surrogate import Surrogate
 
@@ -313,8 +322,20 @@ def main() -> int:
     p = Path(pol)
     if not p.is_absolute():
         p = ROOT / p
-    model = PPO.load(p)
-    print(f"policy: {p.name}")
+    # The algorithm is read from the checkpoint rather than assumed. Loading
+    # a SAC checkpoint with PPO.load fails with a key error deep in the
+    # unpickling, which reads like a corrupt file rather than the wrong class.
+    model = None
+    for cls in (SAC, PPO):
+        try:
+            model = cls.load(p)
+            print(f"policy: {p.name} ({cls.__name__})")
+            break
+        except Exception:
+            continue
+    if model is None:
+        print(f"could not load {p} as either SAC or PPO")
+        return 1
 
     space = GoalSpace.load()
     specs = deploy_specs(space, a.n_specs)

@@ -29,3 +29,6 @@ spinit
 logs/
 models/*/ckpt_*
 models/policy/ckpt_*.zip
+# checkpoint 5's PPO weights, moved aside so the checkpoint-6
+# cleanup does not sort them above a fresh run's low step counts
+models/policy/ckpt5_ppo/

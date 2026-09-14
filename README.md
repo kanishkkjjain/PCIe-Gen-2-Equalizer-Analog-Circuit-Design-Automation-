@@ -51,6 +51,94 @@ against a real Gen2 transmitter's ~800 mV. Converged at iteration
 2 of 15; 800 ngspice launches. Full write-up in
 `HANDOVER.md` §16.
 
+## Checkpoint 6 — the objective was the bug
+
+Checkpoint 5 ended with a working surrogate and a policy that solved **0 of 20**
+held-out specs. The natural reading is "RL does not work here". The narrower
+claim tested in checkpoint 6 is that the *reward* was wrong, not the method.
+
+**The reward was a count, and passing is conjunctive.** `specs.score` mixes a
+weighted soft score with `HARD_PASS_WEIGHT x n_pass / n`. A policy can raise
+that by improving five conditions while driving a sixth negative — and be paid
+for it. `specs.margin_vector` replaces it with the ten pass conditions as
+continuous margins, scored on their **minimum**, which has the property
+
+```
+all_pass(score(m, spec))   <==>   min(margin_vector(m, spec)) >= 0
+```
+
+so the only way to raise the score is to fix whatever is currently worst.
+Checked over all 5 993 collected records (171 of them passing): **0
+disagreements**.
+
+**Stopping at the pass boundary trained the fragility in.** The episode used to
+end the moment the *surrogate* said all_pass — exactly where model error decides
+the verdict. Now it never terminates early, and the reward keeps paying for
+margin beyond zero.
+
+### How much margin is worth buying (measured before training)
+
+`scripts/margin_transfer.py` crosses 373 held-out designs with 600 sampled
+goals — 223 800 pairs, no simulation — and compares predicted min-margin with
+the real one from measured metrics. Spearman **+0.821**. But the relationship is
+**not monotone**:
+
+```
+predicted margin   real pass rate
+[+0.00, +0.02)         32.0 %
+[+0.02, +0.05)         24.7 %
+[+0.05, +0.08)         48.9 %
+[+0.08, +0.10)         64.2 %
+[+0.10, +0.15)         66.7 %   <- best supported
+[+0.15, +0.20)         46.2 %
+[+0.20,   inf)         40.0 %
+```
+
+It peaks and then **falls**: a very large predicted margin mostly means the
+model is confidently wrong. So the reward is *capped* at 0.125 rather than
+unbounded — the constant comes from this table, and `scripts/status.py` warns
+if the two drift apart.
+
+### The result, and the one number it is reported as
+
+**It takes n = more than 32 proposals to have a 90 % chance of solving a spec.**
+Both methods plateau at 80 %, and they get there very differently:
+
+| | specs solved | per proposal | proposal cost |
+|---|---|---|---|
+| **SAC policy** | **80 % at n = 7** | **35.2 %** | 1 s (forward pass) |
+| CEM + surrogate | 80 % at n = 20 | 17.8 % | 42 s (a search, every time) |
+
+Ten held-out specs, one committed script, every proposal verified at all 20 PVT
+corners. "Solved" means one of the n proposals meets **every** brief spec at
+**every** corner — nothing weaker.
+
+**They fail on different specs, and that is the useful part:**
+
+```
+CEM unsolved      spec5, spec7
+policy unsolved   spec5, spec8
+union             9 of 10 = 90 %
+```
+
+Running both and keeping whichever passes hits the 90 % target today, with no
+new code. Only spec5 defeats both, and it may be infeasible — the best design
+among 5 993 collected records misses it by **eye_h −0.1 %**.
+
+### What is still wrong
+
+**Both methods optimise corners they are not graded on.** Proposal uses 4
+search corners; acceptance uses a 20-corner grid. Two of the four are not in
+the grid at all, and **18 of the 20 that decide pass/fail are never seen** —
+not by the search, not by the policy, not by the surrogate in training. Two
+methods with quite different search behaviour plateauing at exactly 80 % is
+what that looks like. HANDOVER 19.11; untested, and the prediction is recorded
+before the test.
+
+**Proposal diversity failed its gate** (0.148 against 0.25, fixed in advance).
+The policy's eight proposals are near-copies, so best-of-n is doing less work
+than its name implies.
+
 ## Status
 
 | | |
@@ -60,14 +148,16 @@ against a real Gen2 transmitter's ~800 mV. Converged at iteration
 | Closed-loop DFE in SPICE (ideal comparator + 1 UI latch) | ✅ |
 | **RL loop end-to-end, 8/8 brief specs at 20/20 corners** | ✅ |
 | Automatic analytic starting point (no hand-seeding) | ✅ |
-| Test suite (201: 164 fast + 37 against ngspice) | ✅ all passing |
+| Test suite (232: 195 fast + 37 against ngspice) | ✅ all passing |
 | **Schematic output** (we emit netlists) | ❌ |
 | **Sweep-vs-RL baseline** — CEM 0.987 (passes) vs random 0.726 (0/95) | ✅ |
 | **Seed-vs-search measured** — analytic 5/8 specs → after CEM 8/8 | ✅ |
 | **Durable, resumable evaluation cache** — 5 993 records, 0 lost to 5 interruptions | ✅ |
-| **Physics-informed surrogate** — G1 rank correlation 0.88, optimism gap +0.0009 | ✅ |
+| **Physics-informed surrogate** — G1 rank correlation 0.88, optimism gap median +0.018 (n=14) | ✅ |
 | **Surrogate-assisted CEM** — 8/8 specs at 20/20 corners, binding margin +10.1% | ✅ |
-| **Goal-conditioned RL** — PPO in the surrogate | ❌ **0/20 specs; see HANDOVER 18.18** |
+| **Goal-conditioned RL** — PPO, checkpoint 5 | ❌ 0/20 specs; the reward was a count (HANDOVER 18.18) |
+| **Goal-conditioned RL** — SAC on a min-margin reward, checkpoint 6 | ✅ **80% of specs at n=7 proposals vs CEM's n=20**; 35.2% per proposal vs 17.8% |
+| **Proposal diversity** (gate G6-4) | ❌ 0.148 against a 0.25 target fixed in advance |
 | Runtime "tunable" mechanism · Anaconda env · LLM wrapper | ❌ |
 
 ## Three methods, and why there are three
@@ -116,16 +206,28 @@ check the top 8           ->  90%   <-                32
 check the top 10          ->  90%   (plateau)         40
 ```
 
-**Eight proposals reach 90 % of specs.** Per new spec, end to end:
+> **RETRACTED BY CHECKPOINT 6 — this measured a weaker test than the one the
+> project ships against.** `32 = 8 proposals x 4 corners`: the quick *search*
+> corners, not the 20-corner PVT grid that decides acceptance, and the
+> artifact records no 20-corner check at all. Re-measured at 20 corners by a
+> committed script (`scripts/best_of_n.py`), the same method reaches **80 % of
+> specs and needs n = 20 to get there**, not 90 % at n = 8. The per-proposal
+> rate held up almost exactly (18 % then, 17.8 % now); it was the coverage
+> claim that did not. See HANDOVER 19.9. The numbers below are kept because
+> they are what the run measured, not because they are the answer.
+
+**Per new spec, end to end, at the 20-corner acceptance grid:**
 
 | | SPICE evaluations | wall clock |
 |---|---|---|
 | seeded CEM (checkpoints 1-4) | 380 | ~7 min |
-| **propose-8-and-verify** | **32** | **~23 s** |
+| CEM + surrogate, n=20 for 80 % | 400 | ~14 min |
+| **SAC policy, n=7 for 80 %** | **140** | **~2.5 min** |
+| **both, taking whichever passes -> 90 %** | **540** | **~10 min** |
 
-13 s to propose eight designs with no simulator, ~10 s to verify all eight in
-parallel. **12x fewer simulations, ~18x faster**, and the 10 % that fail fall
-back to seeded CEM for the cost of one extra minute.
+The policy proposes 7 designs in **one second** -- a forward pass, no
+simulator. CEM spends 42 s of search for its 20, and pays that again for every
+new spec; the policy's training is spent once.
 
 **Do not trust the model's ranking.** Spearman between predicted and real
 reward across those 100 proposals is **-0.33** -- *negative*. The design the
@@ -160,14 +262,16 @@ launches; only one of them then works.
 | Closed-loop DFE in SPICE (ideal comparator + 1 UI latch) | ✅ |
 | **RL loop end-to-end, 8/8 brief specs at 20/20 corners** | ✅ |
 | Automatic analytic starting point (no hand-seeding) | ✅ |
-| Test suite (201: 164 fast + 37 against ngspice) | ✅ all passing |
+| Test suite (232: 195 fast + 37 against ngspice) | ✅ all passing |
 | **Schematic output** (we emit netlists) | ❌ |
 | **Sweep-vs-RL baseline** — CEM 0.987 (passes) vs random 0.726 (0/95) | ✅ |
 | **Seed-vs-search measured** — analytic 5/8 specs → after CEM 8/8 | ✅ |
 | **Durable, resumable evaluation cache** — 5 993 records, 0 lost to 5 interruptions | ✅ |
-| **Physics-informed surrogate** — G1 rank correlation 0.88, optimism gap +0.0009 | ✅ |
+| **Physics-informed surrogate** — G1 rank correlation 0.88, optimism gap median +0.018 (n=14) | ✅ |
 | **Surrogate-assisted CEM** — 8/8 specs at 20/20 corners, binding margin +10.1% | ✅ |
-| **Goal-conditioned RL** — PPO in the surrogate | ❌ **0/20 specs; see HANDOVER 18.18** |
+| **Goal-conditioned RL** — PPO, checkpoint 5 | ❌ 0/20 specs; the reward was a count (HANDOVER 18.18) |
+| **Goal-conditioned RL** — SAC on a min-margin reward, checkpoint 6 | ✅ **80% of specs at n=7 proposals vs CEM's n=20**; 35.2% per proposal vs 17.8% |
+| **Proposal diversity** (gate G6-4) | ❌ 0.148 against a 0.25 target fixed in advance |
 | Runtime "tunable" mechanism · Anaconda env · LLM wrapper | ❌ |
 
 ## Three methods, and why there are three
@@ -207,12 +311,19 @@ which took eye-width rank correlation from 0.36 to 0.69.
 
 `scripts/check_surrogate.py` exists to look for the failure this class of
 method is famous for — a model that over-rates its own favourite design. It
-optimises *inside* the surrogate and then simulates the winner for real. On
-1 500 collected designs it found nothing to report:
+optimises *inside* the surrogate and then simulates the winner for real.
+
+The first run of it looked reassuring and was **n = 1**:
 
 ```
 predicted reward 0.9986   real (ngspice) 0.9977   optimism gap +0.0009
 ```
+
+Repeated over 14 optimiser-chosen designs, it is not reassuring at all. The
+model claims all 14 pass; SPICE agrees about **4**. Optimism gap median
+**+0.018**, mean +0.040, worst **+0.173** — the +0.0009 above was one of the
+lucky draws. This is why the shipped workflow verifies every proposal rather
+than trusting the model's pick (HANDOVER 18.19).
 
 and the design it turned up **passes all 8 brief specs at all 20 PVT corners**,
 with more margin than the shipped one on six of eight:
@@ -249,7 +360,7 @@ eqrl/
                 response, noise, power, gm/Cout fits, analytic start
   surrogate.py  grey-box residual surrogate (physics + learned correction)
   env_goal.py   goal-conditioned env: the spec is an input, not a constant
-tests/          201 total: 164 pure (no PDK, ~32 s) + 37 against real ngspice
+tests/          232 total: 195 pure (no PDK, ~32 s) + 37 against real ngspice
 scripts/        run_design, build_trimlib, pvt_sweep, smoke_test, plotting,
                 baseline (random search at an equal candidate budget)
 netlists/       xschem schematics -- CROSS-CHECK ONLY, currently STALE
@@ -273,7 +384,7 @@ ngspice-42 (XSPICE + KLU), xschem 3.4.4, Python 3.12. SKY130 via volare.
 ## Run
 
 ```bash
-python3 -m pytest tests/ -q                        # 201 tests, ~2 min
+python3 -m pytest tests/ -q                        # 232 tests, ~2 min
 python3 scripts/build_trimlib.py --grid spec       # 22.4x faster evaluations
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
 ```

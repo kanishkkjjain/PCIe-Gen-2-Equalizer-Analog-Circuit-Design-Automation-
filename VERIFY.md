@@ -16,8 +16,8 @@ The fastest check that nothing is broken. The pure tier needs no PDK and no
 ngspice, so it runs anywhere in under a second:
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 164 tests, ~32 s, no PDK
-python3 -m pytest tests/ -q                      # all 201, ~2 min with the PDK
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 195 tests, ~32 s, no PDK
+python3 -m pytest tests/ -q                      # all 232, ~2 min with the PDK
 ```
 
 Two of those tests are worth reading on their own, because they pin device-model
@@ -650,3 +650,102 @@ CEM runs through the shipped `agents.cem.optimize`, not a reimplementation.
 Deployment specs are drawn with seed 999, disjoint from training and from the
 seed-777 evaluation set — `tests/test_deploy.py` asserts the disjointness,
 because if it failed nothing in the output would look wrong.
+
+---
+
+## 9. Checkpoint 6 — the margin objective
+
+### 9.1 The equivalence the whole checkpoint rests on
+
+```bash
+python3 -m pytest tests/test_margin_vector.py -q
+```
+
+Eighteen checks that `min(specs.margin_vector(m, spec)) >= 0` is the same
+statement as `specs.all_pass(specs.score(m, spec))`. The one that can really
+fail runs both functions over every record in the evaluation cache -- 5,993
+real SPICE measurements, 171 of which pass -- and demands zero disagreements.
+Constructed cases only ever prove the branches the author thought of.
+
+Also here: the demonstration that the OLD reward pays for a trade. Take a
+design failing several conditions, fix most of them, break one that passed --
+`score`'s reward goes up, the minimum goes down. That is the checkpoint-5
+defect, reproduced on demand rather than described.
+
+### 9.2 Is the surrogate's margin worth anything? (G6-0, ~30 s, no SPICE)
+
+```bash
+python3 scripts/margin_transfer.py
+```
+
+Crosses 373 held-out designs with 600 sampled goals -- 223,800 pairs -- and
+compares the surrogate's predicted min-margin against the real one computed
+from measured metrics. Expect `spearman = +0.821`, and a pass-rate curve that
+PEAKS at predicted margin 0.08-0.15 and then falls. That turn is why
+`env_goal.MARGIN_CAP` exists; if it moves, the cap should move with it.
+
+This runs before any training, on purpose: if the curve is flat, no reward
+built on the surrogate's margin can help, and the finding is that model error
+is the floor for every method built on this model.
+
+### 9.3 The reward cannot be gamed (property, not fixture)
+
+```bash
+python3 -m pytest tests/test_env_goal.py -q -k "trade or cap or terminate"
+```
+
+`test_no_random_trade_can_buy_its_way_out_of_failing` draws 3,000 random margin
+vectors, improves nine conditions and breaks the tenth, and demands the reward
+fall every single time. It is the test that caught the first version of this
+reward, which passed the hand-built fixture beside it.
+
+### 9.4 Train and measure
+
+```bash
+# python3 -u, not python3. Redirected stdout is BLOCK buffered, so without
+# it a long run's log sits at 0 bytes for its first ten minutes and looks
+# indistinguishable from a hung process -- measured, on this exact command.
+nohup python3 -u scripts/train_policy.py --algo sac --steps 300000 --envs 4 \
+      --eval-every 25000 --n-eval 25 --pidfile logs/sac.pid \
+      > logs/sac.log 2>&1 &                              # G6-1, ~1 h
+
+python3 scripts/best_of_n.py --method surrogate_cem --k 8   # the bar
+python3 scripts/best_of_n.py --method policy        --k 8   # G6-2/3/4
+```
+
+Both methods run through the same script on the same seed-999 specs, because a
+comparison against a number produced by different code is not a comparison --
+see HANDOVER 19.3 for why checkpoint 5's `best_of_n.json` cannot serve as the
+baseline.
+
+### 9.5 Reproduce the head-to-head
+
+```bash
+export PDK_ROOT=/home/kanishk/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b
+
+# the bar, re-measured through the committed script (~1 h of SPICE)
+python3 -u scripts/best_of_n.py --method surrogate_cem --k 8 --jobs 10
+python3 -u scripts/best_of_n.py --method surrogate_cem --k 24 --extend --only-unsolved --jobs 10
+
+# the policy, identical script, identical specs, identical budget
+python3 -u scripts/best_of_n.py --method policy --k 8 --jobs 12
+python3 -u scripts/best_of_n.py --method policy --k 24 --extend --only-unsolved --jobs 12
+```
+
+Each prints ONE headline, and it is the only number this comparison is reported
+as:
+
+    ==> it takes n = ? to have a 90 % chance of solving the spec
+
+Expect `more than 32` for both -- they plateau at 80 % -- with the policy
+reaching that 80 % at n = 7 and CEM at n = 20.
+
+`--extend --only-unsolved` adds proposals to specs nothing has solved yet,
+continuing the seed sequence, and keeps every verification already paid for.
+Each verification is ~20 SPICE evaluations and they dominate the cost, so
+re-running from scratch to raise n is the expensive mistake.
+
+**Why not compare against `results/best_of_n.json`.** That checkpoint-5
+artifact verified at 4 corners, not 20, records no 20-corner check, and its
+spec labels cannot be recovered. It is a weaker test and is not a baseline.
+HANDOVER 19.3 and 19.9.

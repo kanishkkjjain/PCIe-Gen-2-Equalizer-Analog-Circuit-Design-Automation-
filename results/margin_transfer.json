@@ -1,0 +1,117 @@
+{
+  "created": 1789386592.105108,
+  "git_sha": "344a760",
+  "surrogate": "LATEST",
+  "tag": "collect,goalstart,goalstart2",
+  "val_frac": 0.25,
+  "split_seed": 0,
+  "n_goals": 600,
+  "goal_seed": 0,
+  "n_designs": 373,
+  "n_pairs": 223800,
+  "spearman_pred_real_mmin": 0.8210107970964012,
+  "real_pass_rate_all": 0.0018856121537086685,
+  "threshold_curve": [
+    {
+      "threshold": 0.0,
+      "n": 527,
+      "real_pass": 0.42125237191650855
+    },
+    {
+      "threshold": 0.02,
+      "n": 427,
+      "real_pass": 0.4449648711943794
+    },
+    {
+      "threshold": 0.05,
+      "n": 261,
+      "real_pass": 0.5708812260536399
+    },
+    {
+      "threshold": 0.08,
+      "n": 173,
+      "real_pass": 0.6127167630057804
+    },
+    {
+      "threshold": 0.1,
+      "n": 120,
+      "real_pass": 0.6
+    },
+    {
+      "threshold": 0.15,
+      "n": 36,
+      "real_pass": 0.4444444444444444
+    },
+    {
+      "threshold": 0.2,
+      "n": 10,
+      "real_pass": 0.4
+    },
+    {
+      "threshold": 0.3,
+      "n": 0,
+      "real_pass": NaN
+    }
+  ],
+  "bins": [
+    {
+      "lo": 0.0,
+      "hi": 0.02,
+      "n": 100,
+      "real_pass": 0.32
+    },
+    {
+      "lo": 0.02,
+      "hi": 0.05,
+      "n": 166,
+      "real_pass": 0.2469879518072289
+    },
+    {
+      "lo": 0.05,
+      "hi": 0.08,
+      "n": 88,
+      "real_pass": 0.48863636363636365
+    },
+    {
+      "lo": 0.08,
+      "hi": 0.1,
+      "n": 53,
+      "real_pass": 0.6415094339622641
+    },
+    {
+      "lo": 0.1,
+      "hi": 0.15,
+      "n": 84,
+      "real_pass": 0.6666666666666666
+    },
+    {
+      "lo": 0.15,
+      "hi": 0.2,
+      "n": 26,
+      "real_pass": 0.46153846153846156
+    },
+    {
+      "lo": 0.2,
+      "hi": null,
+      "n": 10,
+      "real_pass": 0.4
+    }
+  ],
+  "recommended_margin_cap": 0.125,
+  "recommended_uncertainty_penalty": 5.274854704154211,
+  "buffer_threshold": 0.08,
+  "gain_points": 19.146439108927183,
+  "G6_0_pass": true,
+  "binding_real": {
+    "fpeak": 82240,
+    "peaking": 44355,
+    "noise": 38449,
+    "bias": 26534,
+    "eye_h": 12731,
+    "equalises": 12707,
+    "eye_w": 4956,
+    "power": 842,
+    "hd3": 564
+  },
+  "note": "Held-out designs crossed with sampled goals. Real margins come from measured metrics, so they are ground truth; the designs are NOT optimiser-selected, so this is an upper bound on what a search that exploits the model achieves."
+}

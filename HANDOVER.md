@@ -125,7 +125,7 @@ reference design, which labels them "(Ideal)" too.
 
 ```bash
 cd ~/pcie_eq_rl
-python3 -m pytest tests/ -q                              # 201 tests
+python3 -m pytest tests/ -q                              # 232 tests
 python3 scripts/smoke_test.py                            # SPICE layer sanity
 python3 scripts/build_trimlib.py --grid spec             # 5.7x less model text
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
@@ -1280,9 +1280,9 @@ No remote is configured. `git remote add origin <url>` when you have one.
 ```bash
 export PDK_ROOT=/home/kanishk/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b
 
-# tests: 201 total -- 164 fast (no PDK) + 37 against real ngspice.
+# tests: 232 total -- 195 fast (no PDK) + 37 against real ngspice.
 python3 -m pytest tests/ -q -m "not needs_pdk"   # 131, ~5 s
-python3 -m pytest tests/ -q                      # all 201, ~2 min
+python3 -m pytest tests/ -q                      # all 232, ~2 min
 
 # SPICE layer sanity (asserts, so it can fail)
 python3 scripts/smoke_test.py
@@ -1351,8 +1351,8 @@ parsing no matter how small the circuit — so anything provable without a
 simulator should be.
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 164 tests, ~32 s, no PDK
-python3 -m pytest tests/ -q                      # all 201, ~2 min
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 195 tests, ~32 s, no PDK
+python3 -m pytest tests/ -q                      # all 232, ~2 min
 ```
 
 | tier | file | needs | covers |
@@ -2310,3 +2310,483 @@ The training cost is not an argument against the surrogate. A policy cannot be
 trained against SPICE, so the surrogate is a prerequisite for the RL path as
 well: both paths pay the same 11 986 launches, and only one of them then
 delivers anything.
+
+---
+
+## 19. Checkpoint 6 — the objective was the bug
+
+Checkpoint 5 shipped a surrogate that works (G1 rho = 0.884) and a policy that
+does not (G2 = 0 of 20 held-out specs). §18.21 concluded that the search was
+doing the work and the policy was not. This checkpoint tests a narrower claim:
+that the failure was the OBJECTIVE the policy was trained against, not the fact
+that it was a policy.
+
+Two defects were diagnosed, both in the reward, neither in the algorithm.
+
+**The reward was a count with a loophole.** `specs.score` mixes a weighted soft
+score with `HARD_PASS_WEIGHT * n_pass / n`. Passing is CONJUNCTIVE -- every
+condition must hold -- so an optimiser can raise that reward by improving five
+conditions while driving a sixth negative, and be paid for it. That is not a
+hypothesis about what the policy did; `tests/test_margin_vector.py` constructs
+the trade and shows the old reward rising as the design gets worse.
+
+**Terminating at the pass boundary trained the fragility in.** The episode
+ended the moment the SURROGATE said `all_pass`, so the policy learned to stop
+at min-margin ~ 0 -- which is exactly where model error decides the verdict.
+
+### 19.1 The fix: one number with no trade in it
+
+`specs.margin_vector(m, spec, tail_margin_v)` returns all ten pass conditions
+as continuous margins, with the property
+
+    all_pass(score(m, spec))  <==>  min(margin_vector(m, spec)) >= 0
+
+so the only way to raise the minimum is to improve whatever is currently worst.
+Checked, not asserted: over every record in the evaluation cache at this
+checkpoint -- 5,993 real SPICE measurements, 171 of which pass -- the two
+functions disagree on **0**. The test scans whatever the cache holds, so it
+gets stricter as more is collected rather than going stale.
+
+Ten, not eight. `margins()` covers the brief specs; `bias` and `equalises` are
+INTERNAL checks that `score` GATES on (reward clipped to 0.2 and 0.3), and a
+reward built on the other eight lets the policy trade those two away for free
+-- the same loophole in a smaller room. `bias` comes in as `PhysFit.tail_margin`
+in volts over `TAIL_MARGIN_SCALE_V`, which is a continuous signal the policy can
+steer by in place of a boolean it can only fall off.
+
+The equivalence is exact in the form the tests pin -- `bias` taken from
+`score`'s own `saturated` flag. Substituting the fitted tail margin, as the
+environment does, makes it approximate: the fit gets the sign right on 89.3 %
+of records. That is the intended trade, and the rule it implies is simple:
+anything GATING on pass/fail uses `all_pass`, anything OPTIMISING uses the
+minimum.
+
+**Not a softmin.** softmin(x) = -tau*log sum exp(-x_i/tau) tends to the MEAN for
+any tau large enough to give the non-binding conditions a gradient -- which is
+the count objective again, loophole included. The gradient is not needed in the
+reward: all ten margins are already in the observation, so the policy can see
+which one binds.
+
+### 19.2 The mean-bonus reintroduced the loophole, and a test caught it
+
+The first version of the reward was `min(margins) + 0.05 * mean(margins)`, with
+the 0.05 described in the source as "deliberately too small to make a trade
+profitable". It was not. A property test over 3,000 random margin vectors found
+the counterexample immediately: nine conditions at 0.30 and one at -0.001
+scores 0.0125, against 0.0105 for ten conditions at 0.01. The mean swings 0.27
+while the minimum gives up 0.011, so 5 % of it is more than enough to buy the
+violation.
+
+This is worth recording because the comment was confident and wrong, and the
+fixture-style test passed. What caught it was the randomised property test. The
+fix makes the bonus conditional rather than small: it is paid only to designs
+that already pass, over margins clipped into `[0, MARGIN_CAP]`. Breaking any
+condition makes the minimum negative, which deletes the bonus entirely instead
+of merely taxing it. Among designs that do pass, the bonus is bounded by
+`MEAN_MARGIN_WEIGHT * MARGIN_CAP` = 0.00625 and can never push the minimum
+below zero.
+
+### 19.3 More margin is not monotonically better (G6-0)
+
+The premise -- push predicted margin past zero and the design survives real
+SPICE -- was tested BEFORE any training, because if it is false then no reward
+built on the surrogate's margin can help and the honest answer is that model
+error is the floor for every method built on this model.
+
+`results/best_of_n.json` looked like the obvious source and could not be used:
+its spec entries cannot be mapped back to the seed-999 stream. Two independent
+attempts, both failed:
+
+*By reward.* Every CEM-optimised proposal scores ~0.999 whatever spec it is
+graded against -- the reward saturates at the boundary, which is the very
+defect `HARD_PASS_WEIGHT` was added to paper over -- so the best-matching spec
+beat the runner-up by a mean absolute **0.0003**, i.e. by noise.
+
+*By margin.* Margin does not saturate, so this should have worked. Scoring each
+entry's proposals against all ten specs and taking the argmax of the mean
+predicted min-margin gives a mapping that claims **5 distinct specs for 10
+entries** -- entries 0, 3, 4 and 7 all name spec 8 -- and is not the identity.
+If each entry had been optimised against a distinct one of these ten specs,
+that could not happen.
+
+**The `predicted` column of `results/best_of_n.json` is not reproducible and
+should not be quoted, and the artifact cannot serve as the baseline.** Its
+`real_pass` column stands only in the weak sense that SPICE measured
+*something*.
+
+That matters more than bookkeeping, because re-measuring the same method
+through the committed script gives a **much better** answer than the 18 %
+per-proposal the artifact reports (see 19.5). The simplest explanation
+consistent with both observations is that the historical run verified
+proposals against a different spec from the one they were optimised for --
+which would depress the pass rate and destroy the mapping in one stroke. That
+is inference, not proof: the run cannot be reconstructed, which is exactly
+why the measurement is now a committed script.
+
+`scripts/margin_transfer.py` answers it without that file. Every cached record
+carries REAL measured metrics, so the real margin vector is computable for ANY
+spec; the surrogate gives the predicted one for the same design and spec. Take
+held-out designs only -- the same 25 % split by design key the model was
+validated on -- and cross them with goals from the calibrated space:
+
+    223,800 (design, goal) pairs, 373 held-out designs
+    spearman(predicted m_min, real m_min) = +0.821
+
+Predicted margin tracks the real thing strongly. Note the contrast with
+checkpoint 5's Spearman(predicted REWARD, real reward) = -0.33: the margin is
+the well-behaved quantity and the clipped, bonus-mixed reward is not.
+
+But the relationship is NOT monotone:
+
+    predicted m_min bin       real pass rate
+    [+0.00, +0.02)   n=100        32.0 %
+    [+0.02, +0.05)   n=166        24.7 %
+    [+0.05, +0.08)   n= 88        48.9 %
+    [+0.08, +0.10)   n= 53        64.2 %
+    [+0.10, +0.15)   n= 84        66.7 %   <- best supported bin
+    [+0.15, +0.20)   n= 26        46.2 %
+    [+0.20,   inf)   n= 10        40.0 %
+
+It peaks around 0.08-0.15 and then FALLS. That turn is the same mechanism this
+project keeps meeting: a very large predicted margin mostly means the model is
+confidently wrong -- and here it appears in data no optimiser selected at all.
+
+So the plan's "reward unbounded above, so the policy keeps buying margin" was
+wrong, and would have walked the policy straight into the falling half; 20
+steps of 0.04 is ample authority to reach 0.20. The reward is CAPPED at
+`MARGIN_CAP = 0.125`, the midpoint of the best-supported bin, and is flat above
+it. The constant is derived from this measurement, not chosen.
+
+**G6-0: buying margin from 0 to +0.08 moves the real pass rate 42.1 % ->
+61.3 %, +19.1 points against a +15 gate. PASS.**
+
+Two caveats that belong next to that number and not in a footnote: these
+designs were measured at the 4 robust corners, while deployment verifies at 20;
+and they were NOT selected by an optimiser hunting for model error. 42 % is
+therefore an upper bound on what a search that exploits the model achieves.
+G6-0 says the buffer CAN work. Only G6-3 says whether it did.
+
+### 19.4 The uncertainty penalty was in the wrong units
+
+The first SAC run was launched with `--uncertainty-penalty` at its default of
+0.1, and the first evaluation said plainly that it was not working:
+
+    10 000 steps   success 24 % (6 of 25, ALL 6 solved at the start)
+                   mean best m_min -0.2191   gain over start +0.0022
+                   mean ensemble disagreement 0.263
+
+Measured separately, the calibrated start sits at disagreement **0.018**. So
+the policy was travelling fifteen times deeper into ground the ensemble does
+not agree about, and coming back with **+0.002** of margin for the trip. That
+is model exploitation, and it is the failure this project has met at every
+turn.
+
+It is also a failure that was already written down. HANDOVER 18 / the
+checkpoint-5 plan recorded the same symptom during the PPO pilot --
+disagreement climbing 0.19 -> 0.32 -> 0.36 while reward plateaued -- and the
+recorded remedy was 0.3. The default was used instead. The measurement above
+cost seven minutes of training; not reading the note cost the same again.
+
+**The penalty is now derived rather than chosen**, the same way `MARGIN_CAP`
+was. `scripts/margin_transfer.py` regresses the surrogate's margin error on its
+own disagreement, over the same 223,800 held-out pairs:
+
+    unc [0.015,0.030]  n=36 6xx   |error| 0.1840   signed +0.0730
+    unc [0.030,0.040]           |error| 0.2098   signed +0.1379
+    unc [0.040,0.057]           |error| 0.2714   signed +0.1554
+    unc [0.057,0.080]           |error| 0.3526   signed +0.1271
+    unc [0.080,0.219]           |error| 0.6149   signed -0.0193
+
+    |predicted m_min - real m_min|  ~  5.27 * unc + 0.027
+
+so `m_min - 5.27 * unc` is a **lower bound** on the margin rather than the
+model's hope for it. `UNCERTAINTY_PENALTY = 5.27`.
+
+Two things about that number are worth keeping.
+
+**It must be the ABSOLUTE error.** The signed optimism in the right-hand column
+is not monotone -- it rises to +0.155 and then turns negative in the top
+quintile -- so a line fitted to it has a NEGATIVE slope and would pay the
+policy to be uncertain. The absolute error is monotone and nearly linear, and
+it is the honest quantity anyway: a margin the model cannot predict in either
+direction is not margin anyone should be paid for.
+
+**5.27 is not large; the units changed.** Checkpoint 5's reward was a score in
+[0, 1] and 0.1 was sensible in it. This reward is a margin, capped at 0.125,
+and a penalty has to be in the same currency as the thing it is subtracted
+from. Comparing the two numbers directly is the mistake, not the number.
+
+While fixing this, a second loophole of the same shape turned up in the
+shaping term: `improve` was computed on the RAW margin while the reward
+carried the penalty, so the policy could collect `0.5 * improve` for margin it
+gained by walking somewhere the model was guessing. The penalty is now inside
+both, and `tests/test_env_goal.py` pins it.
+
+### 19.5 The reward was bounded above and not below, and it broke the critic
+
+Two SAC runs failed before anyone looked at the critic. The evaluations said
+the policy was doing nothing:
+
+    10 000 steps   gain over start +0.0384   unc 0.193   0 specs solved by policy
+    20 000 steps   gain over start +0.0056   unc 0.123   0 specs solved by policy
+
+The obvious reading -- "it has learned to stand still" -- was wrong, and the
+measurement that showed it was wrong is worth keeping, because the two natural
+definitions of "how far did it go" disagree completely:
+
+    travel to the BEST design it saw     median 0.000
+    travel to the FINAL design           median 1.60
+    a real search, from the same start    median 0.342
+
+The policy was not frozen. It was **running away**: 1.6 in normalised design
+space, four times further than a search needs to go, and everything it passed
+on the way was worse than where it started -- so the best design it ever saw
+remained the starting point, and travel-to-best read 0. Measuring only the
+best-so-far hides a policy that is sprinting in the wrong direction.
+
+Two more numbers finished the diagnosis:
+
+    fraction of actions saturated at |a| = 1        91.5 %
+    cosine(policy direction, search direction)     -0.22   (median -0.29)
+
+Ninety-one per cent of actions slammed to a bound, in a direction ANTI-parallel
+to the solution. That is not a policy that has learned the wrong thing; it is a
+policy following a broken value function. And the value function was broken:
+
+    |Q| at 10 000 steps      14.3
+    |Q| at 20 000 steps   2 836.0        (a 20-step return should be about -6)
+
+**The cause was in the reward, and it was mine.** `MARGIN_CAP` bounds the
+reward ABOVE -- the measured pass-rate curve turns over, so paying for more
+margin past 0.125 is paying for the model to be confidently wrong. Nothing
+bounded it BELOW. Margins are fractional distances to a limit and have no floor
+at all. Measured over 1 500 random steps:
+
+    raw m_min       worst  -425.3
+    step reward     worst  -515.8      median -1.26
+    uncertainty     worst    17.2      (held-out designs span 0.015 - 0.219)
+
+A 20-step return could therefore reach -10 000. No critic fits a target
+spanning four orders of magnitude; it diverged, and the actor did what a
+diverged critic told it to.
+
+The fix is `MARGIN_FLOOR = -1.0` and `UNCERTAINTY_CLIP = 0.25`, giving a reward
+in [-2.32, +0.13] and a return in [-46, +2.6]. Both bounds are chosen the same
+way as the cap -- from what the numbers mean, not from tuning:
+
+* -1.0 matches `specs.MARGIN_NAN_FLOOR`. A design missing a limit by more than
+  100 % is hopeless, and so is one missing by 42 500 %. The policy starts from
+  a calibrated design at mean m_min -0.22, so the flat region is the region it
+  only reaches by running away -- exactly where a flat, maximally bad reward is
+  the right message. Direction information is not lost: all ten margins stay in
+  the observation, only the scalar reward is clipped.
+* 0.25 is just past the top of the held-out uncertainty range. Beyond it the
+  model is not more wrong, it is simply useless.
+
+**Reward clipping is ordinary practice** -- DQN clips to [-1, 1] for this exact
+reason. What is not ordinary is capping one end and leaving the other open,
+which is what happens when the cap is added for a *different* reason (model
+optimism) and no one asks what the other end does.
+
+`tests/test_env_goal.py` now asserts the bound over 600 random steps and checks
+that a -425 margin at uncertainty 17.2 still comes back at the floor.
+
+### 19.6 What the uncertainty penalty is allowed to forbid
+
+`UNCERTAINTY_PENALTY = 5.27` looks severe enough to freeze a policy in place,
+so it was checked against the designs that actually work rather than argued
+about:
+
+    calibrated start                       unc 0.018   penalty 0.095
+    CEM proposals that PASSED 20-corner    unc 0.029   penalty 0.153  (max 0.039)
+    CEM proposals that failed              unc 0.032   penalty 0.167
+    where the runaway policy went          unc 0.193   penalty 1.02
+
+Moving from the start to where the working designs live costs **0.058** in
+penalty against up to **0.345** of available margin. The penalty permits the
+region that contains solutions and forbids only the region the policy was
+running into. It is not what stopped the policy.
+
+Note also that uncertainty does **not** separate pass from fail among proposals
+(0.0290 against 0.0317). It is a distance-from-data signal, not a quality
+signal, and checkpoint 5 measured the same thing (0.0316 against 0.0373). It is
+useful for deciding where to *stand*, useless for deciding which proposal to
+*ship*.
+
+### 19.7 One metric, fixed in advance
+
+This checkpoint reported the CEM baseline four different ways while the run was
+still going -- per-proposal pass rate at four specs, then at six, then the
+fraction of specs solved -- and the two quantities moved in OPPOSITE directions
+against checkpoint 5:
+
+    per-proposal pass rate      18 %  ->  35 %   (better)
+    specs solved at K = 8       90 %  ->  67 %   (worse)
+
+Quoting whichever one was to hand made the same run look like good news and
+then bad news within an hour. That is a reporting failure, not a measurement
+one, and it is the reason the headline is now a single fixed sentence emitted
+by `scripts/best_of_n.py::_summarise`:
+
+    it takes n = ? to have a 90 % chance of solving the spec
+
+"Solving" means one of the n proposals meets every brief spec at all 20 PVT
+corners. Per-proposal pass rate and proposal diversity are still recorded --
+diversity is a validity gate, since n near-identical proposals are worth one --
+but they are diagnostics, not the answer.
+
+**A partial run is not an answer either.** The number at four specs was
+n = 2; at six it was already not reached within eight. Intermediate values of a
+running measurement should not be reported as results at all.
+
+### 19.8 Three specs needed more than eight proposals, and they are not
+infeasible
+
+At n = 8, three of the ten specs had nothing that passed. Before spending
+simulation on more proposals, the obvious alternative was checked: are those
+specs simply impossible for this topology? Against the 1 497 collected designs
+that carry real SPICE measurements at all four robust corners:
+
+    spec5   1 real design satisfies it       spec7   4 real designs
+    spec8   1 real design                    (spec1, spec6: none found)
+
+So specs 5, 7 and 8 have demonstrated solutions and the search had not yet
+found them -- a sampling question, not a feasibility one. `best_of_n.py`
+grew `--extend --only-unsolved`, which continues the seed sequence and adds
+proposals to unsolved specs while keeping every verification already paid for
+(each is ~20 SPICE evaluations, and they dominate the cost). Specs already
+solved are skipped: more proposals cannot lower a `first_success_rank` that is
+already set.
+
+Note the caveat on the feasibility check: it is measured at the 4 robust
+corners, while deployment verifies at 20. It shows a spec is not hopeless; it
+does not promise the design survives the full grid.
+
+### 19.9 The surrogate-CEM baseline, measured
+
+**It takes n = more than 32 proposals to have a 90 % chance of solving a spec.
+The method does not reach 90 % at all: it plateaus at 80 %.**
+
+    n =  1   ->  50 % of specs solved
+    n =  2   ->  60 %
+    n =  5   ->  70 %
+    n = 20   ->  80 %
+    n = 32   ->  80 %   (no further gain)
+
+Ten seed-999 specs, proposals from CEM inside the frozen surrogate, every
+proposal verified at all 20 PVT corners, `results/best_of_n_surrogate_cem.json`.
+"Solved" means one of the n proposals meets every brief spec at every corner.
+
+Per spec, the rank at which it was first solved:
+
+    spec0  n=1    spec3  n=1    spec6  n=1    spec9  n=5
+    spec1  n=1    spec4  n=1    spec7  never (0 of 32)
+    spec2  n=2    spec5  never (0 of 32)      spec8  n=20
+
+**The plateau is a SEARCH failure, not a feasibility limit** -- at least half of
+it. Before accepting 80 % as a ceiling, the best design in the collected data
+was found for each unsolved spec and verified at all 20 corners:
+
+    spec7   best collected design PASSES 8/8 at 20 corners, binding fpeak +4.5 %
+    spec5   best collected design FAILS by eye_h -0.1 %
+
+So a design that satisfies spec7 everywhere **already exists in this project's
+own data**, and 32 CEM proposals did not find it. spec5 is genuinely marginal
+and cannot be called feasible or infeasible from what has been collected.
+
+The honest reading: the reachable target is 9 of 10, and the shipped method is
+leaving one of them on the table. Nothing here says 80 % is the best this
+circuit can do.
+
+**On comparing this to checkpoint 5's "8 proposals reach 90 %":** don't. That
+artifact is not reproducible and its spec labels cannot be recovered (19.3).
+The two runs disagree in opposite directions on the two available metrics --
+per-proposal pass rate went UP (18 % -> 35 %) while specs solved went DOWN
+(90 % -> 70 % at n=8) -- which is precisely why only one metric is reported now
+and why it is fixed before the run rather than chosen after it.
+
+### 19.10 The policy, measured against the same bar
+
+**It takes n = more than 32 proposals to have a 90 % chance of solving a spec.
+The policy plateaus at 80 %, the same coverage as CEM, and reaches it at n = 7
+where CEM needs n = 20.**
+
+    n = 1   ->  50 % of specs        n = 5   ->  70 %
+    n = 2   ->  60 %                 n = 7   ->  80 %
+    n = 3   ->  70 %                 n = 32  ->  80 %  (no further gain)
+
+Head to head, identical script, identical seed-999 specs, identical 32-proposal
+budget on unsolved specs, every proposal verified at all 20 PVT corners:
+
+    method        specs solved      per proposal   diversity
+    SAC policy    80 % at n = 7        35.2 %        0.148
+    CEM           80 % at n = 20       17.8 %        0.324
+
+The policy reaches the same coverage for about a third of the simulation,
+because each proposal is twice as likely to survive verification. Proposal cost
+is not close: 7 designs in **1 second** from a forward pass, against 42 seconds
+of search for CEM's 20 -- and CEM pays that again for every new spec while the
+policy's training is spent once.
+
+**Gate results, as pre-committed:**
+
+    G6-0  margin transfers to SPICE    +19.1 pts, rho +0.821     PASS
+    G6-1  in-surrogate margin          +0.198, gain +0.386       PASS
+    G6-2  n-for-90 % beats CEM         neither reaches 90 %      PARTIAL
+                                       (80 % at n=7 vs n=20)
+    G6-3  per-proposal pass rate       35.2 % vs 17.8 %          PASS
+    G6-4  proposal diversity           0.148 vs 0.25 target      **FAIL**
+
+**G6-4 failed and is reported as failed.** SAC's entropy did not produce the
+spread that best-of-n assumes; the eight proposals are near-copies. The policy
+survives it only because each individual proposal is so much better. The fix is
+identified and not yet done: each rollout visits 20 designs, so eight rollouts
+produce 160 candidates of which only 8 are proposed -- selecting for spread
+subject to a margin threshold costs nothing extra.
+
+**The two methods fail on DIFFERENT specs**, which is the most useful result
+here:
+
+    CEM unsolved     spec5, spec7
+    policy unsolved  spec5, spec8
+    union solved     9 of 10 = 90 %
+
+The policy solves spec7, which CEM never found in 32 proposals and for which a
+passing design demonstrably exists in the collected data. CEM solves spec8,
+which the policy never found. Running both and keeping whichever passes reaches
+the 90 % target today, with no new code.
+
+Only spec5 defeats both, and it may be infeasible: the best design among 5 993
+collected records misses it by eye_h **-0.1 %**.
+
+### 19.11 Both methods are optimising corners they are not graded on
+
+Found while writing this up, and it reframes the 80 % plateau.
+
+The proposal objective uses `pdk.robust_search_corners()`; acceptance uses
+`pdk.pvt_grid("spec")`. They are not the same set, and barely overlap:
+
+    tt_1.800V_27C        optimised for, NOT in the acceptance grid
+    tt_ll_1.800V_27C     optimised for, NOT in the acceptance grid
+    ss_1.710V_125C       optimised for, in the grid
+    ff_1.890V_0C         optimised for, in the grid
+
+Half the corners being optimised are never graded, and **18 of the 20 corners
+that decide pass/fail are never seen** -- not by the search, not by the policy,
+and not by the surrogate in training, which was fitted on the four robust
+corners only.
+
+Every method in this project is therefore solving a measurably different
+problem from the one it is scored on. That is the most plausible single cause
+of two methods with quite different search behaviour plateauing at exactly the
+same 80 %, and neither checkpoint 5 nor checkpoint 6 tested it.
+
+It is also cheap to act on, because the fix is already paid for: the best-of-n
+runs wrote **5 600 new records covering all 20 corners**, nearly doubling the
+5 993-record training set with precisely the near-feasible, full-grid data the
+surrogate has never had. The order is: measure whether failing proposals pass
+on the two shared corners; if they do, retrain the surrogate on the full grid
+and propose against the acceptance corners.
+
+Recorded before doing it, so the prediction is on the record rather than
+fitted afterwards.

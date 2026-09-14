@@ -97,6 +97,15 @@ class EqualizerSpec:
 # How much of the reward comes from HARD pass/fail rather than the soft
 # scores. Large enough that crossing a spec boundary beats any soft gain,
 # small enough that the soft scores still steer while far from the target.
+#: Volts of tail-device saturation headroom that count as one unit of margin.
+#: Matches the scale `env_goal` already divides by in its observation, so the
+#: number the policy SEES and the number it is PAID for are the same quantity.
+TAIL_MARGIN_SCALE_V = 0.2
+#: What an unmeasurable margin is worth. A NaN eye is a design that has not
+#: been shown to work; scoring it as 0 (neutral) or dropping it (invisible to
+#: `min`) would both let it pass.
+MARGIN_NAN_FLOOR = -1.0
+
 HARD_PASS_WEIGHT = 0.10
 
 
@@ -343,6 +352,93 @@ def margins(m: Metrics, spec: EqualizerSpec) -> dict:
         "eye_w": lower(m.eye_width_ui, spec.eye_width_min_ui, spec.eye_width_min_ui),
     }
     return out
+
+
+def margin_vector(m: Metrics, spec: EqualizerSpec,
+                  tail_margin_v: float | None = None) -> dict:
+    """Every pass condition as a continuous margin, so that
+
+        all_pass(score(m, spec))  <==>  min(margin_vector(...)) >= 0
+
+    This is the whole point of the function.  `score` mixes a weighted soft
+    score with `HARD_PASS_WEIGHT * n_pass / n`, and `all_pass` is CONJUNCTIVE
+    -- so an optimiser can raise that reward by improving five conditions
+    while driving a sixth negative, and be paid for it.  Measured over
+    checkpoint 5: the PPO policy did exactly that, solving 0 of 20 held-out
+    specs while its reward climbed.  A minimum has no such trade: the only way
+    to raise it is to improve the condition that is currently worst.
+
+    Ten entries.  The eight brief specs come from `margins()` unchanged.  The
+    two INTERNAL checks that `score` gates on must be here too, or the policy
+    simply trades THEM away instead:
+
+      bias        tail-device saturation headroom, in volts, normalised by the
+                  0.2 V scale `env_goal` already uses in its observation.  It
+                  is not derivable from `Metrics` (it needs the fitted device
+                  model), so the caller passes it in -- which also keeps this
+                  module free of any PDK or physics import.  When it is not
+                  supplied, `m.saturated` is used as a coarse +/-1 stand-in.
+      equalises   `eye_improvement - eye_improvement_min`, relative.  Only
+                  meaningful with a channel in front (see `score`); without
+                  one it is not a condition at all and is reported as +inf so
+                  it can never bind.
+
+    NaN propagates as a FAILURE, not as an absence: a missing eye measurement
+    is a design that has not been shown to work, and returning NaN here would
+    let `min()` silently skip it.
+
+    ONE CAVEAT ON THE EQUIVALENCE ABOVE, stated here rather than in a footnote
+    because it is the only place the property is not exact. It holds precisely
+    when `tail_margin_v` is omitted, since `bias` is then `score`'s own
+    `m.saturated` flag -- and that is the form the tests pin, over every record
+    in the cache. Pass a fitted `tail_margin_v` and the two can disagree on
+    `bias`, because the fit gets the sign right on 89.3 % of records rather
+    than all of them. That is a deliberate trade and not a defect: a policy
+    needs a continuous signal it can steer by, and a boolean only tells it that
+    it has already fallen off. Anything GATING on pass/fail should use
+    `all_pass`; anything OPTIMISING should use the minimum.
+    """
+    # A failed simulation has no margins, and `score` short-circuits it to
+    # reward -1.0 with an EMPTY pass dict -- which `all_pass` reads as False
+    # (`bool({})`). The vector has to agree, and an empty dict here would make
+    # `min()` raise instead.
+    if not m.ok:
+        return {"ok": MARGIN_NAN_FLOOR}
+
+    out = dict(margins(m, spec))
+
+    # The KEY SET must track `score`'s, not merely overlap with it, or the
+    # equivalence above is false in both directions: an entry `score` does not
+    # check can veto a passing design, and a condition `score` does check but
+    # this omits is one the optimiser is free to violate for nothing.
+    if not ((m.eye_height_v == m.eye_height_v)
+            and (m.eye_width_ui == m.eye_width_ui)) and not spec.require_eye:
+        out.pop("eye_h", None)
+        out.pop("eye_w", None)
+    if spec.w_gain > 0:
+        out["gain_nyq"] = ((m.gain_nyq_db - spec.gain_nyq_min_db)
+                           / max(abs(spec.gain_nyq_min_db), 1.0))
+
+    if tail_margin_v is None:
+        out["bias"] = 1.0 if m.saturated else -1.0
+    else:
+        out["bias"] = float(tail_margin_v) / TAIL_MARGIN_SCALE_V
+
+    if m.channel_present and m.eye_improvement == m.eye_improvement:
+        ref = abs(spec.eye_improvement_min) or 1.0
+        out["equalises"] = (m.eye_improvement - spec.eye_improvement_min) / ref
+    else:
+        # no channel -> nothing to equalise -> the check does not apply
+        out["equalises"] = float("inf")
+
+    # NaN means "not measured", which is not the same as "passed"
+    return {k: (v if v == v else MARGIN_NAN_FLOOR) for k, v in out.items()}
+
+
+def min_margin(m: Metrics, spec: EqualizerSpec,
+               tail_margin_v: float | None = None) -> float:
+    """The binding margin: >= 0 exactly when every condition is met."""
+    return min(margin_vector(m, spec, tail_margin_v).values())
 
 
 def binding_spec(m: Metrics, spec: EqualizerSpec) -> tuple:

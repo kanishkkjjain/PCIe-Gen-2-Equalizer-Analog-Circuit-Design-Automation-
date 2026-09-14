@@ -144,6 +144,66 @@ def surrogate() -> None:
                   f"{x['residual_model_r2']:+7.3f}")
 
 
+def checkpoint6() -> None:
+    """The checkpoint-6 gates, on one screen with the rest."""
+    section("checkpoint 6 (margin objective)")
+    mt = ROOT / "results" / "margin_transfer.json"
+    if mt.exists():
+        d = json.loads(mt.read_text())
+        cap = d.get("recommended_margin_cap")
+        from eqrl.env_goal import MARGIN_CAP
+        print(f"  G6-0  predicted margin -> real pass: "
+              f"rho {d['spearman_pred_real_mmin']:+.3f}, "
+              f"{d['gain_points']:+.1f} pts at +{d['buffer_threshold']:.2f}"
+              f"   {'PASS' if d['G6_0_pass'] else 'FAIL'}")
+        if cap is not None:
+            flag = "" if abs(cap - MARGIN_CAP) < 1e-9 else "  <- DRIFTED"
+            print(f"        recommended MARGIN_CAP {cap:+.3f}, "
+                  f"env_goal uses {MARGIN_CAP:+.3f}{flag}")
+    else:
+        print("  G6-0  not measured (scripts/margin_transfer.py)")
+
+    # G6-1 reads only the rows written under the margin objective; checkpoint
+    # 5's PPO rows are in the same file and mean something else entirely.
+    ev = ROOT / "results" / "policy_train_eval.json"
+    rows = []
+    if ev.exists():
+        rows = [e for e in json.loads(ev.read_text()).get("evals", [])
+                if e.get("mean_best_m_min") is not None]
+    if rows:
+        last = rows[-1]
+        print(f"  G6-1  {last['steps']} steps: mean best m_min "
+              f"{last['mean_best_m_min']:+.4f} "
+              f"(gain {last['mean_gain_m_min']:+.4f}, "
+              f"{last['frac_at_cap']:.0%} at cap)")
+    else:
+        print("  G6-1  no margin-objective evaluations yet")
+
+    for method, label in (("surrogate_cem", "CEM  "), ("policy", "policy")):
+        f = ROOT / "results" / f"best_of_n_{method}.json"
+        if not f.exists():
+            print(f"  G6-2  {label}: not run")
+            continue
+        d = json.loads(f.read_text())
+        rs = d["specs"]
+        k = d.get("k", 8)
+        k90 = next((n for n in range(1, k + 1)
+                    if sum(1 for r in rs if r["first_success_rank"]
+                           and r["first_success_rank"] <= n) / len(rs) >= 0.9),
+                   None)
+        # divide by the ACTUAL proposal count per spec, not by the maximum.
+        # After --extend only the unsolved specs carry 32 proposals while the
+        # rest still have 8, so `len(rs) * k` over-counts the denominator and
+        # halves the reported rate -- measured, it showed 8.4 % where the true
+        # figure is 17.8 %.
+        per = (sum(r["n_passing"] for r in rs)
+               / max(1, sum(r["n_proposals"] for r in rs)))
+        div = sum(r["diversity_l2"] for r in rs) / max(1, len(rs))
+        print(f"  G6-2  {label}: {len(rs)}/10 specs, K-for-90 % "
+              f"{k90 if k90 else f'> {k}'}, per-proposal pass {per:.1%}, "
+              f"diversity {div:.3f}")
+
+
 def policy() -> None:
     section("policy (gate G2: held-out success >= 80 %)")
     p = ROOT / "results" / "policy_train_eval.json"
@@ -204,7 +264,8 @@ def disk() -> None:
 
 def main() -> int:
     print(f"eqrl status  {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    for fn in (processes, collection, surrogate, policy, deploy, disk):
+    for fn in (processes, collection, surrogate, checkpoint6, policy,
+               deploy, disk):
         try:
             fn()
         except Exception as e:                      # never let status crash

@@ -78,6 +78,79 @@ GOAL_SCALE = {"peaking_target_db": 12.0, "fpeak_lo": 2.5e9, "fpeak_hi": 2.5e9,
 #: rediscover.
 OBS_DIM = N_U + len(OBS_METRICS) + len(sp.BRIEF_SPECS) + len(GOAL_FIELDS) + 2
 
+#: Where the reward stops paying for more predicted margin.
+#:
+#: MEASURED, not chosen -- `scripts/margin_transfer.py`, 223,800 (design, goal)
+#: pairs over held-out designs. The real pass rate as a function of the
+#: surrogate's predicted min-margin is NOT monotone:
+#:
+#:     [+0.00,+0.02) 32.0%   [+0.08,+0.10) 64.2%
+#:     [+0.02,+0.05) 24.7%   [+0.10,+0.15) 66.7%   <- best supported bin
+#:     [+0.05,+0.08) 48.9%   [+0.15,+0.20) 46.2%   (n=26)
+#:                           [+0.20,  inf) 40.0%   (n=10)
+#:
+#: It peaks around 0.08-0.15 and then FALLS. That turn is the same mechanism
+#: this project keeps meeting: a very large predicted margin mostly means the
+#: model is confidently wrong, and here it shows up in data no optimiser
+#: selected at all. An uncapped reward would push the policy straight into the
+#: falling half -- checkpoint 5's failure wearing a different reward -- because
+#: 20 steps of 0.04 is plenty of authority to get there. Flat above the cap,
+#: so there is nothing to gain by going further.
+MARGIN_CAP = 0.125
+#: Weight on the MEAN margin. Deliberately far too small to make a trade
+#: profitable: the whole point of scoring on the minimum is that improving nine
+#: conditions cannot pay for breaking the tenth. It exists only so that two
+#: designs with the same binding margin are not exactly tied.
+MEAN_MARGIN_WEIGHT = 0.05
+#: Where the reward stops punishing a worse design, and why it must exist.
+#:
+#: Capping the reward ABOVE without bounding it BELOW destroyed the first two
+#: SAC runs. Margins are fractional distances to a limit and have no lower
+#: bound at all: measured over 1 500 random steps, `m_min` reached **-425** and
+#: one step's reward reached **-516**, so a 20-step return could reach -10 000.
+#: The critic cannot fit a target spanning four orders of magnitude and did not
+#: try to -- |Q| went 14.3 at 10k steps to **2 836** at 20k, and a diverged
+#: critic hands the actor meaningless gradients. The policy then did exactly
+#: what a broken Q tells it to: 91.5 % of its actions saturated at |a| = 1, it
+#: travelled L2 1.60 from the start where a real search travels 0.38, and its
+#: direction was ANTI-correlated with the solution (cosine -0.22).
+#:
+#: -1.0 matches `specs.MARGIN_NAN_FLOOR`: a design missing a limit by more than
+#: 100 % is hopeless, and so is one missing by 42 500 %. Nothing the policy can
+#: act on is lost. It starts at a calibrated design (mean m_min -0.22), so the
+#: flat region is the "ran away" region -- precisely where a flat, maximally
+#: bad reward is the message to send. The individual margins stay in the
+#: observation, so direction information is not clipped, only the reward is.
+MARGIN_FLOOR = -1.0
+#: Same argument for the uncertainty term. Held-out designs span unc 0.015 to
+#: 0.219; a random policy reached **17.2**, which would alone contribute -90 to
+#: a single step's reward. Past this the model is not more wrong, it is simply
+#: useless, and the reward says so at a bounded price.
+UNCERTAINTY_CLIP = 0.25
+#: What one unit of ensemble disagreement costs, in margin units.
+#:
+#: MEASURED, like MARGIN_CAP -- `scripts/margin_transfer.py` regresses the
+#: surrogate's ABSOLUTE margin error on its own normalised disagreement over
+#: 223,800 held-out pairs and gets
+#:
+#:     |predicted m_min - real m_min| ~ 5.27 * unc + 0.027
+#:
+#: so `m_min - 5.27 * unc` is a lower bound on the margin rather than the
+#: model's hope for it. It has to be the ABSOLUTE error: the SIGNED optimism
+#: rises to +0.155 and then turns NEGATIVE in the top uncertainty quintile, so
+#: a line fitted to it has a negative slope and would pay the policy to be
+#: uncertain.
+#:
+#: The number looks enormous beside checkpoint 5's 0.1 because the UNITS
+#: changed. That reward was a score in [0, 1]; this one is a margin, and the
+#: penalty has to be in the same currency.
+#:
+#: It is not academic. Measured at 10k SAC steps with the old 0.1: the
+#: calibrated start sits at unc 0.018, and the policy's rollouts averaged
+#: 0.263 -- fifteen times deeper into ground the ensemble disagrees about --
+#: for a margin gain of +0.0022. The penalty was not paying for the trip.
+UNCERTAINTY_PENALTY = 5.27
+
 
 @dataclass
 class GoalSpace:
@@ -183,10 +256,17 @@ if _HAVE_GYM:
         def __init__(self, surrogate, goal_space: GoalSpace | None = None,
                      corners=None, max_steps: int = 20,
                      step_scale: float = 0.04, seed: int | None = None,
-                     uncertainty_penalty: float = 0.1,
+                     uncertainty_penalty: float = UNCERTAINTY_PENALTY,
                      start_mix=(0.5, 0.3, 0.2), u_seed=None,
-                     start_noise: float = 0.02):
+                     start_noise: float = 0.02,
+                     reward_mode: str = "margin"):
             super().__init__()
+            if reward_mode not in ("margin", "score"):
+                raise ValueError(f"reward_mode: {reward_mode!r}")
+            # "score" reproduces checkpoint 5 exactly, so its result stays
+            # re-runnable after the objective changed under it. "margin" is
+            # what checkpoint 6 trains against; see `_reward`.
+            self.reward_mode = reward_mode
             self.sur = surrogate
             self.space = goal_space or GoalSpace.load()
             self.corners = corners or pdk.robust_search_corners()
@@ -272,13 +352,36 @@ if _HAVE_GYM:
             for sc in scored:
                 for k, v in sc["pass"].items():
                     agg_pass[k] = agg_pass.get(k, True) and bool(v)
+            #
+            # TEN margins, not the eight brief ones. `bias` and `equalises` are
+            # conditions the scorer GATES on (reward clipped to 0.2 and 0.3),
+            # so a reward built on the other eight lets the policy trade those
+            # two away for free -- the same loophole in a smaller room.
+            tm = self._tail_margin(u)
             agg_margin = {}
             for m in mets:
-                for k, v in sp.margins(m, self._spec).items():
+                for k, v in sp.margin_vector(m, self._spec,
+                                             tail_margin_v=tm).items():
                     prev = agg_margin.get(k)
                     if prev is None or (v == v and v < prev):
                         agg_margin[k] = v
             return scored[i], mets[i], unc, agg_pass, agg_margin
+
+        def _tail_margin(self, u) -> float:
+            """Volts of tail-device saturation headroom for a design.
+
+            Pulled out of `_obs` so the observation and the reward are the same
+            number rather than two computations of it. It comes from the fitted
+            device model (`PhysFit`), not from the surrogate's `saturated`
+            flag, which is why `score`'s bias gate and this margin can disagree
+            -- measured, the fit gets the sign right on 89.3 % of records. That
+            is the intended trade: a continuous signal the policy can steer by,
+            in place of a boolean it can only fall off.
+            """
+            from . import netlist as _nl
+            d = _nl.denorm(list(np.clip(u, 0.0, 1.0)))
+            return float(np.atleast_1d(self.sur.fit.tail_margin(
+                d["W"], d["L"], d["Itail"], d["Wtail"]))[0])
 
         def _obs(self, scored, metrics, agg_margin=None) -> np.ndarray:
             mg = agg_margin if agg_margin is not None else sp.margins(
@@ -288,12 +391,13 @@ if _HAVE_GYM:
             marg = [float(mg.get(k, np.nan)) for k in sp.BRIEF_SPECS]
             goal = [float(getattr(self._spec, k)) / GOAL_SCALE[k]
                     for k in GOAL_FIELDS]
-            from . import netlist as _nl
-            d = _nl.denorm(list(np.clip(self._u, 0.0, 1.0)))
-            tail_margin = float(np.atleast_1d(self.sur.fit.tail_margin(
-                d["W"], d["L"], d["Itail"], d["Wtail"]))[0])
+            # The tail margin already appears in `mg["bias"]`, normalised. It
+            # is kept as its own slot as well so OBS_DIM does not change and
+            # saved policies keep meaning the same thing; `equalises` reaches
+            # the policy through `eye_improvement` in OBS_METRICS.
+            tail_margin = self._tail_margin(self._u)
             v = (list(self._u) + feats + marg + goal
-                 + [tail_margin / 0.2,
+                 + [tail_margin / sp.TAIL_MARGIN_SCALE_V,
                     (self.max_steps - self._t) / self.max_steps])
             v = [0.0 if (x != x) else float(x) for x in v]
             return np.clip(np.asarray(v, np.float32),
@@ -331,14 +435,21 @@ if _HAVE_GYM:
             self._t = 0
 
             scored, mets, unc, agg_pass, agg_margin = self._evaluate(self._u)
-            self._best = scored["reward"]
+            m_min = min(agg_margin.values())
+            # seeded with the START's score, so `improve` pays for progress
+            # from where the episode actually began rather than from -inf.
+            # In margin mode it must be the PENALISED value, matching what
+            # `_reward` compares against.
+            self._best = (scored["reward"] if self.reward_mode == "score"
+                          else float(np.clip(m_min, MARGIN_FLOOR, MARGIN_CAP))
+                          - self.lam * min(float(unc), UNCERTAINTY_CLIP))
             # `pass` is reported at reset as well as at step. The starting
             # design is derived, not random, and it sometimes already meets the
             # spec -- a caller that only inspects step results scores those as
             # failures.
             return self._obs(scored, mets, agg_margin), {
-                "reward": scored["reward"], "uncertainty": unc,
-                "pass": agg_pass, "u": self._u.copy()}
+                "reward": scored["reward"], "m_min": m_min,
+                "uncertainty": unc, "pass": agg_pass, "u": self._u.copy()}
 
         def step(self, action):
             a = np.clip(np.asarray(action, np.float32), -1, 1)
@@ -347,18 +458,92 @@ if _HAVE_GYM:
 
             scored, mets, unc, agg_pass, agg_margin = self._evaluate(self._u)
             r = scored["reward"]
-            improve = r - self._best
-            self._best = max(self._best, r)
-            # every corner, matching deploy's all_pass_everywhere
-            terminated = bool(agg_pass) and all(agg_pass.values())
-            truncated = self._t >= self.max_steps
+            m_min = min(agg_margin.values())
+            # terminated FIRST: score mode's reward includes a terminal bonus,
+            # so computing the reward before knowing whether the episode ended
+            # silently drops it. It did, and the test that claims score mode
+            # reproduces checkpoint 5 is the reason that was caught.
+            terminated, truncated = self._episode_end(agg_pass)
+            base, improve = self._reward(r, m_min, agg_margin, unc)
 
-            # Same shaping as CtleEnv so the two are comparable, minus a
-            # penalty for standing where the model disagrees with itself.
-            reward = (r + 0.5 * max(0.0, improve)
-                      + (2.0 if terminated else 0.0)
-                      - self.lam * unc)
+            reward = base + 0.5 * max(0.0, improve)
+            if self.reward_mode == "score" and terminated:
+                reward += 2.0
             return self._obs(scored, mets, agg_margin), float(reward), \
                 terminated, truncated, {
-                    "reward": r, "pass": agg_pass, "uncertainty": unc,
-                    "u": self._u.copy()}
+                    "reward": r, "m_min": m_min, "pass": agg_pass,
+                    "uncertainty": unc, "u": self._u.copy()}
+
+        # -- the objective -------------------------------------------------
+        def _reward(self, r, m_min, agg_margin, unc):
+            """`(step reward, improvement over the best so far)`.
+
+            In `margin` mode the score is the MINIMUM of the ten margins, and
+            that is the whole fix. `specs.score` mixes a weighted soft score
+            with `HARD_PASS_WEIGHT * n_pass / n`, but passing is CONJUNCTIVE --
+            so a policy can raise that reward by improving five conditions
+            while driving a sixth negative, and be paid for it. Measured over
+            checkpoint 5, it did: 0 of 20 held-out specs solved while training
+            reward climbed. A minimum has no such trade. The only way to raise
+            it is to improve whatever is currently worst.
+
+            Not a softmin. softmin(x) = -tau*log sum exp(-x_i/tau) tends to the
+            MEAN for any tau large enough to give the non-binding conditions a
+            gradient -- which is the count objective again, loophole included.
+            The gradient the policy needs is not in the reward: all ten margins
+            are already in the observation, so it can see which one binds.
+            """
+            if self.reward_mode == "score":
+                improve = r - self._best
+                self._best = max(self._best, r)
+                return r - self.lam * unc, improve
+            capped = float(np.clip(m_min, MARGIN_FLOOR, MARGIN_CAP))
+            unc = min(float(unc), UNCERTAINTY_CLIP)
+            # THE MEAN BONUS IS PAID ONLY TO DESIGNS THAT ALREADY PASS, and is
+            # computed over margins clipped into [0, MARGIN_CAP].
+            #
+            # Both restrictions are load-bearing, and a property test found
+            # that out the hard way: with a plain mean the trade this reward
+            # exists to forbid was still profitable. Nine conditions at 0.30
+            # and one at -0.001 scores 0.0125, against 0.0105 for ten at 0.01
+            # -- the mean swings 0.27 while the minimum gives up 0.011, so
+            # 0.05 of it is more than enough to buy the violation. That is the
+            # softmin failure mode wearing a different hat.
+            #
+            # Gating on feasibility removes it completely: breaking any
+            # condition makes the minimum negative, which deletes the bonus
+            # entirely rather than merely taxing it. Among designs that DO
+            # pass, the bonus is bounded by MEAN_MARGIN_WEIGHT * MARGIN_CAP
+            # (0.00625), so the worst it can do is shift the binding margin by
+            # that much -- and it can never push it below zero.
+            # The penalty is inside BOTH the reward and the improvement
+            # baseline. Tracking `improve` on the raw margin instead leaves a
+            # loophole with the same shape as the one this reward exists to
+            # close: the policy could collect shaping reward for margin it
+            # gained by walking somewhere the model is guessing.
+            r = capped - self.lam * unc
+            improve = r - self._best
+            self._best = max(self._best, r)
+            if capped >= 0.0:
+                finite = [v for v in agg_margin.values() if np.isfinite(v)]
+                if finite:
+                    mean = float(np.mean(np.clip(finite, 0.0, MARGIN_CAP)))
+                    r += MEAN_MARGIN_WEIGHT * mean
+            return r, improve
+
+        def _episode_end(self, agg_pass):
+            """`(terminated, truncated)`.
+
+            In `margin` mode the episode NEVER terminates early. Stopping the
+            moment the surrogate says `all_pass` is what trained checkpoint 5's
+            fragility in: it teaches the policy to halt at min-margin ~ 0,
+            which is exactly where model error flips the verdict at
+            verification. That is the 18 % per-proposal pass rate. Running the
+            full budget lets the policy keep buying margin up to MARGIN_CAP,
+            where the measured real pass rate is 64-67 % instead.
+            """
+            if self.reward_mode == "score":
+                # every corner, matching deploy's all_pass_everywhere
+                return (bool(agg_pass) and all(agg_pass.values()),
+                        self._t >= self.max_steps)
+            return False, self._t >= self.max_steps

@@ -254,10 +254,35 @@ if _HAVE_GYM:
             unc = float(np.mean([
                 np.mean(np.abs(raw["_std"][k]) / (OBS_SCALE.get(k, 1.0)))
                 for k in OBS_METRICS if k in raw["_std"]]))
-            return scored[i], mets[i], unc
 
-        def _obs(self, scored, metrics) -> np.ndarray:
-            mg = sp.margins(metrics, self._spec)
+            # Pass/fail and margins are aggregated over EVERY corner, not read
+            # off the worst-reward one. They are different questions: the
+            # corner with the lowest reward need not be the corner that fails a
+            # given spec, and `all_pass` on one corner is a strictly weaker
+            # condition than passing everywhere.
+            #
+            # This mattered twice. Termination was being decided on a single
+            # corner while deployment requires all four -- so G2 was being
+            # measured against an easier target than G3, which would have shown
+            # up as an unexplained drop between them. And the margins the
+            # policy observes were one corner's, so it could not see a spec it
+            # was failing elsewhere: exactly the information needed to hold
+            # f_peak inside its band across the corner spread.
+            agg_pass = {}
+            for sc in scored:
+                for k, v in sc["pass"].items():
+                    agg_pass[k] = agg_pass.get(k, True) and bool(v)
+            agg_margin = {}
+            for m in mets:
+                for k, v in sp.margins(m, self._spec).items():
+                    prev = agg_margin.get(k)
+                    if prev is None or (v == v and v < prev):
+                        agg_margin[k] = v
+            return scored[i], mets[i], unc, agg_pass, agg_margin
+
+        def _obs(self, scored, metrics, agg_margin=None) -> np.ndarray:
+            mg = agg_margin if agg_margin is not None else sp.margins(
+                metrics, self._spec)
             feats = [float(getattr(metrics, k, np.nan)) / OBS_SCALE[k]
                      for k in OBS_METRICS]
             marg = [float(mg.get(k, np.nan)) for k in sp.BRIEF_SPECS]
@@ -305,27 +330,27 @@ if _HAVE_GYM:
             self._u = np.clip(u0, 0.0, 1.0)
             self._t = 0
 
-            scored, mets, unc = self._evaluate(self._u)
+            scored, mets, unc, agg_pass, agg_margin = self._evaluate(self._u)
             self._best = scored["reward"]
             # `pass` is reported at reset as well as at step. The starting
             # design is derived, not random, and it sometimes already meets the
             # spec -- a caller that only inspects step results scores those as
             # failures.
-            return self._obs(scored, mets), {"reward": scored["reward"],
-                                             "uncertainty": unc,
-                                             "pass": scored.get("pass"),
-                                             "u": self._u.copy()}
+            return self._obs(scored, mets, agg_margin), {
+                "reward": scored["reward"], "uncertainty": unc,
+                "pass": agg_pass, "u": self._u.copy()}
 
         def step(self, action):
             a = np.clip(np.asarray(action, np.float32), -1, 1)
             self._u = np.clip(self._u + self.step_scale * a, 0.0, 1.0)
             self._t += 1
 
-            scored, mets, unc = self._evaluate(self._u)
+            scored, mets, unc, agg_pass, agg_margin = self._evaluate(self._u)
             r = scored["reward"]
             improve = r - self._best
             self._best = max(self._best, r)
-            terminated = bool(sp.all_pass(scored))
+            # every corner, matching deploy's all_pass_everywhere
+            terminated = bool(agg_pass) and all(agg_pass.values())
             truncated = self._t >= self.max_steps
 
             # Same shaping as CtleEnv so the two are comparable, minus a
@@ -333,6 +358,7 @@ if _HAVE_GYM:
             reward = (r + 0.5 * max(0.0, improve)
                       + (2.0 if terminated else 0.0)
                       - self.lam * unc)
-            return self._obs(scored, mets), float(reward), terminated, \
-                truncated, {"reward": r, "pass": scored.get("pass"),
-                            "uncertainty": unc, "u": self._u.copy()}
+            return self._obs(scored, mets, agg_margin), float(reward), \
+                terminated, truncated, {
+                    "reward": r, "pass": agg_pass, "uncertainty": unc,
+                    "u": self._u.copy()}

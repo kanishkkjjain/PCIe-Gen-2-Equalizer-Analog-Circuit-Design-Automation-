@@ -1,0 +1,39 @@
+{
+ "git_sha": "e316aa5",
+ "evals": [
+  {
+   "steps": 51200,
+   "wall_s": 203.6726735129996,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 13,
+    "fraction": 0.65,
+    "n_saturated_designs": 286
+   },
+   "n": 20,
+   "success_rate": 0.05,
+   "mean_steps_to_solve": 3.0,
+   "mean_best_reward": 0.7669692795176781,
+   "mean_uncertainty": 0.23212500749865456,
+   "success_vs_feasible": 0.07692307692307693
+  },
+  {
+   "steps": 102400,
+   "wall_s": 436.4291198349965,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 13,
+    "fraction": 0.65,
+    "n_saturated_designs": 286
+   },
+   "n": 20,
+   "success_rate": 0.05,
+   "mean_steps_to_solve": 3.0,
+   "mean_best_reward": 0.836453572225887,
+   "mean_uncertainty": 0.1923828156310178,
+   "success_vs_feasible": 0.07692307692307693
+  }
+ ]
+}

@@ -195,8 +195,21 @@ class Objective:
         collect_data) keeps `fork`, which starts much faster -- spawn
         re-imports eqrl in every worker.
         """
-        return multiprocessing.get_context(
-            "spawn" if "torch" in sys.modules else "fork")
+        if "torch" not in sys.modules:
+            return multiprocessing.get_context("fork")
+        # spawn re-imports __main__ by path, so it cannot be used when there
+        # is no file to re-import -- a heredoc or `python3 -c` script. Falling
+        # back to fork there is the only option; it is also the case where the
+        # deadlock is possible, so say so rather than hanging silently.
+        main = sys.modules.get("__main__")
+        if getattr(main, "__file__", None) is None:
+            import warnings
+            warnings.warn(
+                "torch is loaded but __main__ has no file, so the worker pool "
+                "must use fork; this can deadlock (see _pool_context). Run "
+                "this from a .py file, or set jobs=1.", RuntimeWarning)
+            return multiprocessing.get_context("fork")
+        return multiprocessing.get_context("spawn")
 
     @staticmethod
     def _digest(key: tuple) -> str:

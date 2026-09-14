@@ -55,7 +55,10 @@ class PhysFit:
     DEFAULT = dict(gm_a=-5.0, gm_wl=0.5, gm_id=0.5, gm_t=0.0,
                    gmg_a=-5.0, gmg_wl=0.5, gmg_id=0.5, gmg_t=0.0, gmg_v=0.0,
                    cout_c0=40e-15, cout_c1=1.0e-15, cout_c2=1.0e-15,
-                   k_pk=1.0, k_f=1.0)
+                   k_pk=1.0, k_f=1.0,
+                   # tail bias headroom, fitted -- see tail_margin()
+                   vdst_a=2.649, vdst_i=0.362, vdst_w=-0.415,
+                   vdt_a=-7.073, vdt_i=-0.445, vdt_wl=0.513)
 
     def __init__(self, coef: dict | None = None, n_fit: int = 0,
                  quality: dict | None = None):
@@ -95,6 +98,34 @@ class PhysFit:
         if vgs is not None:
             out = out + c["gmg_v"] * np.asarray(vgs, float)
         return np.exp(out)
+
+    def tail_margin(self, W, L, Itail, Wtail):
+        """Predicted `vds_tail - vdsat_tail`: positive means the tail is in
+        saturation, which the reward gate requires.
+
+        Both halves are fitted from the collected .op data rather than assumed.
+        The exponents come out close to square law -- vdsat_tail goes as
+        Itail^0.36 * Wtail^-0.42, vds_tail as Itail^-0.44 * (W/L)^0.51 -- and
+        the sign of the prediction agrees with SPICE on 89.3 % of 3 095
+        records.
+
+        The second relation is the one that is easy to get backwards, and it
+        cost a whole policy training run. The tail node sits at
+        ``Vcm - Vgs_M1``, so asking for MORE tail current raises Vgs and pushes
+        that node DOWN, into the tail device's own Vdsat. More current and a
+        wider tail both make the bias worse, not better: measured, designs
+        biased in saturation carry 0.50 mA where the unsaturated ones carry
+        0.66 mA.
+        """
+        c = self.coef
+        i = np.maximum(np.asarray(Itail, float), 1e-12)
+        wt = np.maximum(np.asarray(Wtail, float), 1e-6)
+        wl = np.maximum(np.asarray(W, float) / np.asarray(L, float), 1e-9)
+        vdsat = np.exp(c["vdst_a"] + c["vdst_i"] * np.log(i)
+                       + c["vdst_w"] * np.log(wt))
+        vds = np.exp(c["vdt_a"] + c["vdt_i"] * np.log(i)
+                     + c["vdt_wl"] * np.log(wl))
+        return vds - vdsat
 
     @staticmethod
     def vgs_g1(vdd, Itail, RL):
@@ -160,6 +191,40 @@ class PhysFit:
             coef.update(gmg_a=b[0], gmg_wl=b[1], gmg_id=b[2], gmg_t=b[3],
                         gmg_v=b[4])
             quality["gm_g1"] = q
+
+        # tail bias headroom
+        def _fit_log(target_key, cols):
+            A, y = [], []
+            for r in rows:
+                v = r["metrics"].get(target_key)
+                if not (v and v > 0 and v == v):
+                    continue
+                try:
+                    row = [1.0] + [f(r["params"]) for f in cols]
+                except Exception:
+                    continue
+                if not all(np.isfinite(row)):
+                    continue
+                A.append(row)
+                y.append(math.log(v))
+            if len(y) < 50:
+                return None
+            A, y = np.asarray(A), np.asarray(y)
+            beta, *_ = np.linalg.lstsq(A, y, rcond=None)
+            return beta, float(1.0 - np.var(y - A @ beta) / max(np.var(y), 1e-30))
+
+        got = _fit_log("vdsat_tail", [lambda p: math.log(max(p["Itail"], 1e-12)),
+                                      lambda p: math.log(max(p["Wtail"], 1e-6))])
+        if got:
+            b, r2 = got
+            coef.update(vdst_a=b[0], vdst_i=b[1], vdst_w=b[2])
+            quality["vdsat_tail"] = {"r2_log": r2, "n": len(rows)}
+        got = _fit_log("vds_tail", [lambda p: math.log(max(p["Itail"], 1e-12)),
+                                    lambda p: math.log(max(p["W"] / p["L"], 1e-9))])
+        if got:
+            b, r2 = got
+            coef.update(vdt_a=b[0], vdt_i=b[1], vdt_wl=b[2])
+            quality["vds_tail"] = {"r2_log": r2, "n": len(rows)}
 
         # How optimistic the closed form is, measured rather than assumed --
         # the job analytic.calibrate() does with live SPICE calls, done here
@@ -610,7 +675,8 @@ def _solve_cached(gm, cout, tgt_pk, tgt_f, n_grid):
 
 
 def analytic_start_u(spec, fit: PhysFit, corner_fields: dict | None = None,
-                     tap_pct: float | None = None, n_grid: int = 300) -> list:
+                     tap_pct: float | None = None, n_grid: int = 300,
+                     tail_margin_v: float = 0.15) -> list:
     """A hand-calculated starting design for ANY spec, using no SPICE at all.
 
     `analytic.initial_design` does this properly -- it measures gm and Cout from
@@ -634,6 +700,24 @@ def analytic_start_u(spec, fit: PhysFit, corner_fields: dict | None = None,
     cf = corner_fields or {"process": "tt", "vdd": 1.8, "temp": 27.0, "rc": None}
     fixed = dict(analytic.FIXED_START)
     tap = analytic.TAP_PCT_START if tap_pct is None else tap_pct
+
+    # --- bias the tail before shaping the response ------------------------
+    # FIXED_START leaves only +0.082 V of tail headroom, so the +-0.12
+    # perturbation an RL start applies knocks more than half of these designs
+    # into triode -- where specs.score clips the reward to 0.2 and the policy
+    # has no gradient at all. Measured on 110 collected goal starts: 56 % not
+    # saturated, and of those 63 % because the tail was in triode.
+    #
+    # Widening the tail lowers its Vdsat (fitted exponent -0.42) at no cost to
+    # gm, and trimming Itail raises the tail node (fitted -0.44 on vds_tail),
+    # so the largest current that still clears the target is chosen: headroom
+    # first, then as much gm as that allows.
+    fixed["Wtail"] = min(nl.PARAM_BOUNDS["Wtail"][1], 150.0)
+    lo_i, hi_i = nl.PARAM_BOUNDS["Itail"]
+    grid = np.linspace(lo_i, hi_i, 96)
+    margin = fit.tail_margin(fixed["W"], fixed["L"], grid, fixed["Wtail"])
+    ok = np.flatnonzero(np.asarray(margin) >= tail_margin_v)
+    fixed["Itail"] = float(grid[ok[-1]] if len(ok) else grid[0])
 
     gm = float(np.atleast_1d(fit.gm_m1(fixed["W"], fixed["L"],
                                        fixed["Itail"], cf["temp"]))[0])

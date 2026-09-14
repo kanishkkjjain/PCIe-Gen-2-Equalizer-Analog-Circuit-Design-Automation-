@@ -1,5 +1,5 @@
 {
- "git_sha": "14b9dff",
+ "git_sha": "dcdbc87",
  "evals": [
   {
    "steps": 51200,
@@ -50,6 +50,23 @@
    "mean_steps_to_solve": 2.0,
    "mean_best_reward": 0.8841229361325862,
    "mean_uncertainty": 0.3201524647130143,
+   "success_vs_feasible": 0.07692307692307693
+  },
+  {
+   "steps": 204800,
+   "wall_s": 961.8797584019994,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 13,
+    "fraction": 0.65,
+    "n_saturated_designs": 286
+   },
+   "n": 20,
+   "success_rate": 0.05,
+   "mean_steps_to_solve": 1.0,
+   "mean_best_reward": 0.8831420244504302,
+   "mean_uncertainty": 0.35623397437323423,
    "success_vs_feasible": 0.07692307692307693
   }
  ]

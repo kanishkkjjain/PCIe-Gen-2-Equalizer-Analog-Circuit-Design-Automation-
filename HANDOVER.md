@@ -1763,3 +1763,61 @@ actually knows.
 **57x in total**, and that is under contention with fourteen ngspice workers.
 At 0.25 dB / 25 MHz bins the cache held nine entries after 400 steps and the
 solve was still 40 % of the step budget — the bin width was the whole fix.
+
+### 18.8 Why the first policy run stalled, and what the data said
+
+The first PPO run flattened at **5 % held-out success** and stayed there from
+51k steps to 205k. Mean best reward climbed the whole time (0.733 → 0.767 →
+0.836 → 0.884 → 0.883) and the number of specs solved never moved off exactly
+one out of twenty. Two separate causes, both found by measuring rather than by
+tuning hyper-parameters.
+
+**1. The policy started every episode on a plateau that does not exist.**
+
+Per-goal analytic starts were simulated for real and compared against what the
+surrogate said about the same designs:
+
+| goal | surrogate | real SPICE |
+|---|---|---|
+| 0 | not saturated → reward **0.2000** | saturated → reward **0.5486** |
+| 1 | not saturated → reward **0.2000** | saturated → reward **0.6796** |
+
+`specs.score` clips reward to 0.2 for a design that is not biased in
+saturation. The surrogate believed that of ~70 % of analytic starts (and
+thought 82 % failed `equalises`), so most episodes opened on a flat 0.2 with no
+gradient at all — from points the simulator scores between 0.55 and 0.68.
+
+The cause is distribution shift, and it was avoidable in hindsight. The `seed`
+cloud is drawn around the analytic start for the **default** spec. A
+goal-conditioned policy starts from a **different** analytic design for every
+spec it is handed, and nothing in the training data covered those points. The
+sampling plan had been written against where the *previous* method operated,
+not where the new one does.
+
+An earlier hypothesis for the same symptom — that low-`f_peak` goals drive `RL`
+up until `Itail·RL` collapses the CTLE output common mode — was checked and is
+**wrong**: across twelve sampled goals the output CM sits at 0.87–1.06 V
+against a floor near 0.70 V. The designs were fine; the model was not. Worth
+recording because it is the more obvious explanation and it is false.
+
+Fix: `collect_data.py --n-goal-starts` samples goals from the calibrated space,
+derives each one's analytic start with no SPICE (PhysFit plus the fitted
+calibration factors), perturbs it and simulates all four corners. The surrogate
+is then trained on both tags.
+
+**2. The policy was beginning to exploit the model.**
+
+Ensemble disagreement at the evaluation points rose monotonically —
+0.234 → 0.232 → 0.192 → 0.320 → 0.356 — while reward plateaued. That is the
+canonical model-based RL failure: the agent finds where the model is
+optimistic and lives there. The `uncertainty_penalty` exists for exactly this
+and is raised on the final run, with `check_surrogate.py --evals 2000` used to
+probe harder than the 400-evaluation pilot did.
+
+**The general lesson, which is the one worth keeping:** a surrogate is valid
+only where it has data, and *where it has data* is decided by the sampling
+plan, not by the model or its validation score. G1 was computed on held-out
+designs drawn from the same three clouds, so it could not see this at all — the
+model was accurate on its own distribution and wrong on the policy's. Held-out
+accuracy measured on the training distribution says nothing about a region that
+distribution never visits.

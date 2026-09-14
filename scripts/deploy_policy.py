@@ -139,6 +139,32 @@ def run_cem(obj, spec, budget: int, sur, seed: int = 0) -> dict:
             "curve": [float(x) for x in r.curve]}
 
 
+def run_cem_converged(obj, spec, sur, pop: int = 24, iters: int = 15,
+                      seed: int = 0) -> dict:
+    """CEM with the budget `run_design` actually gives it.
+
+    The equal-budget row answers "who spends 20 simulations better". It does
+    NOT answer "is the policy better than this project's shipped method",
+    because 20 evaluations in 11 dimensions gives CEM a population of 5 and two
+    elites to fit a Gaussian from -- which is barely CEM at all.
+
+    So the shipped configuration is run too, at roughly 24 x 15 candidates with
+    early stopping. It costs far more simulation, and if it wins by spending
+    it, the table should say so plainly rather than quietly omitting the
+    comparison that makes the policy look worse.
+    """
+    from eqrl.agents.cem import CemConfig, optimize
+
+    u0 = np.asarray(analytic_start_u(spec, sur.fit), float)
+    cfg = CemConfig(pop=pop, iters=iters, init_mean=u0,
+                    init_std=CemConfig.seeded_std, seed=seed,
+                    stop_on_pass=True)
+    r = optimize(obj, cfg, verbose=False)
+    return {"sims": r.n_eval, "best_reward": float(r.best_reward),
+            "u": [float(x) for x in r.best.u], "res": r.best,
+            "curve": [float(x) for x in r.curve]}
+
+
 def verify(u, spec, sim, jobs, tag) -> dict:
     """All 20 of the brief's PVT corners on one design."""
     from eqrl.design import _worst_margins
@@ -174,6 +200,13 @@ def main() -> int:
     ap.add_argument("--no-verify", dest="verify", action="store_false",
                     default=True)
     ap.add_argument("--redo", action="store_true")
+    ap.add_argument("--cem-converged", action="store_true",
+                    help="also run CEM at the budget run_design gives it "
+                         "(~24x15 candidates). Much more simulation than the "
+                         "equal-budget row, and the honest comparison against "
+                         "what this project actually ships.")
+    ap.add_argument("--cem-pop", type=int, default=24)
+    ap.add_argument("--cem-iters", type=int, default=15)
     ap.add_argument("--pidfile", default=None)
     a = ap.parse_args()
 
@@ -238,7 +271,10 @@ def main() -> int:
                                          "power_max_w", "eye_height_min_v",
                                          "eye_width_min_ui")}}
 
-        for method in ("policy", "cem"):
+        methods = ["policy", "cem"]
+        if a.cem_converged:
+            methods.append("cem_converged")
+        for method in methods:
             t0 = time.perf_counter()
             # The log goes INTO the Objective, so each (candidate, corner)
             # lands on disk the moment it is simulated. Draining obj.history
@@ -254,8 +290,11 @@ def main() -> int:
                 if method == "policy":
                     out = run_policy(model, sur, obj, spec, a.budget,
                                      a.max_steps)
-                else:
+                elif method == "cem":
                     out = run_cem(obj, spec, a.budget, sur)
+                else:
+                    out = run_cem_converged(obj, spec, sur, a.cem_pop,
+                                            a.cem_iters)
             wall = time.perf_counter() - t0
             solved = bool(out["res"] is not None
                           and obj.all_pass_everywhere(out["res"]))
@@ -305,13 +344,17 @@ def _summarise(rows, a) -> None:
         return
     print(f"\n{'=' * 74}\nG3  policy vs CEM at an equal budget of {a.budget} "
           f"SPICE evaluations\n{'=' * 74}")
-    print(f"  {'spec':7} {'policy':>22} {'CEM':>22}")
-    print(f"  {'':7} {'reward  sims  20-corner':>22} "
-          f"{'reward  sims  20-corner':>22}")
+    has_conv = any("cem_converged" in r for r in rows)
+    cols = ["policy", "cem"] + (["cem_converged"] if has_conv else [])
+    head = {"policy": "policy", "cem": f"CEM ({a.budget} sims)",
+            "cem_converged": "CEM converged"}
+    print("  " + "spec".ljust(7) + "".join(head[c].rjust(24) for c in cols))
+    print("  " + "".ljust(7)
+          + "".join("reward  sims  20-corner".rjust(24) for c in cols))
     wins = {"policy": 0, "cem": 0, "tie": 0}
     for r in rows:
         cells = []
-        for m in ("policy", "cem"):
+        for m in cols:
             d = r.get(m, {})
             pv = d.get("pvt", {})
             tag = ("PASS" if pv.get("all_pass_everywhere")
@@ -321,15 +364,17 @@ def _summarise(rows, a) -> None:
         pr = r.get("policy", {}).get("best_reward", -np.inf)
         cr = r.get("cem", {}).get("best_reward", -np.inf)
         wins["policy" if pr > cr else "cem" if cr > pr else "tie"] += 1
-        print(f"  {r['spec_id']:7} {cells[0]:>22} {cells[1]:>22}")
+        print("  " + r["spec_id"].ljust(7)
+              + "".join(c.rjust(24) for c in cells))
     n = len(rows)
-    pol_solved = sum(1 for r in rows
-                     if r.get("policy", {}).get("pvt", {}).get("all_pass_everywhere"))
-    cem_solved = sum(1 for r in rows
-                     if r.get("cem", {}).get("pvt", {}).get("all_pass_everywhere"))
-    print(f"\n  solved at all 20 PVT corners: policy {pol_solved}/{n}, "
-          f"CEM {cem_solved}/{n}")
-    print(f"  higher reward:                policy {wins['policy']}, "
+    print()
+    for m in cols:
+        solved = sum(1 for r in rows
+                     if r.get(m, {}).get("pvt", {}).get("all_pass_everywhere"))
+        sims = sum(r.get(m, {}).get("sims", 0) for r in rows)
+        print(f"  {head[m]:>18}: solved {solved}/{n} at all 20 PVT corners, "
+              f"{sims} SPICE evaluations total")
+    print(f"\n  at equal budget, higher reward: policy {wins['policy']}, "
           f"CEM {wins['cem']}, tie {wins['tie']}")
     print(f"\n  wrote {OUT}")
 

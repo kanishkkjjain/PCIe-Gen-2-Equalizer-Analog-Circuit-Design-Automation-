@@ -1,0 +1,22 @@
+{
+ "git_sha": "12650ae",
+ "evals": [
+  {
+   "steps": 51200,
+   "wall_s": 119.44308300600096,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 13,
+    "fraction": 0.65,
+    "n_saturated_designs": 329
+   },
+   "n": 20,
+   "success_rate": 0.05,
+   "mean_steps_to_solve": 2.0,
+   "mean_best_reward": 0.8213222073883276,
+   "mean_uncertainty": 0.08526166519593625,
+   "success_vs_feasible": 0.07692307692307693
+  }
+ ]
+}

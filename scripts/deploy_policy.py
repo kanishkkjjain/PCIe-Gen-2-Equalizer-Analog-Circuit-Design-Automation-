@@ -460,8 +460,15 @@ def _summarise(rows, a) -> None:
         solved = sum(1 for r in rows
                      if r.get(m, {}).get("pvt", {}).get("all_pass_everywhere"))
         sims = sum(r.get(m, {}).get("sims", 0) for r in rows)
+        # surrogate_cem's SPICE count is 1 per spec, which on its own reads as
+        # though it solved the problem for free. It did not: it ran a full
+        # search against the learned model first, and that model cost ~12 000
+        # ngspice launches to train. Both numbers are printed.
+        sur_ev = sum(r.get(m, {}).get("surrogate_evals", 0) for r in rows)
+        extra = (f", {sur_ev} surrogate evaluations (model trained on "
+                 f"11 986 launches, one-time)" if sur_ev else "")
         print(f"  {head[m]:>18}: solved {solved}/{n} at all 20 PVT corners, "
-              f"{sims} SPICE evaluations total")
+              f"{sims} SPICE evaluations{extra}")
     print(f"\n  at equal budget, higher reward: policy {wins['policy']}, "
           f"CEM {wins['cem']}, tie {wins['tie']}")
     print(f"\n  wrote {OUT}")

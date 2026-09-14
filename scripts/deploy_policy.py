@@ -75,6 +75,28 @@ def _worst(obj, res):
     return min(sc["reward"] for sc in res.per_corner.values())
 
 
+def start_for(spec, sur, corners):
+    """The starting design, derived exactly as the environment derives it.
+
+    One function, used by every method here, for two separate reasons.
+
+    Train/deploy parity: the policy was trained from starts calibrated against
+    the surrogate over all four corners, and handing it an open-loop start at
+    deployment would put a difference between G2 and G3 that has nothing to do
+    with the method. Measured, that difference is not small -- open loop the
+    start lands inside the f_peak band at all four corners on 2 of 20 goals,
+    calibrated on 18 of 20.
+
+    Fairness between methods: CEM and the policy must begin from the SAME
+    design, or the comparison measures the starting point rather than the
+    search.
+    """
+    cfs = [{"process": c.process, "vdd": c.vdd, "temp": c.temp, "rc": c.rc}
+           for c in corners]
+    return np.asarray(analytic_start_u(spec, sur.fit, surrogate=sur,
+                                       corners_cf=cfs), float)
+
+
 def run_policy(model, sur, obj, spec, budget: int, max_steps: int) -> dict:
     """Greedy policy rollout with observations from real SPICE."""
     from eqrl.env_goal import GoalCtleEnv
@@ -89,7 +111,7 @@ def run_policy(model, sur, obj, spec, budget: int, max_steps: int) -> dict:
     shim._spec = spec
     shim._t = 0
 
-    u = np.asarray(analytic_start_u(spec, sur.fit), float)
+    u = start_for(spec, sur, obj.corners)
     best = {"reward": -np.inf, "u": u.copy(), "res": None}
     used = 0
     trace = []
@@ -130,7 +152,7 @@ def run_cem(obj, spec, budget: int, sur, seed: int = 0) -> dict:
     """
     from eqrl.agents.cem import CemConfig, optimize
 
-    u0 = np.asarray(analytic_start_u(spec, sur.fit), float)
+    u0 = start_for(spec, sur, obj.corners)
     pop = max(4, budget // 4)
     iters = max(1, budget // pop)
     cfg = CemConfig(pop=pop, iters=iters, init_mean=u0,
@@ -158,7 +180,7 @@ def run_cem_converged(obj, spec, sur, pop: int = 24, iters: int = 15,
     """
     from eqrl.agents.cem import CemConfig, optimize
 
-    u0 = np.asarray(analytic_start_u(spec, sur.fit), float)
+    u0 = start_for(spec, sur, obj.corners)
     cfg = CemConfig(pop=pop, iters=iters, init_mean=u0,
                     init_std=CemConfig.seeded_std, seed=seed,
                     stop_on_pass=True)
@@ -212,7 +234,7 @@ def run_surrogate_cem(obj, spec, sur, evals: int = 2000, pop: int = 40,
         def all_pass_everywhere(self, res):
             return all(sp.all_pass(x) for x in res.per_corner.values())
 
-    u0 = np.asarray(analytic_start_u(spec, sur.fit), float)
+    u0 = start_for(spec, sur, obj.corners)
     sobj = _SurObjective()
     r = optimize(sobj, CemConfig(pop=pop, iters=max(1, evals // pop),
                                  init_mean=u0, init_std=0.25, seed=seed,

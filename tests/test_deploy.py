@@ -90,9 +90,25 @@ def test_both_methods_are_compared_at_the_same_budget(dep):
         inspect.getsource(dep.run_cem)
 
 
-def test_cem_starts_from_the_same_analytic_design_as_the_policy(dep):
-    """Handing CEM a worse starting point would win the comparison by
-    construction rather than by method."""
+def test_every_method_starts_from_the_same_design(dep):
+    """Handing one method a worse starting point would decide the comparison by
+    construction rather than by method.
+
+    It also has to be the CALIBRATED start, the one the environment uses.
+    Training happened from starts calibrated against the surrogate over all four
+    corners; an open-loop start at deployment would put a difference between G2
+    and G3 that has nothing to do with the method -- and it is not a small one,
+    since open loop the start lands in the f_peak band at 2 of 20 goals against
+    18 of 20 calibrated.
+    """
     import inspect
-    assert "analytic_start_u(spec, sur.fit)" in inspect.getsource(dep.run_cem)
-    assert "analytic_start_u(spec, sur.fit)" in inspect.getsource(dep.run_policy)
+    for fn in (dep.run_policy, dep.run_cem, dep.run_cem_converged,
+               dep.run_surrogate_cem):
+        src = inspect.getsource(fn)
+        assert "start_for(spec, sur" in src, (
+            f"{fn.__name__} does not use the shared start")
+        assert "analytic_start_u(spec, sur.fit)" not in src, (
+            f"{fn.__name__} still builds an open-loop start")
+    # and the shared helper must actually close the loop
+    shared = inspect.getsource(dep.start_for)
+    assert "surrogate=sur" in shared and "corners_cf=cfs" in shared

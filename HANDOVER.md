@@ -2126,3 +2126,57 @@ tap for a different post-cursor sign.
 What remains at the start is `eye_w` (11/20) and `eye_h` (9/20), which is the
 right place for the remaining work to sit: the closed-form model has no eye,
 and opening one against a channel is exactly what the learned policy is for.
+
+### 18.17 The instruments were wrong, not just the policy
+
+After the start was fixed three separate ways the policy still reported 0 %
+success, which was too absolute to be plausible. Checking *what is reachable*
+rather than accepting the number found that two of the measurements were
+themselves wrong, both in the direction that made the policy look worse.
+
+**The ceiling was a statement about the sampling plan, not the problem.** G2 had
+been reported against "13 of 20 demonstrably feasible", a figure computed by
+asking how many held-out specs an *already-collected design* happens to satisfy.
+That measures which designs were collected. Running a real CEM search against
+the surrogate — 3 000 evaluations, no simulator, a few seconds per spec — solves
+**20 of 20**:
+
+```
+spec0  SOLVED  best reward 0.9976      spec10 SOLVED  best reward 0.9823
+spec1  SOLVED  best reward 0.9936      ...
+...                                    spec19 SOLVED  best reward 0.9874
+```
+
+So the goal space was never the constraint, the 80 % gate is not impossible by
+construction, and any shortfall is the policy's own. The ceiling is now computed
+by search at startup.
+
+**The evaluation never looked at the start.** The starting design is *derived*,
+not random, and on some specs it already satisfies everything — measured, the
+calibrated start solves **3 of 10** outright, which the CEM search confirms by
+moving *zero distance* from it. `rollout()` only inspected step results, so on
+those specs the policy took its first action, stepped off a solution it was
+already sitting on, and was scored unsolved.
+
+They are now credited — and reported **separately**, as `solved_at_start`. A
+spec the start already meets is a result for the analytic start and the
+surrogate calibration, not for the policy; folding the two together would claim
+work the policy did not do.
+
+**Reachability was checked at the same time and is fine.** Distance from the
+calibrated start to the searched solution, over ten specs:
+
+```
+median L2 0.485,  median largest-knob move 0.331
+policy budget    20 steps x 0.1 = 2.0 per knob
+specs needing a knob move > 1.0:  0 / 10
+```
+
+**The lesson.** Five training runs were discarded across §18.8–18.17, each after
+a measured defect: a false plateau, an f_peak targeting error, start noise
+undoing the calibration, a DFE tap of the wrong sign, and finally two broken
+instruments. The last is the uncomfortable one — for several hours conclusions
+were being drawn from a ceiling that measured the sampling plan and a rollout
+that could not see its own starting state. What exposed it was not a better
+idea but a refusal to accept 0 %: a number that absolute is usually an
+instrument, not a result.

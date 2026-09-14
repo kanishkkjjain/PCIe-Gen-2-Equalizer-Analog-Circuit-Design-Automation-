@@ -75,6 +75,8 @@ def _disagreement(raw) -> float:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--evals", type=int, default=600)
+    ap.add_argument("--tag", default="collect",
+                    help="collection tag(s), comma-separated")
     ap.add_argument("--pop", type=int, default=40)
     ap.add_argument("--surrogate", default=None)
     ap.add_argument("--jobs", type=int, default=None)
@@ -93,7 +95,8 @@ def main() -> int:
            for c in corners]
 
     # --- how much do the members disagree on the TRAINING data? -------------
-    recs = [r for r in load("collect", meas=meas).records.values()
+    tags = [t.strip() for t in a.tag.split(",") if t.strip()]
+    recs = [r for r in load(tags, meas=meas).records.values()
             if r["metrics"].get("ok")]
     base_unc = float("nan")
     if recs:

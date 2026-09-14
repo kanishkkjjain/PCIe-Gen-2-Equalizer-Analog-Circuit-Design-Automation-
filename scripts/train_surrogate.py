@@ -117,7 +117,8 @@ def reward_of(metrics_list, spec, keys):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tag", default="collect")
+    ap.add_argument("--tag", default="collect",
+                    help="collection tag, or several comma-separated. The goal-start cloud lives under its own tag, and a surrogate that has not seen it is wrong exactly where the policy starts.")
     ap.add_argument("--members", type=int, default=5)
     ap.add_argument("--epochs", type=int, default=3000)
     ap.add_argument("--lr", type=float, default=3e-3)
@@ -136,7 +137,8 @@ def main() -> int:
 
     spec = sp.EqualizerSpec()
     meas = MeasCond.from_spec(spec)
-    res = load(a.tag, meas=meas)
+    tags = [t.strip() for t in a.tag.split(",") if t.strip()]
+    res = load(tags, meas=meas)
     recs = [r for r in res.records.values() if r["metrics"].get("ok")]
     n_designs = len({tuple(r["key"]) for r in recs})
     print(f"data: {len(res)} records, {len(recs)} ok, {n_designs} designs")

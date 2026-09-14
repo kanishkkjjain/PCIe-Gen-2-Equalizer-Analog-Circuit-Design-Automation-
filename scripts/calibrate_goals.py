@@ -149,7 +149,8 @@ def relax(space: GoalSpace, step: float) -> GoalSpace:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tag", default="collect")
+    ap.add_argument("--tag", default="collect",
+                    help="collection tag, or several comma-separated. The goal-start cloud lives under its own tag, and a surrogate that has not seen it is wrong exactly where the policy starts.")
     ap.add_argument("--n-goals", type=int, default=400)
     ap.add_argument("--min-designs", type=int, default=1,
                     help="how many collected designs must satisfy a goal for "
@@ -167,7 +168,8 @@ def main() -> int:
     a = ap.parse_args()
 
     meas = MeasCond.from_spec(sp.EqualizerSpec())
-    recs = list(load(a.tag, meas=meas).records.values())
+    tags = [t.strip() for t in a.tag.split(",") if t.strip()]
+    recs = list(load(tags, meas=meas).records.values())
     all_designs = worst_by_design(recs)
     designs = [m for m in all_designs if m.saturated]
     print(f"{len(recs)} records -> {len(all_designs)} designs with >=2 corners, "

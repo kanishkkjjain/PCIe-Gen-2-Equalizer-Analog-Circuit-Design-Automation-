@@ -313,6 +313,13 @@ def main() -> int:
     n_done = n_ok = n_fail = 0
     deadline = t0 + a.max_minutes * 60 if a.max_minutes else None
 
+    # NOTE: guarding only inside this generator does NOT work, and it took a
+    # stuck run to notice. Pool's task-handler thread drains the whole iterable
+    # into the task queue as fast as it can, so by the time a signal arrives
+    # every remaining task is already queued and a generator that stops
+    # yielding stops nothing. A SIGINT-ed run kept simulating for another
+    # twelve minutes. The stop that actually works is in the RESULT loop below.
+    # These checks remain as a cheap early-out for a run that has not started.
     def tasks():
         for row, c in todo:
             if _STOP or (deadline and time.perf_counter() > deadline):
@@ -348,10 +355,27 @@ def main() -> int:
                     print(f"  {n_done:6}/{len(todo)} ok={n_ok} fail={n_fail} "
                           f"{rate * 60:5.1f}/min  elapsed {el / 60:5.1f}m  "
                           f"eta {left / 60:5.1f}m", flush=True)
+
+                # The stop that works. Every result up to here is already on
+                # disk, so breaking out costs at most the handful of
+                # simulations currently in flight.
+                if _STOP:
+                    print("  stopping now; everything already simulated is "
+                          "on disk", flush=True)
+                    break
+                if deadline and time.perf_counter() > deadline:
+                    print("  --max-minutes reached", flush=True)
+                    break
+                if shutil.disk_usage(a.workdir).free < a.min_free_gb * 2**30:
+                    print("  disk below --min-free-gb, stopping", flush=True)
+                    break
         except KeyboardInterrupt:
             _on_signal(signal.SIGINT, None)
         finally:
-            pool.terminate() if _STOP else pool.close()
+            # terminate, not close: close() drains every task still queued,
+            # and Pool queues them all up front, so close() on an interrupted
+            # run means waiting for the ENTIRE remaining plan.
+            pool.terminate()
             pool.join()
 
     el = time.perf_counter() - t0

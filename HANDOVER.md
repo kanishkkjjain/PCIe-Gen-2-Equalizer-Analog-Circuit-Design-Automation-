@@ -2057,3 +2057,72 @@ have taken ten hours. Two changes, both measured:
 The 358k-step run in flight was discarded rather than resumed. It was
 optimising against a start that could not satisfy the spec it was handed, so
 its weights encode a different problem.
+
+### 18.15 The environment was undoing its own start calibration
+
+With `fpeak` targeted correctly the policy still solved nothing, and the
+per-condition breakdown at the *start* rather than at the end explained why.
+
+`GoalCtleEnv` perturbed every derived start by `N(0, 0.1)`. The calibrated start
+puts f_peak in band at all four corners on 18 of 20 goals; the perturbation put
+9 of those back out:
+
+| start_noise | conditions at start | f_peak fails |
+|---|---|---|
+| **0.00** | **7.30/10** | **1/20** |
+| 0.05 | 6.25/10 | 6/20 |
+| 0.10 | 6.00/10 | 11/20 |
+
+Deployment applies no noise, so the evaluation env now uses 0 — G2 had been
+measured from starts the policy never meets in deployment *and* with the
+calibration destroyed. Training dropped to 0.02; the diversity noise was there
+to provide already comes from the uniform and seed start branches, half of all
+episodes between them.
+
+**This also explains the shape of the earlier failure.** From the perturbed
+start the policy passed 6.10/10 and worked up to 8.25/10 — driving `eye_h`,
+`equalises` and `bias` to zero failures — while `fpeak` went from 11 failures to
+19. It was not ignoring f_peak. It was **trading it away**, because from a start
+that had already lost the band, regaining it costs more than the other
+conditions are worth. Start in band and there is nothing to trade.
+
+### 18.16 The DFE tap was fighting the pulse response
+
+Even from a clean calibrated start, `equalises` failed at **20 of 20** — and
+that check asks only that the circuit make the eye no *worse* than it found it.
+The scorer clips reward to 0.3 when it fails, so every episode still opened on
+a plateau.
+
+The tap exists to cancel the first post-cursor, so it should be `h[1]/h[0]`,
+which `physics.py` already computes. Measured across sampled goals that ratio is
+**negative**, −0.002 to −0.162, while `tap_pct` is bounded to `[1, 30]` and can
+only be positive. **A positive tap against a negative post-cursor adds ISI
+instead of removing it.** The data says so directly: at `TAP_PCT_START = 5` the
+starts with the largest `|h[1]|` had eye improvement 0.685 and those with the
+smallest had 1.035.
+
+The tap is now taken as close to `h[1]/h[0]` as the bounds allow — for a
+negative post-cursor, the floor.
+
+| | before | after |
+|---|---|---|
+| conditions passed at start | 7.30/10 | **8.40/10** |
+| median `tap_pct` | 5.00 % | **1.22 %** |
+| median `eye_improvement` | < 1 | **1.279** |
+| `equalises` failures | 20/20 | **7/20** |
+
+**The corroboration is the part worth keeping.** The shipped checkpoint-3
+design, found by 95 candidates of search against ngspice, sits at
+`tap_pct = 1.07 %`. The pulse-response model arrives at **1.22 % with no
+simulation at all** — an independent check on the physics in §18.3, from a
+direction it was not built for.
+
+`TAP_PCT_START = 5.0` carried a comment calling it "the measured optimum for a
+1-tap DFE on this topology, and the same value the reference design settles
+on". It was — *before this channel existed*. It has been quietly wrong since the
+channel was added, and nothing flagged it because 5 % is a perfectly reasonable
+tap for a different post-cursor sign.
+
+What remains at the start is `eye_w` (11/20) and `eye_h` (9/20), which is the
+right place for the remaining work to sit: the closed-form model has no eye,
+and opening one against a channel is exactly what the learned policy is for.

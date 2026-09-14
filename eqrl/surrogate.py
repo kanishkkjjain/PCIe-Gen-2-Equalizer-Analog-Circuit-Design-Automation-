@@ -362,6 +362,22 @@ class Surrogate:
         torch = _torch()
         d = Path(directory)
         cfg = json.loads((d / "config.json").read_text())
+
+        # A model saved before the target lists changed loads with a torch
+        # shape-mismatch dump that says nothing about the cause. The config
+        # records what it was built for, so say it plainly instead.
+        for field, current in (("residual_targets", RESIDUAL_TARGETS),
+                               ("direct_targets", DIRECT_TARGETS),
+                               ("flag_targets", FLAG_TARGETS),
+                               ("feature_names", FEATURE_NAMES)):
+            saved = cfg.get(field)
+            if saved is not None and list(saved) != list(current):
+                raise ValueError(
+                    f"{d} was trained with a different {field} and cannot be "
+                    f"loaded by this code.\n  saved:   {list(saved)}\n"
+                    f"  current: {list(current)}\n"
+                    f"Retrain: python3 scripts/train_surrogate.py")
+
         st = np.load(d / "stats.npz")
         fit = PhysFit.load(d / "physfit.json")
         meas = MeasCond(**cfg["meas"])

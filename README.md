@@ -64,11 +64,13 @@ against a real Gen2 transmitter's ~800 mV. Converged at iteration
 | **Schematic output** (we emit netlists) | ❌ |
 | **Sweep-vs-RL baseline** — CEM 0.987 (passes) vs random 0.726 (0/95) | ✅ |
 | **Seed-vs-search measured** — analytic 5/8 specs → after CEM 8/8 | ✅ |
-| **Durable, resumable evaluation cache** (crash drill passed) | ✅ |
-| **Goal-conditioned RL** — surrogate + PPO, deployed vs CEM at equal budget | in progress |
+| **Durable, resumable evaluation cache** — 5 993 records, 0 lost to 5 interruptions | ✅ |
+| **Physics-informed surrogate** — G1 rank correlation 0.88, optimism gap +0.0009 | ✅ |
+| **Surrogate-assisted CEM** — 8/8 specs at 20/20 corners, binding margin +10.1% | ✅ |
+| **Goal-conditioned RL** — PPO in the surrogate, deployed vs CEM at equal budget | in progress |
 | Runtime "tunable" mechanism · Anaconda env · LLM wrapper | ❌ |
 
-## Two methods, and why there are two
+## Three methods, and why there are three
 
 **Seeded CEM** (checkpoints 1–4) is the default agent and the baseline. The
 brief stresses *fewest search points / lowest design time*, and gradient-free
@@ -101,9 +103,32 @@ computed from the **pulse response** (channel → CTLE → summer, inverse
 transformed, sampled at symbol spacing) rather than learned from AC features —
 which took eye-width rank correlation from 0.36 to 0.69.
 
-`scripts/check_surrogate.py` looks for the failure this class of method is
-famous for: it optimises *inside* the surrogate and then simulates the winner
-for real. At 340 designs, predicted 0.9982 against real **0.9676**.
+### The surrogate is good enough to design with
+
+`scripts/check_surrogate.py` exists to look for the failure this class of
+method is famous for — a model that over-rates its own favourite design. It
+optimises *inside* the surrogate and then simulates the winner for real. On
+1 500 collected designs it found nothing to report:
+
+```
+predicted reward 0.9986   real (ngspice) 0.9977   optimism gap +0.0009
+```
+
+and the design it turned up **passes all 8 brief specs at all 20 PVT corners**,
+with more margin than the shipped one on six of eight:
+
+```
+binding spec   hd3 +10.1%   vs the shipped design's +4.1%
+hd3  -36.2 dBc vs -31.2     eye H 220.2 mV vs 131.1
+power 2.48 mW  vs 2.89      eye improvement 2.38x vs 1.97x
+```
+
+**Stated honestly, this is not "a better design in 1.9 seconds".** The
+surrogate cost **11 986 ngspice launches** to train, once. After that, a new
+spec costs 2 000 surrogate evaluations (1.9 s, no simulator) plus ~44 launches
+to verify, against 760 launches for the shipped flow — so break-even is around
+**17 specs**. It is a one-off investment that pays back only when the tool is
+used repeatedly, which is the case the brief describes.
 
 ## Layout
 

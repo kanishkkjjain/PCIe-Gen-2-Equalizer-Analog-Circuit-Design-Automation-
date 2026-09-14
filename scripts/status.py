@@ -129,6 +129,13 @@ def surrogate() -> None:
     sat = v.get("saturated_classifier", {})
     if sat:
         print(f"  saturated classifier accuracy {sat.get('accuracy', 0):.1%}")
+    bc = v.get("by_cloud") or {}
+    if bc:
+        print("  accuracy by cloud (saturation accuracy / reward rho):")
+        for cl, x in bc.items():
+            print(f"    {cl:12} n={x['n_rows']:5}  "
+                  f"sat {x['saturated_accuracy']:.2f}  "
+                  f"rho {x['spearman_reward']:+.3f}")
     tw = v.get("three_way", {})
     if tw:
         print("  held-out R2, hand equations -> residual model:")

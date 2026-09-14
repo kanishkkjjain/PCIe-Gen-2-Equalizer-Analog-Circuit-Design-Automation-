@@ -240,6 +240,17 @@ def main() -> int:
     ag = report["pass_agreement"]
     print("  pass/fail agreement per spec: "
           + "  ".join(f"{k} {v:.2f}" for k, v in ag.items()))
+    bc = report.get("by_cloud") or {}
+    if bc:
+        print("\n  accuracy by sampling cloud -- a good average can hide a "
+              "region the policy lives in:")
+        print(f"    {'cloud':12}{'rows':>6}{'sat acc':>9}"
+              f"{'sat real':>10}{'sat pred':>10}{'rho':>8}")
+        for cl, v in bc.items():
+            print(f"    {cl:12}{v['n_rows']:6}{v['saturated_accuracy']:9.2f}"
+                  f"{v['saturated_real_frac']:10.2f}"
+                  f"{v['saturated_pred_frac']:10.2f}"
+                  f"{v['spearman_reward']:8.3f}")
     return 0
 
 
@@ -336,6 +347,36 @@ def validate(sur, va_records, spec, meas, Dva_all, Rva, Dva, a) -> dict:
            "recall_saturated": float(np.mean(p_sat[y_sat])) if y_sat.any() else None,
            "recall_unsaturated": float(np.mean(~p_sat[~y_sat])) if (~y_sat).any() else None}
 
+    # ---- accuracy BROKEN OUT BY CLOUD -------------------------------------
+    # The metric that would have caught the failure that actually happened.
+    # A single held-out score averages over the whole sampling plan, and the
+    # plan is dominated by Sobol points; a model can look fine there while
+    # being wrong everywhere the policy starts. Measured: the surrogate called
+    # ~70 % of per-goal analytic starts unsaturated where SPICE says they are
+    # saturated, and G1 -- held out from the same clouds it trained on -- could
+    # not see it.
+    by_cloud: dict = {}
+    clouds = sorted({r.get("note") or "?" for r in va_records})
+    for cl in clouds:
+        idx = [i for i, r in enumerate(va_records) if (r.get("note") or "?") == cl]
+        if len(idx) < 5:
+            continue
+        ysat = np.array([bool(va_records[i]["metrics"].get("saturated"))
+                         for i in idx])
+        psat = np.asarray(raw["saturated"], float)[idx] >= 0.5
+        keys_c = [keys[i] for i in idx]
+        pr = [r_pred[k] for k in keys_c if k in r_pred]
+        rr = [r_real[k] for k in keys_c if k in r_real]
+        rho_c = (float(spearmanr(pr, rr).statistic)
+                 if len(set(keys_c)) > 2 else float("nan"))
+        by_cloud[cl] = {
+            "n_rows": len(idx),
+            "saturated_accuracy": float(np.mean(ysat == psat)),
+            "saturated_real_frac": float(np.mean(ysat)),
+            "saturated_pred_frac": float(np.mean(psat)),
+            "spearman_reward": rho_c,
+        }
+
     # ---- the three-way comparison that can embarrass the approach ---------
     three = three_way(sur, va_records, Dva_all, Rva, Dva, spec, meas, a)
 
@@ -354,6 +395,7 @@ def validate(sur, va_records, spec, meas, Dva_all, Rva, Dva, a) -> dict:
         "per_metric": per_metric,
         "pass_agreement": agree,
         "saturated_classifier": sat,
+        "by_cloud": by_cloud,
         "three_way": three,
         "physfit_quality": sur.fit.quality,
     }

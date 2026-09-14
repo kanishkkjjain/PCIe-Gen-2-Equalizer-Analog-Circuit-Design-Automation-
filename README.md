@@ -60,20 +60,50 @@ against a real Gen2 transmitter's ~800 mV. Converged at iteration
 | Closed-loop DFE in SPICE (ideal comparator + 1 UI latch) | ✅ |
 | **RL loop end-to-end, 8/8 brief specs at 20/20 corners** | ✅ |
 | Automatic analytic starting point (no hand-seeding) | ✅ |
-| Test suite (196: 159 fast + 37 against ngspice) | ✅ all passing |
+| Test suite (201: 164 fast + 37 against ngspice) | ✅ all passing |
 | **Schematic output** (we emit netlists) | ❌ |
 | **Sweep-vs-RL baseline** — CEM 0.987 (passes) vs random 0.726 (0/95) | ✅ |
 | **Seed-vs-search measured** — analytic 5/8 specs → after CEM 8/8 | ✅ |
+| **Durable, resumable evaluation cache** (crash drill passed) | ✅ |
+| **Goal-conditioned RL** — surrogate + PPO, deployed vs CEM at equal budget | in progress |
 | Runtime "tunable" mechanism · Anaconda env · LLM wrapper | ❌ |
 
-## Why CEM (not deep RL)
+## Two methods, and why there are two
 
-The brief stresses *fewest search points / lowest design time*. A step-wise deep
-RL policy (PPO/TD3) needs thousands of SPICE calls; every environment step here
-*is* a SPICE simulation. The default agent is the **Cross-Entropy Method** —
-gradient-free policy search that closed this problem in 95 candidates. A
-standard `gymnasium.Env` (`eqrl/env.py::CtleEnv`) is provided so PPO/TD3 can be
-dropped in for comparison.
+**Seeded CEM** (checkpoints 1–4) is the default agent and the baseline. The
+brief stresses *fewest search points / lowest design time*, and gradient-free
+policy search closed this problem in 95 candidates. But it optimises **one
+spec**: give it a different target and it starts over, keeping nothing — 7
+minutes and ~800 ngspice launches, every time.
+
+**A goal-conditioned policy** (checkpoint 5) is trained once and applied to
+specs it has never seen. The spec is part of the observation, so the policy
+learns the mapping from *(where the design is, what is being asked)* to *(what
+to change)* rather than the answer to one question.
+
+The obstacle is arithmetic: PPO needs ~1M environment steps, and every step of
+`CtleEnv` is ~18 s of SPICE across four corners — over two hundred days. So the
+policy is trained inside a **learned model of the circuit** and only the
+finished policy meets ngspice (the standard construction: MBTD3 DAC 2024,
+AnaCraft TCAD 2025). Four gated stages:
+
+```
+collect_data.py    2 524 designs x 4 corners, resumable, crash-drilled
+train_surrogate.py physics-informed surrogate        gate G1  rank correlation
+train_policy.py    goal-conditioned PPO inside it    gate G2  held-out success
+deploy_policy.py   real ngspice on unseen specs      gate G3  vs CEM, equal budget
+```
+
+The surrogate is **grey-box**: metrics with a closed form are predicted as a
+correction to it, with the residual head zero-initialised so the model *starts*
+as the hand calculation and training can only improve on it. The eye is
+computed from the **pulse response** (channel → CTLE → summer, inverse
+transformed, sampled at symbol spacing) rather than learned from AC features —
+which took eye-width rank correlation from 0.36 to 0.69.
+
+`scripts/check_surrogate.py` looks for the failure this class of method is
+famous for: it optimises *inside* the surrogate and then simulates the winner
+for real. At 340 designs, predicted 0.9982 against real **0.9676**.
 
 ## Layout
 
@@ -89,7 +119,12 @@ eqrl/
   env.py        Objective (parallel, cached) + Gymnasium CtleEnv
   agents/cem.py Cross-Entropy-Method policy search
   design.py     orchestrator: specs in -> sized decks + report.json
-tests/          196 total: 159 pure (no PDK, ~32 s) + 37 against real ngspice
+  cache.py      durable append-only JSONL log of every SPICE evaluation
+  physics.py    closed forms usable without SPICE: channel ABCD, pulse
+                response, noise, power, gm/Cout fits, analytic start
+  surrogate.py  grey-box residual surrogate (physics + learned correction)
+  env_goal.py   goal-conditioned env: the spec is an input, not a constant
+tests/          201 total: 164 pure (no PDK, ~32 s) + 37 against real ngspice
 scripts/        run_design, build_trimlib, pvt_sweep, smoke_test, plotting,
                 baseline (random search at an equal candidate budget)
 netlists/       xschem schematics -- CROSS-CHECK ONLY, currently STALE
@@ -113,7 +148,7 @@ ngspice-42 (XSPICE + KLU), xschem 3.4.4, Python 3.12. SKY130 via volare.
 ## Run
 
 ```bash
-python3 -m pytest tests/ -q                        # 196 tests, ~2 min
+python3 -m pytest tests/ -q                        # 201 tests, ~2 min
 python3 scripts/build_trimlib.py --grid spec       # 22.4x faster evaluations
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
 ```

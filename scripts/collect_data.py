@@ -101,7 +101,8 @@ def _collect_task(task):
 # the plan
 # ---------------------------------------------------------------------------
 def build_plan(tag: str, n_sobol: int, n_seed: int, n_final: int, seed: int,
-               spec, sim, do_eye: bool) -> dict:
+               spec, sim, do_eye: bool, n_goal_starts: int = 0,
+               goal_start_std: float = 0.12) -> dict:
     """Deterministic sample plan. Written to disk before any simulation."""
     from scipy.stats import qmc
 
@@ -130,6 +131,37 @@ def build_plan(tag: str, n_sobol: int, n_seed: int, n_final: int, seed: int,
     elif n_final:
         print("  no results/report.json -- skipping the 'final' cloud")
 
+    # --- the region the POLICY actually starts in --------------------------
+    # Measured, not anticipated: the surrogate trained on the clouds above
+    # called the per-goal analytic starts UNSATURATED, clipping their reward to
+    # 0.2, while real SPICE showed them saturated and scoring 0.55 and 0.68.
+    # Every training episode therefore began on a flat plateau that does not
+    # exist in the circuit, which is no gradient at all.
+    #
+    # The cause is plain distribution shift: the `seed` cloud sits around the
+    # analytic start for the DEFAULT spec, and a goal-conditioned policy starts
+    # from a different analytic design for every spec it is given. So those
+    # designs are collected too.
+    if n_goal_starts:
+        from eqrl.env_goal import GoalSpace
+        from eqrl.physics import PhysFit, analytic_start_u
+        from eqrl.cache import load as _load
+        prev = [r for r in _load(None, meas=MeasCond.from_spec(spec)
+                                 ).records.values()
+                if r["metrics"].get("ok")]
+        fit = PhysFit.fit(prev)
+        space = GoalSpace.load()
+        grng = np.random.default_rng(seed + 7)
+        made = 0
+        for _ in range(n_goal_starts):
+            g = space.sample(grng)
+            u0 = np.asarray(analytic_start_u(g, fit, n_grid=96), float)
+            u = np.clip(u0 + grng.normal(0, goal_start_std, N), 0, 1)
+            rows.append({"u": list(map(float, u)), "cloud": "goal_start"})
+            made += 1
+        print(f"  goal_start cloud: {made} designs around per-goal analytic "
+              f"starts (PhysFit from {len(prev)} existing records)")
+
     # Interleave the clouds so ANY PREFIX of the plan is representative. The
     # collection may be stopped at any point, and the surrogate trains on
     # whatever exists; a prefix that is 100 % Sobol is a prefix of almost
@@ -146,6 +178,7 @@ def build_plan(tag: str, n_sobol: int, n_seed: int, n_final: int, seed: int,
         "git_sha": git_sha(),
         "seed": seed,
         "n_sobol": n_sobol, "n_seed": n_seed, "n_final": n_final,
+        "n_goal_starts": n_goal_starts, "goal_start_std": goal_start_std,
         "do_eye": do_eye,
         "meas": meas_dict(MeasCond.from_spec(spec)),
         "corners": [c.name for c in pdk.robust_search_corners()],
@@ -166,7 +199,7 @@ def load_or_build_plan(a, spec, sim) -> dict:
         print(f"  plan: {len(plan['rows'])} candidates (existing {p.name})")
         return plan
     plan = build_plan(a.tag, a.n_sobol, a.n_seed, a.n_final, a.seed,
-                      spec, sim, a.eye)
+                      spec, sim, a.eye, a.n_goal_starts, a.goal_start_std)
     EVAL_DIR.mkdir(parents=True, exist_ok=True)
     tmp = p.with_suffix(".tmp")
     tmp.write_text(json.dumps(plan, indent=1, default=str))
@@ -215,6 +248,12 @@ def main() -> int:
     ap.add_argument("--n-sobol", type=int, default=1000)
     ap.add_argument("--n-seed", type=int, default=1000)
     ap.add_argument("--n-final", type=int, default=500)
+    ap.add_argument("--n-goal-starts", type=int, default=0,
+                    help="designs drawn around the analytic start for RANDOM "
+                         "goals -- the region a goal-conditioned policy "
+                         "actually begins each episode in, which the other "
+                         "clouds do not cover")
+    ap.add_argument("--goal-start-std", type=float, default=0.12)
     ap.add_argument("--seed", type=int, default=12345)
     ap.add_argument("--jobs", type=int, default=None)
     ap.add_argument("--chunk", type=int, default=64)

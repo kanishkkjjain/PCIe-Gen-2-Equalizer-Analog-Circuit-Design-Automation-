@@ -538,3 +538,115 @@ print('report', round(r['f_peak']/1e9,4),'GHz', round(r['peaking_db'],2),'dB')"
 ```
 
 Measured agreement: **0.000 %**.
+
+## 8. Checkpoint 5 — the model-based RL pipeline
+
+Every number below comes out of an artifact you can read, and every stage is
+resumable. Re-running any of these continues rather than restarts.
+
+### The durability claim is testable, so test it
+
+```bash
+python3 -m pytest tests/test_cache.py -q          # 9 tests, no PDK needed
+```
+
+The one that matters is `test_appending_after_a_torn_line_does_not_eat_the_next_record`.
+Before the fix, a log killed mid-write silently swallowed the *resumed* run's
+first result as well as the interrupted one: four records plus one append read
+back as four, not five.
+
+Do the crash drill yourself:
+
+```bash
+export PDK_ROOT=/home/kanishk/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b
+mkdir -p logs
+nohup setsid python3 -u scripts/collect_data.py --tag drill --n-sobol 64 \
+      --n-seed 0 --n-final 0 --pidfile logs/drill.pid > logs/drill.log 2>&1 &
+# wait until logs/drill.log shows progress, then:
+kill -9 $(cat logs/drill.pid)
+python3 scripts/collect_data.py --tag drill --status
+```
+
+It must report the records already done, `0 unparseable` (or exactly 1 — the
+killed tail), and re-running the original command must continue from there
+without recomputing the analytic seed.
+
+Note `--pidfile`. `nohup setsid cmd &` makes `$!` the pid of `setsid`, which
+forks and exits immediately, so a shell-written pidfile names a dead process
+and `kill -INT` on it does nothing.
+
+### The channel model is checkable against the netlist it claims to describe
+
+```bash
+python3 -c "
+import numpy as np; from eqrl.physics import channel_H
+f=np.array([1e6,2.5e9]); db=20*np.log10(np.abs(channel_H(f)))
+print(f'Nyquist {db[1]:+.2f} dB, tilt {db[0]-db[1]:+.2f} dB')"
+```
+
+Expect `-16.77 dB` and `10.68 dB`, against `-16.8` and `10.6` measured directly
+from the built netlist. This matters because the pulse-response eye features
+are only worth having if the channel inside them is the real one.
+
+### The residual heads really do start at the hand calculation
+
+```bash
+python3 -m pytest tests/test_surrogate.py -q -k "starts_at_the_hand_calculation"
+```
+
+Zero-initialised final layer: before any training the surrogate *is*
+`analytic.py`. Training can only improve on it, never start below it.
+
+### Train the surrogate and read the gate
+
+```bash
+python3 scripts/train_surrogate.py --members 5
+cat models/surrogate/LATEST
+python3 -c "
+import json,pathlib
+d=pathlib.Path(open('models/surrogate/LATEST').read().strip())
+v=json.load(open(d/'validation.json'))
+print('G1 (saturated):', v['G1']['spearman_reward_saturated'])
+print('three-way:', {k:(round(x['analytic_only_r2'],3), round(x['residual_model_r2'],3))
+                     for k,x in v['three_way'].items()})"
+```
+
+The three-way column is the one that could embarrass the approach: it is
+`analytic-only R²` against `residual-model R²` on the same held-out split. If
+the physics were not helping, the second number would not beat the first, and
+`validation.json` would say so rather than the docs claiming otherwise.
+
+**G1 is measured over designs biased in saturation at every corner**, not over
+all of them. About half the collected designs are not, and there the
+small-signal pulse model means nothing — so Spearman over the whole set is
+largely the model ranking broken designs against other broken designs, which no
+policy ever has to do.
+
+### Look for the surrogate's blind spot
+
+```bash
+python3 scripts/check_surrogate.py --evals 400 --jobs 4
+```
+
+CEM optimises *inside* the surrogate (no SPICE, about a second), then the
+winner is simulated for real. The gap between predicted and real reward is how
+much the model over-rates its own favourite design — which is exactly where a
+policy trained inside it will go. At 340 designs: predicted 0.9982, real
+0.9676, gap +0.031, with the ensemble *ten times more* confident there than on
+typical designs.
+
+### Train the policy, then deploy it against real ngspice
+
+```bash
+python3 scripts/train_policy.py --steps 500000          # G2
+python3 scripts/deploy_policy.py --n-specs 6 --budget 20 # G3
+python3 scripts/status.py                                # all gates, one screen
+```
+
+`deploy_policy.py` is the only stage whose numbers are evidence about the
+circuit rather than about a model of it. Both methods get the **same** budget
+of SPICE evaluations on the **same** spec from the **same** analytic start, and
+CEM runs through the shipped `agents.cem.optimize`, not a reimplementation.
+Deployment specs are drawn with seed 999, disjoint from training and from the
+seed-777 evaluation set — `tests/test_deploy.py` asserts the disjointness,
+because if it failed nothing in the output would look wrong.

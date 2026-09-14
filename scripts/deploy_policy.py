@@ -387,6 +387,13 @@ def main() -> int:
             row[method] = {"sims": out["sims"], "solved_search_corners": solved,
                            "best_reward": out["best_reward"], "u": out["u"],
                            "wall_s": wall, "launches": obj.n_launches}
+            # keep what the surrogate CLAIMED next to what SPICE measured --
+            # the gap between them is the only evidence that the model can be
+            # trusted to pick designs, and dropping it made that
+            # uncheckable after the fact
+            for extra in ("predicted_reward", "surrogate_evals"):
+                if extra in out:
+                    row[method][extra] = out[extra]
             print(f"  {method:6}: {out['sims']:3} sims, reward "
                   f"{out['best_reward']:.4f}, "
                   f"{'PASS' if solved else 'fail'} at search corners "

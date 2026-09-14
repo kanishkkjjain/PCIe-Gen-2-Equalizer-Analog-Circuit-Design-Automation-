@@ -67,7 +67,107 @@ against a real Gen2 transmitter's ~800 mV. Converged at iteration
 | **Durable, resumable evaluation cache** — 5 993 records, 0 lost to 5 interruptions | ✅ |
 | **Physics-informed surrogate** — G1 rank correlation 0.88, optimism gap +0.0009 | ✅ |
 | **Surrogate-assisted CEM** — 8/8 specs at 20/20 corners, binding margin +10.1% | ✅ |
-| **Goal-conditioned RL** — PPO in the surrogate, deployed vs CEM at equal budget | in progress |
+| **Goal-conditioned RL** — PPO in the surrogate | ❌ **0/20 specs; see HANDOVER 18.18** |
+| Runtime "tunable" mechanism · Anaconda env · LLM wrapper | ❌ |
+
+## Three methods, and why there are three
+
+**Seeded CEM** (checkpoints 1–4) is the default agent and the baseline. The
+brief stresses *fewest search points / lowest design time*, and gradient-free
+policy search closed this problem in 95 candidates. But it optimises **one
+spec**: give it a different target and it starts over, keeping nothing — 7
+minutes and ~800 ngspice launches, every time.
+
+**A goal-conditioned policy** (checkpoint 5) is trained once and applied to
+specs it has never seen. The spec is part of the observation, so the policy
+learns the mapping from *(where the design is, what is being asked)* to *(what
+to change)* rather than the answer to one question.
+
+The obstacle is arithmetic: PPO needs ~1M environment steps, and every step of
+`CtleEnv` is ~18 s of SPICE across four corners — over two hundred days. So the
+policy is trained inside a **learned model of the circuit** and only the
+finished policy meets ngspice (the standard construction: MBTD3 DAC 2024,
+AnaCraft TCAD 2025). Four gated stages:
+
+```
+collect_data.py    2 524 designs x 4 corners, resumable, crash-drilled
+train_surrogate.py physics-informed surrogate        gate G1  rank correlation
+train_policy.py    goal-conditioned PPO inside it    gate G2  held-out success
+deploy_policy.py   real ngspice on unseen specs      gate G3  vs CEM, equal budget
+```
+
+The surrogate is **grey-box**: metrics with a closed form are predicted as a
+correction to it, with the residual head zero-initialised so the model *starts*
+as the hand calculation and training can only improve on it. The eye is
+computed from the **pulse response** (channel → CTLE → summer, inverse
+transformed, sampled at symbol spacing) rather than learned from AC features —
+which took eye-width rank correlation from 0.36 to 0.69.
+
+### What actually works: propose against the model, verify in SPICE
+
+The surrogate is not an oracle and must not be used as one. Measured over
+**10 specs x 10 proposals, every proposal simulated for real** (100 SPICE
+verifications):
+
+```
+check the top 1 proposal  ->  20% of specs solved      4 SPICE evaluations
+check the top 4           ->  50%                     16
+check the top 8           ->  90%   <-                32
+check the top 10          ->  90%   (plateau)         40
+```
+
+**Eight proposals reach 90 % of specs.** Per new spec, end to end:
+
+| | SPICE evaluations | wall clock |
+|---|---|---|
+| seeded CEM (checkpoints 1-4) | 380 | ~7 min |
+| **propose-8-and-verify** | **32** | **~23 s** |
+
+13 s to propose eight designs with no simulator, ~10 s to verify all eight in
+parallel. **12x fewer simulations, ~18x faster**, and the 10 % that fail fall
+back to seeded CEM for the cost of one extra minute.
+
+**Do not trust the model's ranking.** Spearman between predicted and real
+reward across those 100 proposals is **-0.33** -- *negative*. The design the
+surrogate rates highest is, if anything, less likely to survive, because the
+highest predicted rewards are exactly where the model is most over-optimistic.
+Verify all eight in parallel and take whichever passes; that is also the
+fastest option, so the honest workflow and the fast one coincide. Ensemble
+disagreement separates pass from fail only weakly (0.0316 vs 0.0373) and is not
+a usable filter.
+
+A single surrogate-chosen design was verified across all 20 PVT corners and
+**passes 8/8 brief specs**, beating the shipped checkpoint-3 design on six of
+eight margins: binding margin **+10.1 %** against +4.1 %, hd3 -36.2 dBc against
+-31.2, eye height 220.2 mV against 131.1. `results/surrogate_optimum_pvt.json`.
+
+### The price, stated plainly
+
+The surrogate cost **11 986 ngspice launches** to build, once. Break-even
+against the shipped flow is **~17 specs**.
+
+That cost is not specific to this method. A policy cannot be trained against
+SPICE -- 1M steps x 18 s is over two hundred days -- so the surrogate is a
+**prerequisite** for the RL approach too. Both paths pay the same 11 986
+launches; only one of them then works.
+
+## Status
+
+| | |
+|---|---|
+| Two-stage equalizer (CTLE → Gm1+GmF summing stage), all-real SKY130 devices | ✅ |
+| Lossy FR4-like channel, −16.8 dB at Nyquist, 10.6 dB of tilt | ✅ |
+| Closed-loop DFE in SPICE (ideal comparator + 1 UI latch) | ✅ |
+| **RL loop end-to-end, 8/8 brief specs at 20/20 corners** | ✅ |
+| Automatic analytic starting point (no hand-seeding) | ✅ |
+| Test suite (201: 164 fast + 37 against ngspice) | ✅ all passing |
+| **Schematic output** (we emit netlists) | ❌ |
+| **Sweep-vs-RL baseline** — CEM 0.987 (passes) vs random 0.726 (0/95) | ✅ |
+| **Seed-vs-search measured** — analytic 5/8 specs → after CEM 8/8 | ✅ |
+| **Durable, resumable evaluation cache** — 5 993 records, 0 lost to 5 interruptions | ✅ |
+| **Physics-informed surrogate** — G1 rank correlation 0.88, optimism gap +0.0009 | ✅ |
+| **Surrogate-assisted CEM** — 8/8 specs at 20/20 corners, binding margin +10.1% | ✅ |
+| **Goal-conditioned RL** — PPO in the surrogate | ❌ **0/20 specs; see HANDOVER 18.18** |
 | Runtime "tunable" mechanism · Anaconda env · LLM wrapper | ❌ |
 
 ## Three methods, and why there are three

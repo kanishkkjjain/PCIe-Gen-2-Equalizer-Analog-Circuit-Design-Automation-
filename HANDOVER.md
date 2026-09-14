@@ -2180,3 +2180,133 @@ were being drawn from a ceiling that measured the sampling plan and a rollout
 that could not see its own starting state. What exposed it was not a better
 idea but a refusal to accept 0 %: a number that absolute is usually an
 instrument, not a result.
+
+### 18.18 G2 and G3: the policy did not work, and why
+
+**G2 — policy trained inside the surrogate. FAILED.**
+
+Over 1 000 000 steps and 20 evaluations, the policy solved **0 of 20** held-out
+specs. The reported 20 % success is entirely the *derived starting design*;
+`solved_by_policy` is 0 at every single evaluation. That split was added to the
+metric **before** the result was known, precisely so this could not hide behind
+a headline number.
+
+```
+    51 200 steps   success 20%   at_start 4   by_policy 0   reward 0.941
+   256 000 steps   success 20%   at_start 4   by_policy 0   reward 0.932
+   460 800 steps   success 20%   at_start 4   by_policy 0   reward 0.950
+   870 400 steps   success 20%   at_start 4   by_policy 0   reward 0.976
+ 1 001 472 steps   success 20%   at_start 4   by_policy 0   reward 0.952
+```
+
+Gate was 80 %. The ceiling is **20/20** — a real search against the same
+surrogate solves every one of these specs — so this is not a feasibility
+excuse. It learned to raise the dense reward (0.941 → 0.976) and never closed
+the conjunction.
+
+**Why.** There are 10 conditions and `all_pass` needs every one. Measured on the
+trained policy: it drives `equalises` 8→0, `eye_h` 10→0, `eye_w` 12→1,
+`bias` 1→0 — and takes `fpeak` from 5 failures to **20**. It is not ignoring
+f_peak; it is **trading it away**, because the reward counts *how many*
+conditions are met and not *which*. Losing one to gain five is a win on that
+scoreboard and a total loss on the objective.
+
+That is a reward-design problem, not a tuning problem, and it is the honest
+finding: a count-based reward on an all-or-nothing conjunction gives an agent a
+profitable move that never reaches the goal.
+
+**G3 — deployment against real ngspice, six unseen specs, four methods.**
+
+| method | solved at 20/20 PVT corners | SPICE evaluations |
+|---|---|---|
+| RL policy | 2/6 | 63 |
+| CEM at equal budget (20) | 2/6 | 66 |
+| **surrogate-assisted CEM** | **4/6** | **6** |
+| CEM to convergence | 3/6 | 282 |
+
+The policy's 2/6 is **not the policy**: both took 1 simulation, meaning the
+starting design already passed and the policy changed nothing. Its genuine
+contribution is 0/6, consistent with G2.
+
+One small real result for it: on spec2 and spec3 the policy scores 0.87 where
+equal-budget CEM scores **0.30** — the invalid-design floor. With only 20
+simulations CEM wanders into designs that do not even bias correctly, while the
+policy stays in sensible territory. It is better-behaved at tiny budgets. It
+just never finishes.
+
+### 18.19 The claim that did not survive its own audit
+
+`check_surrogate.py` reported predicted 0.9986 against real 0.9977 — a gap of
++0.0009 — and that was written up as evidence the surrogate could be trusted to
+pick designs. **It was n = 1.**
+
+Run properly — 14 independent searches inside the surrogate, every winner
+simulated for real:
+
+```
+model said "this passes":   14 / 14
+SPICE agreed:                4 / 14
+gap: median +0.018   mean +0.040   worst +0.173
+```
+
+The original +0.0009 is row 2 of that table: one of the four lucky draws. The
+surrogate **is** systematically optimistic when a search optimises against it,
+which is textbook model exploitation — every design the search rejects is one
+the model rated lower, so the design it returns is selected for the model being
+wrong in the flattering direction. An accurate model plus an optimiser gives a
+biased answer; the optimiser is an error-finder.
+
+What survives: the specific design is real and was verified at all 20 corners.
+What does not: "the surrogate reliably picks good designs."
+
+The fix is not a better model but a different workflow — propose several,
+verify all of them (§18.20). Recorded because the overclaim was caught by
+review, not by the author.
+
+### 18.20 Propose-and-verify, measured
+
+10 specs x 10 proposals, all 100 verified in real SPICE at the four robust
+corners. Proposals ranked by the model's own predicted reward:
+
+```
+check top 1  ->  20%      check top 6  ->  60%
+check top 2  ->  30%      check top 7  ->  80%
+check top 4  ->  50%      check top 8  ->  90%   <- N = 8
+check top 5  ->  60%      check top 10 ->  90%   (plateau)
+```
+
+Per-proposal pass rate is **18 %**. Eight proposals reach **90 % of specs** at
+32 SPICE evaluations and ~23 s end to end, against 380 evaluations and ~7 min
+for seeded CEM.
+
+Three things that must travel with that number:
+
+1. **The model's ranking is anti-correlated with reality**: Spearman(predicted,
+   real) = **−0.33** over the 100 proposals, and first-success ranks were
+   scattered `1, 1, 2, 3, 4, 5, 7, 7, 8`. Verify all eight in parallel; do not
+   walk the model's ordering.
+2. **It plateaus at 90 %, it does not climb.** One spec failed all ten
+   proposals — the searches share a blind spot, so more proposals do not help.
+   Those specs need the seeded-CEM fallback.
+3. **Ensemble disagreement is too weak to filter on**: 0.0316 on designs that
+   passed against 0.0373 on those that failed.
+
+The 90 % is from ten specs. The true value could plausibly sit anywhere from
+~75 % to ~95 %; thirty specs would tighten it and the run is affordable.
+
+### 18.21 What this project concludes
+
+| method | works? | cost per new spec |
+|---|---|---|
+| seeded CEM (checkpoints 1-4) | yes | 380 evaluations, ~7 min |
+| **surrogate propose-and-verify** | **yes, 90 % of specs** | **32 evaluations, ~23 s** |
+| goal-conditioned RL policy | **no** | — |
+
+The RL approach failed and the infrastructure built to support it succeeded.
+Both conclusions come from the same measurements, and reporting only the second
+would be the dishonest version of this work.
+
+The training cost is not an argument against the surrogate. A policy cannot be
+trained against SPICE, so the surrogate is a prerequisite for the RL path as
+well: both paths pay the same 11 986 launches, and only one of them then
+delivers anything.

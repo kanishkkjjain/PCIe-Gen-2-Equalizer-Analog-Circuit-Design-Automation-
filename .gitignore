@@ -28,3 +28,4 @@ spinit
 # long-run operational files
 logs/
 models/*/ckpt_*
+models/policy/ckpt_*.zip

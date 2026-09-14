@@ -1,0 +1,385 @@
+{
+ "git_sha": "afe564a",
+ "evals": [
+  {
+   "steps": 51200,
+   "wall_s": 111.37042662900058,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9413560504112721,
+   "mean_uncertainty": 0.043635055582438194,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 102400,
+   "wall_s": 168.95852879800077,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9305171804279647,
+   "mean_uncertainty": 0.0396805214030402,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 153600,
+   "wall_s": 222.6672063530059,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9313339295871804,
+   "mean_uncertainty": 0.03893245461263828,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 204800,
+   "wall_s": 278.3110319690022,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9316064735002783,
+   "mean_uncertainty": 0.035480341448315564,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 256000,
+   "wall_s": 332.9563426390014,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9323071645915106,
+   "mean_uncertainty": 0.036160423198626154,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 307200,
+   "wall_s": 387.31796549400315,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.940058875424057,
+   "mean_uncertainty": 0.037237372972248564,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 358400,
+   "wall_s": 441.2220103960062,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9397093950316364,
+   "mean_uncertainty": 0.03679474462710676,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 409600,
+   "wall_s": 498.12624979400425,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9551431375514756,
+   "mean_uncertainty": 0.03978787190502599,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 460800,
+   "wall_s": 554.0016402910042,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9502462992216172,
+   "mean_uncertainty": 0.04408500305864783,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 512000,
+   "wall_s": 608.2152421060018,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9478166447092871,
+   "mean_uncertainty": 0.045566081215760536,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 563200,
+   "wall_s": 662.0479459390044,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9536189236313796,
+   "mean_uncertainty": 0.04615421643303263,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 614400,
+   "wall_s": 715.3695849750002,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9537692825702699,
+   "mean_uncertainty": 0.044077765515872405,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 665600,
+   "wall_s": 773.6467294850008,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.952838316551152,
+   "mean_uncertainty": 0.04981876159352916,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 716800,
+   "wall_s": 835.8276424990036,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9589037829756496,
+   "mean_uncertainty": 0.05208030375430271,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 768000,
+   "wall_s": 897.216857667001,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9647967021599222,
+   "mean_uncertainty": 0.04486761195141645,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 819200,
+   "wall_s": 957.4823660910042,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9691287423916151,
+   "mean_uncertainty": 0.044157068928082785,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 870400,
+   "wall_s": 1016.9608335630037,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9755926346199398,
+   "mean_uncertainty": 0.03933696838184481,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 921600,
+   "wall_s": 1074.7161928280038,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9516714378761872,
+   "mean_uncertainty": 0.03754774102320274,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 972800,
+   "wall_s": 1129.8084601630035,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9481204451876929,
+   "mean_uncertainty": 0.03835698530698816,
+   "success_vs_feasible": 0.2
+  },
+  {
+   "steps": 1001472,
+   "wall_s": 1160.6036414000046,
+   "eval_seed": 777,
+   "feasible_ceiling": {
+    "n_specs": 20,
+    "n_demonstrably_feasible": 20,
+    "fraction": 1.0,
+    "method": "CEM, 3000 evaluations against the surrogate"
+   },
+   "n": 20,
+   "success_rate": 0.2,
+   "solved_at_start": 4,
+   "solved_by_policy": 0,
+   "mean_steps_to_solve": 0.0,
+   "mean_best_reward": 0.9519652299060913,
+   "mean_uncertainty": 0.042268245724872464,
+   "success_vs_feasible": 0.2
+  }
+ ]
+}

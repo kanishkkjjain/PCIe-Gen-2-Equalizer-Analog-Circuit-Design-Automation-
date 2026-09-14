@@ -1524,3 +1524,242 @@ Its measured tap sweep — eye improving to ~10 % then collapsing by 30 % — is
 same shape reproduced here, and its stated mechanism matches: *"the DFE improves
 the high-frequency components of the data at the expense of the low-frequency
 components."*
+
+## 18. Checkpoint 5 — model-based, goal-conditioned RL
+
+### 18.0 What this adds, and why CEM was not enough
+
+Checkpoints 1-4 optimise **one spec**. CEM is handed an `EqualizerSpec`, runs
+~95 candidates against ngspice, and returns a design. Give it a different spec
+and it starts over, keeping nothing. Measured in §16, that is 7 minutes and
+~800 ngspice launches *per spec*, every time.
+
+It is also, as §11 admits, hard to distinguish from "vary knobs by percentages
+and see what sticks" on a 2-iteration run.
+
+So checkpoint 5 adds a method that is RL in the sense the term normally means:
+a **policy**, trained once, that maps *(where the design is now, what the spec
+asks for)* to *(what to change)*, and is then applied to specs it has never
+seen. The cost of the training is paid once and amortised over every future
+spec. Seeded CEM stays exactly as it is and becomes the baseline it is compared
+against.
+
+The obstacle is arithmetic. A PPO policy needs on the order of a million
+environment steps. Every step of `env.CtleEnv` is a SPICE evaluation at ~4.4 s
+across four corners — about 18 s of simulation per step. A million of those is
+over two hundred days. So the policy is trained inside a **learned model of the
+circuit**, and only the finished policy is let near ngspice. This is the
+standard construction (MBTD3, DAC 2024; AnaCraft, TCAD 2025), and it splits the
+work into four gated stages:
+
+| stage | what it produces | gate |
+|---|---|---|
+| collect (`collect_data.py`) | labelled (design, corner) → metrics | resumable, crash-drilled |
+| surrogate (`train_surrogate.py`) | a SPICE stand-in, physics-informed | **G1** rank correlation |
+| policy (`train_policy.py`) | goal-conditioned PPO, trained in the surrogate | **G2** held-out success |
+| deploy (`deploy_policy.py`) | real ngspice on unseen specs, vs CEM at equal budget | **G3** the comparison table |
+
+### 18.1 Nothing is allowed to live only in memory
+
+Before any of it, a defect had to be fixed that this project had been paying
+for silently: `Objective._cache` is an in-memory dict, so **every labelled
+evaluation died with the process**. Roughly 1 650 of them — about two hours of
+ngspice — no longer exist. A surrogate is worth exactly the labels it is
+trained on, so that had to stop being true first.
+
+`eqrl/cache.py` is an append-only JSONL log. JSONL rather than a database or a
+pickle for one reason: it is the only format where a process killed mid-write
+damages *at most the final line*, and every record before it is still readable.
+One `write()` of a complete line, then `flush()`, then `os.fsync()`, per
+record — at 4.4 s per simulation the fsync costs nothing, and it is what makes
+a power cut cost one record instead of one buffer. Only the parent process ever
+opens the file; sixteen workers appending concurrently would interleave partial
+lines.
+
+Records carry the `MeasCond` they were measured under, and `load()` refuses
+records taken under different conditions unless told otherwise. That is the
+`tx_swing_pp_v` bug class (§10 bug 28) caught at read time rather than trusted.
+
+**A bug found by testing rather than by reasoning.** A torn final line has no
+newline, so a naive append *concatenates onto the fragment* and both records
+become one unparseable line — the resumed run would silently have lost its first
+new result as well as the interrupted one. Measured before the fix: four
+records plus one append loaded back as four, not five. `EvalLog.open()` now
+terminates a partial line first, so a kill costs exactly one record.
+`tests/test_cache.py` pins it.
+
+**The crash drill was run before any of this was trusted.** Collection was
+started, the parent `kill -9`ed with fourteen simulations in flight, and
+restarted: 25 records survived, 0 unparseable, and the resumed run reported
+25/10096 done and continued without recomputing the analytic seed.
+
+One operational trap worth recording: `nohup setsid cmd &` makes `$!` the pid
+of `setsid`, which forks and exits immediately, so a pidfile written by the
+shell names a process that is already dead and `kill -INT` on it does nothing.
+Every long-running script now writes its own pidfile.
+
+### 18.2 The surrogate is grey-box, and the data says why
+
+The hand equations in `analytic.py` track SPICE **well in order and badly in
+value**. Measured on this project's own collected data:
+
+| quantity | Spearman vs SPICE | median predicted / actual |
+|---|---|---|
+| peaking | +0.88 | 1.77x |
+| dc gain | +0.89 | 1.08x |
+| power | +0.81 | 0.81x → 1.08x after the fix below |
+
+A consistent multiplicative bias is the cheapest thing in the world for a
+residual model to remove. So metrics with a usable closed form are predicted as
+a **correction to it**:
+
+```
+y = f_analytic(u, corner) * exp(g_theta(features))     (ratio scales)
+y = f_analytic(u, corner) +     g_theta(features)      (dB scales)
+```
+
+with `g_theta`'s final layer **zero-initialised** — before training the model
+*is* the hand calculation, and training can only improve on it. A test pins
+that. `area_mm2` is computed exactly and never predicted; predicting an exactly
+computable quantity only adds error.
+
+**Three things the data disproved.**
+
+1. **Supply power is not `vdd * (Itail + Ig1_branch)`.** `netlist.py` builds
+   *separate per-side tails*, `Xt1` and `Xt2`, each mirrored 4:1 off one
+   diode-connected reference — so the pair draws `2*Itail` and the reference
+   another `Itail/4`. The obvious formula is wrong by more than 2x and read as
+   correct until it was checked against `i_supply`. With the right structure
+   and *measured* `id_tail` it reproduces `i_supply` at a median ratio of
+   **1.000** when the tail is saturated; the spread that remains is delivery —
+   a tail in triode sources ~87 % of the requested current (n=66) — and is left
+   to the learned residual.
+
+2. **gm of the summing stage does not fit from its own geometry** (R² 0.17 in
+   log space, 77 % median error). It is physical: Gm1's gate is driven by the
+   CTLE output, whose common mode is `vdd − Itail/2·RL`, so how hard it is on
+   depends on the *first* stage's bias. Feeding that Vgs estimate in more than
+   doubles the fit. Without it the network was being handed a feature that was
+   mostly noise.
+
+3. **The calibration factors must be measured against the fitted gm.** Computed
+   against the square-law default they came out at 0.81x — the wrong direction
+   entirely — because the gm error folds into them. Against the fitted gm they
+   are 1.40x on peaking and 1.21x on f_peak, consistent with the optimism §10
+   documents and with the reference design's own 12.68 dB predicted against
+   10 dB simulated.
+
+### 18.3 The eye had to be computed, not learned
+
+The eye was by far the worst-predicted metric — held-out Spearman **0.37** on
+height and **0.36** on width, against 0.92 for peaking and 0.95 for dc gain —
+and it carries the highest weight in the scorer (`w_eye = 1.2`).
+
+G1 showed the consequence exactly: as data arrived, per-metric accuracy **rose**
+(peaking R² 0.73 → 0.88, f_peak −1.76 → −0.09) while the reward correlation
+**fell**, 0.51 → 0.37. Predicting eight metrics well and two badly is not a
+surrogate, because the reward is dominated by the ones it is worst at.
+
+The mistake was asking for the eye from AC features. An eye *is* the pulse
+response sampled at symbol spacing: ISI is h[−1], h[1], h[2] relative to h[0],
+the DFE cancels a fraction of h[1], and what is left is the closure. That is a
+computation.
+
+`physics.channel_H` is an ABCD cascade of exactly the ladder
+`netlist.channel_netlist` builds. It does not depend on any design variable, so
+it is computed once per frequency grid and cached. **Validated, not assumed:**
+it returns −16.77 dB at Nyquist with 10.68 dB of tilt, where direct measurement
+of the built netlist gives −16.8 and 10.6. The cascade channel → CTLE → summer
+is multiplied by the spectrum of one rectangular UI and inverse-transformed.
+
+Measured effect, same split:
+
+| | before | after |
+|---|---|---|
+| `eye_width_ui` ρ | 0.359 | **0.691** |
+| `eye_improvement` ρ | 0.393 | **0.675** |
+| `eye_height_v` ρ | 0.370 | **0.550** |
+| `vn_in_rms` ρ | 0.297 | 0.587 |
+| G1 | 0.368 | **0.561** |
+
+**A finding worth keeping.** These features correlate with the eye *only on
+designs actually biased in saturation* (ρ +0.43), and essentially not at all
+across the whole collection (ρ −0.00). That is physically right — a
+small-signal pulse model means nothing for a circuit not operating as a linear
+amplifier — and `log_summer_gain` even *reverses sign* between the two regimes.
+The regime is something the model must represent, which is part of why the
+saturation classifier shares the trunk.
+
+### 18.4 Two metrics that had to be moved, and one dropped
+
+**Noise** was a direct head and behaved like one: held-out Spearman swung
+between 0.59 and 0.23 across two runs on the same data. It has a closed form.
+Getting the *structure* right mattered more than the constant — the input pair
+alone ranks designs at ρ +0.25, adding the load resistors' thermal noise
+referred through the stage gain gives +0.28, and adding the summing stage
+referred through the CTLE's gain gives **+0.57**. The residual can absorb a
+constant factor (it reads 0.44x low); it cannot absorb a missing dependence.
+Noise pass-agreement went 0.60 → 0.88.
+
+**`tap_ratio` was dropped as a target.** It spans 0.006 to 1.5e5 in the
+collected data, so after linear standardisation a handful of outliers owned the
+direct heads' loss entirely: including it drove its own held-out R² to −6.1 and
+dragged the other direct heads down with it. It is diagnostic and never scored.
+
+**`f_peak` is masked where there is no peak.** A flat design reports f_peak at
+the sweep start (1 MHz), making the residual target an outlier an order of
+magnitude larger than any real correction. Masked rows get no gradient, so the
+head's output there is arbitrary — and un-clipped, `exp()` turned that into an
+f_peak of 4e13 Hz and a held-out R² of **−6859**. Residuals are now clipped to
+a factor of 7.4 either way. A prediction may be wrong, but it must stay in the
+range where "wrong" still means something.
+
+### 18.5 Splitting, and what G1 actually measures
+
+The split is **by design, never by row**. The four corners of one design are
+four nearly identical rows; splitting by row puts some in train and some in
+validation, and the held-out score then measures memorisation.
+
+G1 was initially Spearman over *every* held-out design, which is the wrong
+denominator. About half the collected designs are not biased in saturation, and
+there the pulse model means nothing — so that number is largely the model
+ranking broken designs against other broken designs, which no policy ever has
+to do. `validation.json` now also reports Spearman over designs saturated at
+**every** corner, and top-20 %-precision: of the designs the model puts in its
+own top fifth, how many are really there. That is what a search actually
+consumes from a model.
+
+**The thresholds, the stability requirement and the fallback were written into
+the plan before the run that decides them**, so they could not be chosen after
+seeing the numbers.
+
+### 18.6 Looking for the blind spot on purpose
+
+A policy trained inside a model finds designs the *model* thinks are good. It
+is the canonical failure of model-based RL and it is silent.
+
+`scripts/check_surrogate.py` goes looking: CEM runs against the surrogate alone
+(400 evaluations, about a second, no SPICE), and whatever it converges on is
+simulated for real at the four robust corners. At 340 designs the answer is
+reassuring — predicted reward **0.9982**, real **0.9676**, an optimism gap of
+**+0.031**, and the ensemble disagrees *ten times less* at that point than on
+typical collected designs, so the optimum sits inside the region the model
+knows rather than in a hole.
+
+The env additionally prices that disagreement into the reward
+(`uncertainty_penalty`), so the policy is pushed towards regions the model
+actually knows.
+
+### 18.7 Speed, because it decided the design
+
+`GoalCtleEnv.step` started at 223 ms. A million steps would have been 62 hours.
+
+| ms/step | what was wrong |
+|---|---|
+| 223 | starting point |
+| 4.9 | `_evaluate` called `predict_raw` twice — once for the ensemble spread, once inside `predict_metrics`; and `.eval()` ran on every member on every forward pass |
+| 3.9 | `analytic.solve` searches a 300×300 (Rs, Cs) grid against a 900-point sweep. It depends only on (gm, Cout, target peaking, target f_peak) — and gm/Cout come from `FIXED_START` and never vary — so it is memoised on coarsely binned targets (0.5 dB, 100 MHz, far below the noise added to the start immediately afterwards) |
+
+**57x in total**, and that is under contention with fourteen ngspice workers.
+At 0.25 dB / 25 MHz bins the cache held nine entries after 400 steps and the
+solve was still 40 % of the step budget — the bin width was the whole fix.

@@ -1,33 +1,33 @@
 {
  "peaking_target_db": [
-  6.194984375000001,
-  8.805015625
+  5.0,
+  10.0
  ],
  "peaking_band_db": 2.5,
  "fpeak_lo": [
-  1219498437.5,
-  1480501562.5
+  1100000000.0,
+  1600000000.0
  ],
  "fpeak_hi": [
-  2191197500.0,
-  2608802500.0
+  2000000000.0,
+  2800000000.0
  ],
  "hd3_max_db": [
-  -30.2507843525,
-  -27.5108779475
+  -34.0,
+  -26.0
  ],
  "power_max_w": [
-  0.008623823471250002,
-  0.012733683078749999
+  0.003,
+  0.015
  ],
  "eye_height_min_v": [
-  0.073220182040625,
-  0.097194363084375
+  0.06,
+  0.13
  ],
  "eye_width_min_ui": [
-  0.37832896151562495,
-  0.42970220660937497
+  0.35,
+  0.5
  ],
- "feasible_frac": 0.0,
- "note": "calibrated 2026-09-14 against 143 collected designs; 0% of sampled goals are satisfied by >= 3 of them. Ranges are evidence about what this topology can do, not preferences."
+ "feasible_frac": 0.504,
+ "note": "calibrated 2026-09-14 against 158 collected designs; 50% of sampled goals are satisfied by >= 1 of them. Ranges are evidence about what this topology can do, not preferences."
 }

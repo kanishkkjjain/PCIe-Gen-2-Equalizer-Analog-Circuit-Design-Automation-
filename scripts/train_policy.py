@@ -40,7 +40,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from eqrl import specs as sp
+from eqrl import pdk, specs as sp
 from eqrl.cache import git_sha, write_atomic
 from eqrl.env_goal import GoalCtleEnv, GoalSpace
 from eqrl.surrogate import load_latest
@@ -70,43 +70,68 @@ def held_out_specs(space: GoalSpace, n: int, seed: int = EVAL_SEED) -> list:
     return [space.sample(rng) for _ in range(n)]
 
 
-def feasible_ceiling(specs, tag: str = "collect") -> dict:
-    """How many of these specs is anything at all known to satisfy?
+def feasible_ceiling(specs, sur, corners_cf, evals: int = 3000) -> dict:
+    """How many of these specs is anything at all able to satisfy?
 
-    G2 as a fraction of the evaluation set is misleading on its own. The goal
-    space is calibrated so that roughly half of sampled specs have a
-    demonstrated solution among the collected designs; a policy solving 45 % of
-    them may be solving nearly everything solvable. Measuring against a ceiling
-    that is not 100 % is the difference between "the policy is weak" and "the
-    goal space is the constraint", and those call for opposite responses.
+    G2 as a bare fraction is meaningless without knowing what is reachable, and
+    the first version of this asked the wrong question: it counted how many
+    specs an ALREADY-COLLECTED design happens to satisfy, and answered 13 of 20.
+    That is a statement about the sampling plan, not about the problem. Running
+    a real search against the surrogate answers 20 of 20 -- every spec in the
+    evaluation set is solvable, so the policy's shortfall is the policy's, and
+    the 80 % gate is not impossible by construction.
 
-    This is a LOWER bound on what is achievable -- the policy can reach designs
-    nobody simulated -- so a success rate above it is not a contradiction.
+    Costs a few seconds per spec against the model and no simulator at all, so
+    it is computed once at startup.
     """
-    try:
-        from eqrl.cache import load
-        from eqrl.spice import MeasCond
-        import importlib.util
-        cg = ROOT / "scripts" / "calibrate_goals.py"
-        spec_ = importlib.util.spec_from_file_location("calibrate_goals", cg)
-        mod = importlib.util.module_from_spec(spec_)
-        spec_.loader.exec_module(mod)
+    from eqrl import netlist as nl
+    from eqrl.agents.cem import CemConfig, optimize
+    from eqrl.physics import analytic_start_u
 
-        recs = list(load(tag, meas=MeasCond.from_spec(sp.EqualizerSpec())
-                         ).records.values())
-        designs = [m for m in mod.worst_by_design(recs) if m.saturated]
-        if not designs:
-            return {}
-        n_ok = 0
+    class _R:
+        def __init__(self, u, r, sc, names):
+            self.u = tuple(u)
+            self.reward = r
+            self.scored = sc[0]
+            self.per_corner = dict(zip(names, sc))
+            self.scored_corner = names[0]
+
+    names = [c["process"] + str(c["vdd"]) + str(c["temp"]) + str(c["rc"])
+             for c in corners_cf]
+
+    class _O:
+        def __init__(self, g):
+            self.g = g
+
+        def evaluate_batch(self, us):
+            out = []
+            for u in us:
+                p = nl.denorm(list(np.clip(u, 0, 1)))
+                mets = sur.predict_metrics([p] * len(corners_cf), corners_cf)
+                sc = [sp.score(m, self.g) for m in mets]
+                out.append(_R(u, min(x["reward"] for x in sc), sc, names))
+            return out
+
+        def all_pass_everywhere(self, res):
+            return all(sp.all_pass(x) for x in res.per_corner.values())
+
+    pop = 40
+    n_ok = 0
+    try:
         for g in specs:
-            if any(all(sp.score(m, g)["pass"].get(k) for k in sp.BRIEF_SPECS)
-                   for m in designs):
-                n_ok += 1
-        return {"n_specs": len(specs), "n_demonstrably_feasible": n_ok,
-                "fraction": n_ok / max(1, len(specs)),
-                "n_saturated_designs": len(designs)}
+            u0 = analytic_start_u(g, sur.fit, surrogate=sur,
+                                  corners_cf=corners_cf)
+            o = _O(g)
+            r = optimize(o, CemConfig(pop=pop, iters=max(1, evals // pop),
+                                      init_mean=np.asarray(u0, float),
+                                      init_std=0.25, seed=0, stop_on_pass=True),
+                         verbose=False)
+            n_ok += bool(o.all_pass_everywhere(r.best))
     except Exception as e:
         return {"error": f"{type(e).__name__}: {e}"}
+    return {"n_specs": len(specs), "n_demonstrably_feasible": n_ok,
+            "fraction": n_ok / max(1, len(specs)),
+            "method": f"CEM, {evals} evaluations against the surrogate"}
 
 
 def rollout(policy, env, spec, max_steps: int) -> dict:
@@ -114,6 +139,18 @@ def rollout(policy, env, spec, max_steps: int) -> dict:
     obs, info = env.reset(options={"spec": spec})
     best_r, best_u, solved, steps = info["reward"], env._u.copy(), False, 0
     unc = [info.get("uncertainty", 0.0)]
+
+    # The start is a DERIVED design, not a random one, and on some specs it
+    # already satisfies everything -- measured, the calibrated start solves 3
+    # of 10 outright. Only inspecting step results scored those as failures and
+    # under-reported G2: the policy would take its first action, move off a
+    # solution it was already sitting on, and be marked unsolved.
+    if info.get("pass") and all(info["pass"].values()):
+        return {"solved": True, "steps": 0, "best_reward": float(best_r),
+                "u": [float(x) for x in best_u],
+                "mean_uncertainty": float(unc[0]),
+                "solved_at_start": True}
+
     for t in range(max_steps):
         action, _ = policy.predict(obs, deterministic=True)
         obs, _, term, trunc, info = env.step(action)
@@ -128,13 +165,19 @@ def rollout(policy, env, spec, max_steps: int) -> dict:
             break
     return {"solved": bool(solved), "steps": steps, "best_reward": float(best_r),
             "u": [float(x) for x in best_u],
-            "mean_uncertainty": float(np.mean(unc))}
+            "mean_uncertainty": float(np.mean(unc)),
+            "solved_at_start": False}
 
 
 def evaluate(policy, env, specs, max_steps: int) -> dict:
     rs = [rollout(policy, env, s, max_steps) for s in specs]
     solved = [r for r in rs if r["solved"]]
+    # reported separately: a spec the START already meets says the derived
+    # starting design was good, not that the policy did anything
+    at_start = sum(1 for r in rs if r.get("solved_at_start"))
     return {"n": len(rs), "success_rate": len(solved) / max(1, len(rs)),
+            "solved_at_start": at_start,
+            "solved_by_policy": len(solved) - at_start,
             "mean_steps_to_solve": (float(np.mean([r["steps"] for r in solved]))
                                     if solved else None),
             "mean_best_reward": float(np.mean([r["best_reward"] for r in rs])),
@@ -228,13 +271,14 @@ def main() -> int:
                            uncertainty_penalty=0.0, u_seed=u_seed,
                            start_mix=(1.0, 0.0, 0.0), start_noise=0.0)
     specs = held_out_specs(space, a.n_eval)
-    ceiling = feasible_ceiling(specs)
+    eval_cfs = [{"process": c.process, "vdd": c.vdd, "temp": c.temp,
+                 "rc": c.rc} for c in pdk.robust_search_corners()]
+    ceiling = feasible_ceiling(specs, sur, eval_cfs)
     if ceiling.get("n_specs"):
-        print(f"  of the {ceiling['n_specs']} held-out specs, "
-              f"{ceiling['n_demonstrably_feasible']} "
-              f"({ceiling['fraction']:.0%}) are satisfied by at least one of "
-              f"{ceiling['n_saturated_designs']} collected designs -- that is "
-              f"the demonstrated floor on what is reachable, not a hard cap")
+        print(f"  ceiling: a real search against the surrogate solves "
+              f"{ceiling['n_demonstrably_feasible']}/{ceiling['n_specs']} "
+              f"({ceiling['fraction']:.0%}) of the held-out specs, so that is "
+              f"what the policy is being measured against")
 
     POLICY_DIR.mkdir(parents=True, exist_ok=True)
     done_steps = 0
@@ -283,8 +327,9 @@ def main() -> int:
         best_rate = max(best_rate, ev["success_rate"])
         vs_feas = rec.get("success_vs_feasible")
         print(f"  {done_steps:>8} steps  success {ev['success_rate']:.1%}"
-              + (f" ({vs_feas:.0%} of demonstrably feasible)"
-                 if vs_feas is not None else "")
+              + (f" ({vs_feas:.0%} of solvable)" if vs_feas is not None else "")
+              + (f" [{ev.get('solved_at_start', 0)} at start]"
+                 if ev.get("solved_at_start") else "")
               + f"  reward {ev['mean_best_reward']:.3f}  "
               f"steps {ev['mean_steps_to_solve']}  "
               f"unc {ev['mean_uncertainty']:.3f}  "

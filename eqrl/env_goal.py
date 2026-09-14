@@ -287,8 +287,14 @@ if _HAVE_GYM:
 
             scored, mets, unc = self._evaluate(self._u)
             self._best = scored["reward"]
+            # `pass` is reported at reset as well as at step. The starting
+            # design is derived, not random, and it sometimes already meets the
+            # spec -- a caller that only inspects step results scores those as
+            # failures.
             return self._obs(scored, mets), {"reward": scored["reward"],
-                                             "uncertainty": unc}
+                                             "uncertainty": unc,
+                                             "pass": scored.get("pass"),
+                                             "u": self._u.copy()}
 
         def step(self, action):
             a = np.clip(np.asarray(action, np.float32), -1, 1)

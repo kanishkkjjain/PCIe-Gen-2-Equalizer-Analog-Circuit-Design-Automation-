@@ -273,7 +273,8 @@ FEATURE_NAMES = (
 )
 
 #: analytic estimates the residual heads are built on, in order
-ANALYTIC_TARGETS = ("peaking_db", "f_peak", "dc_gain_db", "power_w")
+ANALYTIC_TARGETS = ("peaking_db", "f_peak", "dc_gain_db", "power_w",
+                    "vn_in_rms")
 
 
 
@@ -408,6 +409,53 @@ def eye_features(gm, RL, Rs, Cs, cout, gm_g1, Rsum, tap_pct, ui_s,
             "openness_est": np.maximum(1.0 - isi / a0, 0.0)}
 
 
+#: channel-noise factor for a short-channel MOSFET. 2/3 is the long-channel
+#: value and sky130 at these sizes runs somewhat above it; the residual absorbs
+#: the difference, which is the whole point of putting a closed form here.
+NOISE_GAMMA = 2.0 / 3.0
+
+
+def input_referred_noise(gm, RL, gm_g1, Rsum, f_lo, f_hi, temp_c=27.0,
+                         gamma: float = NOISE_GAMMA):
+    """Integrated input-referred noise of the whole chain, V rms.
+
+    Thermal channel noise of one device is 4kT*gamma*gm, which referred to its
+    own gate is 4kT*gamma/gm V^2/Hz; a differential pair has two, uncorrelated,
+    so the differential input-referred density is twice that. A load resistor
+    contributes 4kT*RL at the output, which divided by the stage gain (gm*RL)^2
+    refers back as 4kT/(gm^2 RL), again doubled for the pair. The summing stage
+    is the same expression in its own devices, referred back through the CTLE's
+    gain and therefore divided by (gm*RL)^2.
+
+        v_n,in^2 = [ 8kT*gamma/gm + 8kT/(gm^2 RL)
+                     + ( 8kT*gamma/gm_g1 + 8kT/(gm_g1^2 Rsum) ) / (gm RL)^2
+                   ] * (f_hi - f_lo)
+
+    Measured against SPICE, the chain matters: the input pair alone ranks
+    designs at Spearman +0.25, and including the load and the referred summing
+    stage takes it to +0.57. Getting the STRUCTURE right is what the residual
+    head needs -- it can absorb a constant factor (this reads about 0.44x low)
+    but not a missing dependence.
+
+    The band comes from the MeasCond the spec asks for, not a fixed constant.
+
+    Noise had been a direct head and behaved like one: held-out Spearman swung
+    between 0.59 and 0.23 across two runs on the same data. A metric with a
+    closed form has no business being learned from nothing.
+    """
+    gm = np.maximum(np.asarray(gm, float), 1e-12)
+    gm_g1 = np.maximum(np.asarray(gm_g1, float), 1e-12)
+    RL = np.maximum(np.asarray(RL, float), 1e-3)
+    Rsum = np.maximum(np.asarray(Rsum, float), 1e-3)
+    kT = BOLTZ * (np.asarray(temp_c, float) + T0_K)
+    df = max(float(f_hi) - float(f_lo), 1.0)
+
+    ctle = 8.0 * kT * gamma / gm + 8.0 * kT / (gm ** 2 * RL)
+    summer = 8.0 * kT * gamma / gm_g1 + 8.0 * kT / (gm_g1 ** 2 * Rsum)
+    av2 = np.maximum((gm * RL) ** 2, 1e-12)
+    return np.sqrt(np.maximum((ctle + summer / av2) * df, 1e-30))
+
+
 def supply_power(vdd, Itail, Ig1, tap_pct):
     """Supply power from the branches the netlist actually instantiates.
 
@@ -524,8 +572,13 @@ def analytic_baseline(params, corner_fields, fit: PhysFit, meas) -> dict:
     cout = fit.cout(P["W"], P["L"], P["Wg1"], CL)
     fpk, pk, dc, _ = ctle_shape(gm, P["RL"], P["Rs"], P["Cs"], cout)
     power = supply_power(vdd, P["Itail"], P["Ig1"], P["tap_pct"])
+    gmg = fit.gm_g1(P["Wg1"], P["Ig1"], temp,
+                    vgs=fit.vgs_g1(vdd, P["Itail"], P["RL"]))
+    f_lo = meas.noise_f_lo if meas is not None else 10e6
+    f_hi = meas.noise_f_hi if meas is not None else 5e9
+    vn = input_referred_noise(gm, P["RL"], gmg, P["Rsum"], f_lo, f_hi, temp)
     return {"peaking_db": pk, "f_peak": fpk, "dc_gain_db": dc,
-            "power_w": power}
+            "power_w": power, "vn_in_rms": vn}
 
 
 

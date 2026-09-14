@@ -54,7 +54,8 @@ MODEL_DIR = ROOT / "models" / "surrogate"
 
 #: metrics predicted as a correction to a closed form. Order matters: it is the
 #: column order of the residual head.
-RESIDUAL_TARGETS = ("peaking_db", "f_peak", "dc_gain_db", "power_w")
+RESIDUAL_TARGETS = ("peaking_db", "f_peak", "dc_gain_db", "power_w",
+                    "vn_in_rms")
 #: ...of those, the ones already on a dB (log) scale, where the residual is
 #: additive rather than multiplicative.
 DB_TARGETS = ("peaking_db", "dc_gain_db")
@@ -71,7 +72,7 @@ DB_TARGETS = ("peaking_db", "dc_gain_db")
 #: heads' loss entirely: including it drove held-out R^2 to -6.1 on itself and
 #: dragged every other direct head down with it. It is diagnostic, not scored,
 #: and not worth a log-transform special case.
-DIRECT_TARGETS = ("gain_nyq_db", "hd3_db", "vn_in_rms", "eye_height_v",
+DIRECT_TARGETS = ("gain_nyq_db", "hd3_db", "eye_height_v",
                   "eye_width_ui", "eye_improvement", "eye_openness_in",
                   "gm_m1", "gm_g1", "out_cm_v")
 

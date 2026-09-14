@@ -77,9 +77,17 @@ def test_supply_power_counts_both_tails_and_the_mirror_reference():
 
 
 def test_residual_round_trips_through_physical_units():
-    Br = np.array([[6.0, 1.8e9, -4.0, 3.0e-3]])
-    Yr = np.array([[5.0, 2.2e9, -3.0, 2.0e-3]])
-    R = residual_targets(Yr, Br)
+    """Built from RESIDUAL_TARGETS rather than hardcoded, so adding a residual
+    head (noise became one) does not silently skip it here."""
+    sample = {"peaking_db": (6.0, 5.0), "f_peak": (1.8e9, 2.2e9),
+              "dc_gain_db": (-4.0, -3.0), "power_w": (3.0e-3, 2.0e-3),
+              "vn_in_rms": (0.5e-3, 0.7e-3)}
+    assert set(sample) == set(RESIDUAL_TARGETS), (
+        f"update this test for {set(RESIDUAL_TARGETS) - set(sample)}")
+    Br = np.array([[sample[k][0] for k in RESIDUAL_TARGETS]])
+    Yr = np.array([[sample[k][1] for k in RESIDUAL_TARGETS]])
+    # a real peak, so the f_peak target is not masked
+    R = residual_targets(Yr, Br, peaking=np.array([5.0]))
     assert np.allclose(apply_residual(R, Br), Yr)
 
 

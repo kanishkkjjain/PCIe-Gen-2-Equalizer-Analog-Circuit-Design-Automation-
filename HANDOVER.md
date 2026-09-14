@@ -125,7 +125,7 @@ reference design, which labels them "(Ideal)" too.
 
 ```bash
 cd ~/pcie_eq_rl
-python3 -m pytest tests/ -q                              # 193 tests
+python3 -m pytest tests/ -q                              # 196 tests
 python3 scripts/smoke_test.py                            # SPICE layer sanity
 python3 scripts/build_trimlib.py --grid spec             # 5.7x less model text
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
@@ -1052,7 +1052,7 @@ to cancel and its injection is pure uncorrelated error. Measured on the brief's
 | | eye failures | eye height range |
 |---|---|---|
 | DFE tap ON | **6/20** | 19.7 – 151 mV |
-| DFE tap OFF | **0/20** | 193 – 263 mV |
+| DFE tap OFF | **0/20** | 196 – 263 mV |
 
 The tap cost roughly half the eye height at every corner. Every "eye failure"
 was caused by the DFE itself. The peaking spec is equally hollow with no loss
@@ -1280,9 +1280,9 @@ No remote is configured. `git remote add origin <url>` when you have one.
 ```bash
 export PDK_ROOT=/home/kanishk/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b
 
-# tests: 193 total -- 156 fast (no PDK) + 37 against real ngspice.
+# tests: 196 total -- 159 fast (no PDK) + 37 against real ngspice.
 python3 -m pytest tests/ -q -m "not needs_pdk"   # 131, ~5 s
-python3 -m pytest tests/ -q                      # all 193, ~2 min
+python3 -m pytest tests/ -q                      # all 196, ~2 min
 
 # SPICE layer sanity (asserts, so it can fail)
 python3 scripts/smoke_test.py
@@ -1351,8 +1351,8 @@ parsing no matter how small the circuit — so anything provable without a
 simulator should be.
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 156 tests, ~32 s, no PDK
-python3 -m pytest tests/ -q                      # all 193, ~2 min
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 159 tests, ~32 s, no PDK
+python3 -m pytest tests/ -q                      # all 196, ~2 min
 ```
 
 | tier | file | needs | covers |

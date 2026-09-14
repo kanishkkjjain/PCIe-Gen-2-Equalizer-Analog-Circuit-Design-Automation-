@@ -145,8 +145,14 @@ def main() -> int:
         return 1
 
     fit = PhysFit.fit(recs)
-    print("physfit:", {k: f"R2(log)={q['r2_log']:.3f}"
-                       for k, q in fit.quality.items()})
+    for k, q in fit.quality.items():
+        if "r2_log" in q:
+            print(f"  physfit {k}: R2(log)={q['r2_log']:.3f} "
+                  f"median rel err={q['median_rel_err']:.1%} (n={q['n']})")
+        elif k == "calibration":
+            print(f"  physfit calibration: the closed form reads "
+                  f"{q['k_pk']:.2f}x high on peaking, {q['k_f']:.2f}x on "
+                  f"f_peak (n={q['n']})")
 
     tr, va, _ = split_by_candidate(recs, a.val_frac, a.seed)
     print(f"split by DESIGN: {len(tr)} train rows / {len(va)} val rows "
@@ -172,8 +178,12 @@ def main() -> int:
         d_sd = np.nanstd(Dtr_all["Yd"], 0)
     d_mean = np.nan_to_num(d_mean)
     d_std = np.where(~np.isfinite(d_sd) | (d_sd < 1e-12), 1.0, d_sd)
-    Dtr = (Dtr_all["Yd"] - d_mean) / d_std
-    Dva = (Dva_all["Yd"] - d_mean) / d_std
+    # Clip standardised targets. A heavy-tailed metric otherwise lets a few
+    # samples own the whole MSE, and the model spends its capacity on outliers
+    # instead of on the bulk it will actually be asked about.
+    TARGET_CLIP = 8.0
+    Dtr = np.clip((Dtr_all["Yd"] - d_mean) / d_std, -TARGET_CLIP, TARGET_CLIP)
+    Dva = np.clip((Dva_all["Yd"] - d_mean) / d_std, -TARGET_CLIP, TARGET_CLIP)
 
     print(f"\ntraining {a.members} members on {Xtr.shape[0]} rows x "
           f"{Xtr.shape[1]} features")

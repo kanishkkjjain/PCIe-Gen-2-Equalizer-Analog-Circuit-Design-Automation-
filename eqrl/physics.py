@@ -266,11 +266,146 @@ FEATURE_NAMES = (
     "gain_nyq_analytic_db",
     "log_summer_gain", "log_gm_g1", "vov_g1", "tap_ratio",
     "cm_headroom_v", "log_power_analytic", "log_area",
+    # the eye, from the pulse response rather than from the AC shape
+    "log_h0", "h_pre", "h_post1", "h_post2", "isi_frac", "openness_est",
+    "log_eye_est",
     "vdd", "temp_norm", "proc_tt", "proc_ss", "proc_ff", "rc_ll",
 )
 
 #: analytic estimates the residual heads are built on, in order
 ANALYTIC_TARGETS = ("peaking_db", "f_peak", "dc_gain_db", "power_w")
+
+
+
+# ---------------------------------------------------------------------------
+# the eye, from the pulse response
+# ---------------------------------------------------------------------------
+# The eye was the worst-predicted metric by a wide margin -- held-out Spearman
+# 0.37 on height and 0.36 on width, against 0.92 for peaking and 0.95 for dc
+# gain -- and it carries the HIGHEST weight in the scorer (w_eye = 1.2). A
+# surrogate that cannot rank eyes cannot rank designs, and G1 measured exactly
+# that: per-metric accuracy rose with more data while the reward correlation
+# fell, because the reward is dominated by the metrics the model was worst at.
+#
+# The fix is to stop asking the network to learn the eye from AC features and
+# instead hand it the quantity the eye actually is: the PULSE RESPONSE sampled
+# at symbol spacing. Inter-symbol interference is h[-1], h[1], h[2] relative to
+# h[0]; the DFE cancels a fraction of h[1]; what is left is the closure. That
+# is a computation, not a thing to be learned.
+
+_CHANNEL_CACHE: dict = {}
+
+
+def channel_H(f):
+    """Differential response of the FR4-like channel `netlist.py` builds.
+
+    An ABCD cascade of exactly the ladder in `channel_netlist`: per section, a
+    series (Rdc + skin-effect R||L stages + L) and a shunt C, with the source
+    resistance in front and half the differential termination as the load.
+
+    The channel does not depend on any design variable, so it is computed once
+    per frequency grid and cached.
+
+    Validated against the independently measured response: this returns
+    -16.77 dB at the 2.5 GHz Nyquist frequency and 10.68 dB of tilt from DC,
+    where direct measurement of the built netlist gives -16.8 dB and 10.6 dB.
+    """
+    f = np.asarray(f, float)
+    key = (f[0], f[-1], len(f))
+    hit = _CHANNEL_CACHE.get(key)
+    if hit is not None:
+        return hit
+
+    s = 2j * np.pi * f
+    n = nl.CH_SECTIONS
+    td = nl.CH_TD_TOTAL / n
+    L, C = nl.CH_Z0 * td, td / nl.CH_Z0
+
+    A = np.ones_like(s)
+    B = np.full_like(s, nl.CH_RSRC + 0j)
+    Cc = np.zeros_like(s)
+    D = np.ones_like(s)
+
+    def mul(a2, b2, c2, d2):
+        nonlocal A, B, Cc, D
+        A, B, Cc, D = (A * a2 + B * c2, A * b2 + B * d2,
+                       Cc * a2 + D * c2, Cc * b2 + D * d2)
+
+    for _ in range(n):
+        Z = np.full_like(s, nl.CH_RDC + 0j)
+        for Rk, Lk in nl.CH_SKIN:
+            Z = Z + (Rk * (s * Lk)) / (Rk + s * Lk)
+        Z = Z + s * L
+        mul(1.0, Z, 0.0, 1.0)             # series impedance
+        mul(1.0, 0.0, s * C, 1.0)         # shunt capacitance
+
+    ZL = nl.CH_RTERM / 2.0
+    H = ZL / (A * ZL + B)
+    _CHANNEL_CACHE[key] = H
+    return H
+
+
+#: time resolution of the pulse response, as a fraction of one UI
+PULSE_OVERSAMPLE = 32
+PULSE_NFFT = 2048
+
+
+def pulse_taps(gm, RL, Rs, Cs, cout, gm_g1, Rsum, ui_s, cl=40e-15):
+    """ISI taps (h[-1], h[0], h[1], h[2]) of channel -> CTLE -> summer.
+
+    The cascade is evaluated on a uniform frequency grid, multiplied by the
+    spectrum of a single one-UI rectangular symbol, and inverse-transformed.
+    The main cursor is the peak of the result; the taps are the samples one and
+    two symbol periods either side of it.
+    """
+    gm, RL, Rs, Cs, cout, gm_g1, Rsum = (
+        np.atleast_1d(np.asarray(x, float))
+        for x in (gm, RL, Rs, Cs, cout, gm_g1, Rsum))
+
+    dt = ui_s / PULSE_OVERSAMPLE
+    f = np.fft.rfftfreq(PULSE_NFFT, dt)
+    s = 2j * np.pi * f
+
+    Hch = channel_H(f)[None, :]
+    k = (1.0 + gm * Rs / 2.0)[:, None]
+    Hctle = ((gm * RL)[:, None] * (1.0 + s * (Rs * Cs)[:, None])
+             / ((k + s * (Rs * Cs)[:, None])
+                * (1.0 + s * (RL * cout)[:, None])))
+    # summing stage: one pole against its own load
+    Hsum = (gm_g1 * Rsum)[:, None] / (1.0 + s * (Rsum * cl)[:, None])
+
+    # spectrum of one rectangular UI, sampled on this grid
+    Pf = ui_s * np.sinc(f * ui_s) * np.exp(-1j * np.pi * f * ui_s)
+
+    p = np.fft.irfft(Hch * Hctle * Hsum * Pf[None, :], n=PULSE_NFFT, axis=-1)
+
+    i0 = np.argmax(np.abs(p), axis=-1)
+    n_ui = PULSE_OVERSAMPLE
+    idx = lambda d: np.clip(i0 + d * n_ui, 0, PULSE_NFFT - 1)
+    take = lambda j: p[np.arange(len(p)), j]
+    return take(idx(-1)), take(idx(0)), take(idx(1)), take(idx(2))
+
+
+def eye_features(gm, RL, Rs, Cs, cout, gm_g1, Rsum, tap_pct, ui_s,
+                 cl=40e-15) -> dict:
+    """What the pulse response says about the eye, before any learning.
+
+    `eye_est` is the classic worst-case opening: the main cursor less every
+    interfering tap, with the DFE crediting back the fraction of the first
+    post-cursor its tap weight cancels. It is not the measured eye -- there is
+    no slicer, no latch delay and no noise here -- but it is the right SHAPE,
+    which is what the residual has to be a correction to rather than a
+    replacement for.
+    """
+    hm1, h0, h1, h2 = pulse_taps(gm, RL, Rs, Cs, cout, gm_g1, Rsum, ui_s, cl)
+    a0 = np.maximum(np.abs(h0), 1e-18)
+    tap = np.asarray(tap_pct, float) / 100.0
+    resid1 = np.abs(h1 - tap * h0)          # what the DFE leaves behind
+    isi = np.abs(hm1) + resid1 + np.abs(h2)
+    return {"h0": h0, "h_pre": hm1 / a0, "h_post1": h1 / a0,
+            "h_post2": h2 / a0, "isi_frac": isi / a0,
+            "eye_est": 2.0 * np.maximum(a0 - isi, 0.0),
+            "openness_est": np.maximum(1.0 - isi / a0, 0.0)}
 
 
 def supply_power(vdd, Itail, Ig1, tap_pct):
@@ -346,6 +481,9 @@ def physics_features(params, corner_fields, fit: PhysFit, meas) -> np.ndarray:
     def lg(x, floor=1e-30):
         return np.log(np.maximum(np.asarray(x, float), floor))
 
+    ey = eye_features(gm, P["RL"], P["Rs"], P["Cs"], cout, gmg, P["Rsum"],
+                      P["tap_pct"], meas.ui_s, CL)
+
     feats = np.column_stack([
         lg(gm), lg(cout), lg(boost), lg(fz), lg(fp1), lg(fp2),
         np.clip(fp1 / np.maximum(fp2, 1e-30), 0, 100),
@@ -354,6 +492,10 @@ def physics_features(params, corner_fields, fit: PhysFit, meas) -> np.ndarray:
         lg(summer_gain), lg(gmg), np.clip(vov_g1, 0, 2.0),
         P["tap_pct"] / 100.0,
         cm_head, lg(power), lg(area),
+        lg(np.abs(ey["h0"])),
+        np.clip(ey["h_pre"], -5, 5), np.clip(ey["h_post1"], -5, 5),
+        np.clip(ey["h_post2"], -5, 5), np.clip(ey["isi_frac"], 0, 10),
+        ey["openness_est"], lg(ey["eye_est"]),
         vdd, (temp - 27.0) / 100.0,
         np.array([p == "tt" for p in proc], float),
         np.array([p == "ss" for p in proc], float),

@@ -123,3 +123,46 @@ def test_physfit_falls_back_to_square_law_without_data():
     gm = f.gm_m1(20.0, 0.18, 600e-6, 27.0)
     assert np.isfinite(gm).all() and float(gm) > 0
     assert f.n_fit == 0
+
+
+def test_the_channel_model_reproduces_the_measured_response():
+    """The pulse-response features are only worth having if the channel in
+    them is the channel the netlist builds.
+
+    Independent measurement of the built netlist gives -16.8 dB at the 2.5 GHz
+    Nyquist frequency and 10.6 dB of tilt from DC. This is an ABCD cascade of
+    the same ladder, so it must agree.
+    """
+    from eqrl.physics import channel_H
+    f = np.array([1e6, 2.5e9])
+    db = 20 * np.log10(np.abs(channel_H(f)))
+    assert db[1] == pytest.approx(-16.8, abs=0.15), f"Nyquist loss {db[1]:.2f} dB"
+    assert (db[0] - db[1]) == pytest.approx(10.6, abs=0.2), "tilt"
+
+
+def test_pulse_taps_are_finite_and_ordered_over_the_box():
+    """ISI taps must exist for every design in the box, including degenerate
+    ones -- an inf here poisons six features at once."""
+    from eqrl.physics import PhysFit, eye_features
+    from eqrl import netlist as nl
+    params = _sobol(512, seed=3)
+    fit = PhysFit()
+    P = {k: np.array([p[k] for p in params]) for k in PARAM_NAMES}
+    gm = fit.gm_m1(P["W"], P["L"], P["Itail"], 27.0)
+    gmg = fit.gm_g1(P["Wg1"], P["Ig1"], 27.0)
+    cout = fit.cout(P["W"], P["L"], P["Wg1"])
+    ey = eye_features(gm, P["RL"], P["Rs"], P["Cs"], cout, gmg, P["Rsum"],
+                      P["tap_pct"], MEAS.ui_s)
+    for k, v in ey.items():
+        assert np.isfinite(np.asarray(v)).all(), f"{k} not finite"
+    assert (np.asarray(ey["eye_est"]) >= 0).all()
+    assert (np.asarray(ey["openness_est"]) <= 1.0).all()
+
+
+def test_tap_ratio_is_not_a_prediction_target():
+    """It spans seven orders of magnitude in the collected data, so after
+    linear standardisation its outliers own the direct heads' loss -- measured,
+    including it drove its own held-out R^2 to -6.1 and dragged the other
+    direct heads down with it. It is diagnostic and never scored."""
+    from eqrl.surrogate import DIRECT_TARGETS, RESIDUAL_TARGETS
+    assert "tap_ratio" not in DIRECT_TARGETS + RESIDUAL_TARGETS

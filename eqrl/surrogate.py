@@ -59,10 +59,21 @@ RESIDUAL_TARGETS = ("peaking_db", "f_peak", "dc_gain_db", "power_w")
 #: additive rather than multiplicative.
 DB_TARGETS = ("peaking_db", "dc_gain_db")
 
-#: metrics with no usable closed form, predicted directly (standardised).
+#: Metrics with no usable closed form, predicted directly (standardised).
+#:
+#: The last four are never scored. They are kept as auxiliary tasks: predicting
+#: the bias point forces the shared trunk to represent it, which is what the
+#: scored heads depend on anyway.
+#:
+#: `tap_ratio` is deliberately NOT here despite being the obvious fifth. It
+#: spans 0.006 to 1.5e5 in the collected data -- seven orders of magnitude --
+#: so after linear standardisation a handful of outliers dominate the direct
+#: heads' loss entirely: including it drove held-out R^2 to -6.1 on itself and
+#: dragged every other direct head down with it. It is diagnostic, not scored,
+#: and not worth a log-transform special case.
 DIRECT_TARGETS = ("gain_nyq_db", "hd3_db", "vn_in_rms", "eye_height_v",
                   "eye_width_ui", "eye_improvement", "eye_openness_in",
-                  "gm_m1", "gm_g1", "tap_ratio", "out_cm_v")
+                  "gm_m1", "gm_g1", "out_cm_v")
 
 #: booleans predicted as logits
 FLAG_TARGETS = ("saturated",)

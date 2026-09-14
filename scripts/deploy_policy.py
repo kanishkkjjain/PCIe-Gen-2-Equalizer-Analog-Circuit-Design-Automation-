@@ -100,7 +100,12 @@ def run_policy(model, sur, obj, spec, budget: int, max_steps: int) -> dict:
                       "u": [float(x) for x in u]})
         if obj.all_pass_everywhere(res):
             break
+        # `_t` must advance. The observation carries steps-remaining, and the
+        # policy was trained against a signal that decays to zero; leaving it
+        # pinned at "plenty of time left" feeds the policy a state it never saw
+        # in training and makes the last move look like the first.
         shim._u = u
+        shim._t = t
         obs = shim._obs(res.scored, res.scored["metrics"])
         action, _ = model.predict(obs, deterministic=True)
         u = np.clip(u + shim.step_scale * np.clip(action, -1, 1), 0.0, 1.0)

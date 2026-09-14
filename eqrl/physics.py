@@ -751,18 +751,48 @@ def analytic_start_u(spec, fit: PhysFit, corner_fields: dict | None = None,
     cout = float(np.atleast_1d(fit.cout(fixed["W"], fixed["L"],
                                         fixed["Wg1"]))[0])
 
+    rsum = analytic._rsum_for_midsupply(
+        _CornerLike(cf["vdd"]), fixed["Ig1"])
     tgt_pk = 0.5 * (spec.peaking_min_db + spec.peaking_max_db)
     tgt_f = 0.5 * (spec.fpeak_lo + spec.fpeak_hi)
     k_pk = max(0.25, fit.coef.get("k_pk", 1.0))
     k_f = max(0.25, fit.coef.get("k_f", 1.0))
 
-    rsum = analytic._rsum_for_midsupply(
-        _CornerLike(cf["vdd"]), fixed["Ig1"])
-
     def _build(t_pk, t_f, grid=None):
         RL, Rs, Cs = _solve_cached(gm, cout, t_pk, t_f, grid or n_grid)
         p = CtleParams(**fixed, tap_pct=tap, RL=RL, Rs=Rs, Cs=Cs, Rsum=rsum)
         return nl.norm({k: getattr(p, k) for k in PARAM_NAMES})
+
+    # --- set the DFE tap from the pulse response --------------------------
+    # The tap exists to cancel the first post-cursor, so it should be h[1]/h[0]
+    # -- which is a quantity this module computes. Measured across sampled
+    # goals that ratio is NEGATIVE, between -0.002 and -0.162, while tap_pct is
+    # bounded to [1, 30] and so can only ever be positive. A positive tap
+    # against a negative post-cursor ADDS to the ISI instead of removing it,
+    # and it shows: at TAP_PCT_START = 5 the starts with the largest |h[1]|
+    # have eye improvement 0.685 while those with the smallest have 1.035, and
+    # `equalises` -- which asks only that the circuit make the eye no worse --
+    # failed at 20 of 20 starts.
+    #
+    # So the tap is taken as close to the ideal as the bounds allow, which for
+    # a negative post-cursor is the floor. This is not a tuned constant: the
+    # shipped checkpoint-3 design, found by search, sits at tap_pct = 1.07.
+    # TAP_PCT_START = 5.0 was measured on the topology BEFORE this channel.
+    if tap_pct is None:
+        gm0 = float(np.atleast_1d(fit.gm_m1(fixed["W"], fixed["L"],
+                                            fixed["Itail"], cf["temp"]))[0])
+        gmg0 = float(np.atleast_1d(fit.gm_g1(
+            fixed["Wg1"], fixed["Ig1"], cf["temp"],
+            vgs=fit.vgs_g1(cf["vdd"], fixed["Itail"], 1500.0)))[0])
+        c0 = float(np.atleast_1d(fit.cout(fixed["W"], fixed["L"],
+                                          fixed["Wg1"]))[0])
+        RL0, Rs0, Cs0 = _solve_cached(gm, cout, tgt_pk * k_pk, tgt_f * k_f,
+                                      CALIB_N_GRID)
+        ey0 = eye_features(gm0, RL0, Rs0, Cs0, c0, gmg0, rsum, 5.0,
+                           getattr(spec, "ui_s", 200e-12))
+        h1 = float(np.atleast_1d(ey0["h_post1"])[0])
+        lo_t, hi_t = nl.PARAM_BOUNDS["tap_pct"]
+        tap = float(np.clip(100.0 * h1, lo_t, hi_t))
 
     ask_pk, ask_f = tgt_pk * k_pk, tgt_f * k_f
     if surrogate is None or not corners_cf:

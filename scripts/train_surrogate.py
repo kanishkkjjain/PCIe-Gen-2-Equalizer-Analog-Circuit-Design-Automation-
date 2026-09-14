@@ -149,8 +149,10 @@ def main() -> int:
     fit = PhysFit.fit(recs)
     for k, q in fit.quality.items():
         if "r2_log" in q:
-            print(f"  physfit {k}: R2(log)={q['r2_log']:.3f} "
-                  f"median rel err={q['median_rel_err']:.1%} (n={q['n']})")
+            err = (f" median rel err={q['median_rel_err']:.1%}"
+                   if "median_rel_err" in q else "")
+            print(f"  physfit {k}: R2(log)={q['r2_log']:.3f}{err} "
+                  f"(n={q['n']})")
         elif k == "calibration":
             print(f"  physfit calibration: the closed form reads "
                   f"{q['k_pk']:.2f}x high on peaking, {q['k_f']:.2f}x on "

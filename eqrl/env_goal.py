@@ -182,7 +182,7 @@ if _HAVE_GYM:
 
         def __init__(self, surrogate, goal_space: GoalSpace | None = None,
                      corners=None, max_steps: int = 20,
-                     step_scale: float = 0.1, seed: int | None = None,
+                     step_scale: float = 0.04, seed: int | None = None,
                      uncertainty_penalty: float = 0.1,
                      start_mix=(0.5, 0.3, 0.2), u_seed=None,
                      start_noise: float = 0.02):
@@ -193,6 +193,26 @@ if _HAVE_GYM:
             self.cfs = [{"process": c.process, "vdd": c.vdd, "temp": c.temp,
                          "rc": c.rc} for c in self.corners]
             self.max_steps = max_steps
+            # 0.04, not 0.1. The distance from the calibrated start to a
+            # solution is a median of 0.331 on the largest knob (max observed
+            # 0.428), so 20 steps of 0.1 gives the policy 2.0 per knob -- six
+            # times the authority it needs, and it used it: measured, 30.9 % of
+            # actions saturated, tap_pct at |a| = 1.000 on EVERY step and L at
+            # 0.927, which walks the channel length across most of its range
+            # and takes f_peak out of band with it. At 0.04 the reachable
+            # travel is 0.8, still more than twice the median requirement, but
+            # a saturated action is now a reasonable move rather than a lunge
+            # at a bound.
+            # 0.04, not 0.1. The distance from the calibrated start to a
+            # solution is a median of 0.331 on the largest knob (max observed
+            # 0.428), so 20 steps of 0.1 handed the policy 2.0 per knob -- six
+            # times the authority it needs, and it used all of it: measured,
+            # 30.9 % of actions saturated, tap_pct at |a| = 1.000 on EVERY step
+            # and L at 0.927, which walks the channel length across most of its
+            # range and drags f_peak out of band. At 0.04 the reachable travel
+            # is 0.8, still more than twice the median requirement, but a
+            # saturated action is a reasonable move rather than a lunge at a
+            # bound.
             self.step_scale = step_scale
             self.lam = uncertainty_penalty
             # (analytic start, uniform, fixed seed). The analytic share is what

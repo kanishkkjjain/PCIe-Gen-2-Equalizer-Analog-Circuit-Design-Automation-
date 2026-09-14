@@ -8,6 +8,7 @@ SPICE schematic, a JSON report, and diagnostic plots.
 import dataclasses
 import json
 import math
+import time
 from dataclasses import asdict
 from pathlib import Path
 
@@ -204,6 +205,7 @@ def run_design(spec: sp.EqualizerSpec | None = None,
                analytic_init: bool = True,
                jobs: int | None = None,
                fixed: dict | None = None,
+               eval_log: bool = True,
                verbose: bool = True) -> dict:
     spec = spec or sp.EqualizerSpec()
     if not do_eye and spec.require_eye:
@@ -220,23 +222,31 @@ def run_design(spec: sp.EqualizerSpec | None = None,
 
     # Search corners: typical only (fast) or a robust subset.
     if search_robust:
-        search_corners = [
-            pdk.Corner("tt", pdk.VDD_NOM, 27.0),
-            pdk.Corner("ss", pdk.VDD_CORNERS["lo"], 125.0),
-            pdk.Corner("ff", pdk.VDD_CORNERS["hi"], 0.0),
-            # The R/C axis MUST be in the robust set. sky130's named process
-            # corners move MOSFETs only, and R/C moves f_peak by 29.7% -- more
-            # than process does. `ll` is the worst f_peak corner, and f_peak is
-            # the single binding constraint, so a "robust" search without it
-            # converges to a design that fails full PVT on exactly that spec.
-            pdk.Corner("tt", pdk.VDD_NOM, 27.0, rc="ll"),
-        ]
+        # One definition, in pdk. The R/C axis MUST be in this set: sky130's
+        # named process corners move MOSFETs only, and R/C moves f_peak by
+        # 29.7% -- more than process does. `ll` is the worst f_peak corner, so
+        # a "robust" search without it converges to a design that fails full
+        # PVT on exactly that spec.
+        search_corners = pdk.robust_search_corners()
     else:
         search_corners = [pdk.typical_corner()]
 
+    # Every (candidate, corner) the search evaluates is appended to disk as it
+    # lands. These are expensive labels -- ~4.4 s of ngspice each -- and before
+    # this they lived only in Objective._cache and died with the process.
+    # Writing is on by default; READING a cache back into a search is not, so
+    # the launch counts a run reports stay honest.
+    log = None
+    if eval_log:
+        from .cache import EvalLog
+        log = EvalLog(f"cem_{time.strftime('%Y%m%d_%H%M%S')}",
+                      extra={"search_robust": search_robust,
+                             "do_eye": do_eye, "use_channel": use_channel})
+        log.open()
+
     obj = Objective(spec, sim, corners=search_corners,
                     fixed=fixed or {}, robust="min", do_eye=do_eye, jobs=jobs,
-                    use_channel=use_channel)
+                    use_channel=use_channel, log=log)
 
     cem_cfg = cem_cfg or cem_agent.CemConfig()
     if analytic_init:
@@ -354,6 +364,11 @@ def run_design(spec: sp.EqualizerSpec | None = None,
         json.dumps(_json_safe(report), indent=2, default=str, allow_nan=False))
     _plot(report, obj, best, out_dir)
 
+    if log is not None:
+        log.close()
+        if verbose:
+            print(f"\n  {log.n_written} evaluations kept in "
+                  f"results/evals/{log.tag}.jsonl")
     if verbose:
         _print_summary(report)
     return report

@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
+from pathlib import Path
 
 import pytest
 
@@ -120,3 +121,40 @@ def test_write_atomic_never_leaves_a_partial_file(d):
     write_atomic(p, "models/surrogate/20260915")
     assert p.read_text() == "models/surrogate/20260915"
     assert not list(p.parent.glob("*.tmp")), "temp file left behind"
+
+
+def test_the_robust_search_corners_have_one_definition():
+    """This list was copy-pasted into design.py, baseline.py and
+    seed_benchmark.py. A reward measured over a different corner set is not
+    comparable to the one report.json quotes, and the same fact in three files
+    is precisely how that drifts."""
+    import inspect
+
+    from eqrl import design
+    cs = pdk.robust_search_corners()
+    assert [c.name for c in cs] == ["tt_1.800V_27C", "ss_1.710V_125C",
+                                    "ff_1.890V_0C", "tt_ll_1.800V_27C"]
+    # the R/C axis must be present: sky130's named process corners move
+    # MOSFETs only, and R/C moves f_peak more than process does
+    assert any(c.rc == "ll" for c in cs)
+
+    for mod in (design,):
+        src = inspect.getsource(mod)
+        assert "robust_search_corners()" in src, (
+            f"{mod.__name__} no longer uses the shared definition")
+
+    for script in ("baseline.py", "seed_benchmark.py"):
+        src = (Path(__file__).resolve().parents[1] / "scripts" / script).read_text()
+        assert "robust_search_corners()" in src, (
+            f"scripts/{script} no longer uses the shared definition")
+
+
+def test_objective_can_write_every_evaluation_to_a_log():
+    """The hook that stops search results from dying with the process."""
+    import inspect
+
+    from eqrl.env import Objective
+    src = inspect.getsource(Objective.__init__)
+    assert "log" in inspect.signature(Objective.__init__).parameters
+    assert "self.log = log" in src
+    assert "self.log.append(" in inspect.getsource(Objective.evaluate_batch)

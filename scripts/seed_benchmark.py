@@ -50,15 +50,11 @@ ROOT = Path(__file__).resolve().parents[1]
 def _search_corners() -> list:
     """The same 4-corner robust set design.run_design(search_robust=True) uses.
 
-    Kept identical on purpose: a reward measured over a different corner set is
-    not comparable to the one report.json quotes.
+    Now one shared definition rather than a third copy: a reward measured over
+    a different corner set is not comparable to the one report.json quotes, and
+    the same fact living in three files is how that drifts.
     """
-    return [
-        pdk.Corner("tt", pdk.VDD_NOM, 27.0),
-        pdk.Corner("ss", pdk.VDD_CORNERS["lo"], 125.0),
-        pdk.Corner("ff", pdk.VDD_CORNERS["hi"], 0.0),
-        pdk.Corner("tt", pdk.VDD_NOM, 27.0, rc="ll"),
-    ]
+    return pdk.robust_search_corners()
 
 
 def _row(name: str, res, spec: sp.EqualizerSpec, obj: Objective) -> dict:

@@ -83,7 +83,12 @@ class Objective:
                  corners: list[pdk.Corner] | None = None,
                  fixed: dict | None = None, robust: str = "min",
                  do_eye: bool = False, jobs: int | None = None,
-                 use_channel: bool = False):
+                 use_channel: bool = False, log=None):
+        # An optional eqrl.cache.EvalLog. Every (candidate, corner) result is
+        # appended to it as it lands, so a search's labelled evaluations
+        # outlive the process instead of dying with self._cache -- roughly
+        # 1 650 of them were lost that way before this existed.
+        self.log = log
         self.spec = spec
         self.sim = sim
         self.corners = corners or [pdk.typical_corner()]
@@ -138,10 +143,16 @@ class Objective:
                     out = pool.map(_eval_task, tasks)
             else:
                 out = [_eval_task(t) for t in tasks]
+            corner_by_name = {c.name: c for c in self.corners}
             for dig, cname, m, launches in out:
-                results[by_key[dig]][cname] = sp.score(m, self.spec)
+                k = by_key[dig]
+                results[k][cname] = sp.score(m, self.spec)
                 self.n_sims += 1
                 self.n_launches += launches
+                if self.log is not None:
+                    self.log.append(k, corner_by_name[cname], m, meas,
+                                    params=params[k].as_dict(),
+                                    launches=launches)
             for k in todo:
                 per_corner = results[k]
                 rewards = [per_corner[c.name]["reward"] for c in self.corners]

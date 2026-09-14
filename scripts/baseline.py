@@ -66,10 +66,7 @@ def main() -> int:
         spec = dataclasses.replace(spec, require_eye=False)
     sim = Simulator(a.workdir, use_channel=a.channel,
                     meas=MeasCond.from_spec(spec))
-    corners = [pdk.Corner("tt", pdk.VDD_NOM, 27.0),
-               pdk.Corner("ss", pdk.VDD_CORNERS["lo"], 125.0),
-               pdk.Corner("ff", pdk.VDD_CORNERS["hi"], 0.0),
-               pdk.Corner("tt", pdk.VDD_NOM, 27.0, rc="ll")]
+    corners = pdk.robust_search_corners()
     obj = Objective(spec, sim, corners=corners, robust="min",
                     do_eye=a.eye, jobs=a.jobs, use_channel=a.channel)
 

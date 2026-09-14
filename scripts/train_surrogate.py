@@ -37,13 +37,14 @@ from eqrl.cache import git_sha, load, write_atomic
 from eqrl.physics import FEATURE_NAMES, PhysFit
 from eqrl.spice import MeasCond
 from eqrl.surrogate import (DIRECT_TARGETS, FLAG_TARGETS, MODEL_DIR,
+                            PEAK_FLOOR_DB,
                             RESIDUAL_TARGETS, Net, Surrogate, assemble,
                             residual_targets, split_by_candidate)
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _masked_gauss_nll(pred, target, mask, torch):
+def _masked_mse(pred, target, mask, torch):
     """Mean squared error over the entries that exist.
 
     Targets are missing in bulk and not at random -- an AC-only record has no
@@ -78,8 +79,8 @@ def train_member(Xtr, Rtr, Dtr, Ftr, Xva, Rva, Dva, Fva, seed, epochs, lr,
         net.train()
         opt.zero_grad()
         pr, pd, pf = net(xtr)
-        loss = (_masked_gauss_nll(pr, rtr, mrtr, torch)
-                + _masked_gauss_nll(pd, dtr, mdtr, torch)
+        loss = (_masked_mse(pr, rtr, mrtr, torch)
+                + _masked_mse(pd, dtr, mdtr, torch)
                 + 0.1 * bce(pf, ftr))
         loss.backward()
         opt.step()
@@ -87,8 +88,8 @@ def train_member(Xtr, Rtr, Dtr, Ftr, Xva, Rva, Dva, Fva, seed, epochs, lr,
         net.eval()
         with torch.no_grad():
             pr, pd, _ = net(xva)
-            vl = float(_masked_gauss_nll(pr, rva, mrva, torch)
-                       + _masked_gauss_nll(pd, dva, mdva, torch))
+            vl = float(_masked_mse(pr, rva, mrva, torch)
+                       + _masked_mse(pd, dva, mdva, torch))
         if vl < best - 1e-6:
             best, bad = vl, 0
             best_state = {k: v.clone() for k, v in net.state_dict().items()}
@@ -158,8 +159,14 @@ def main() -> int:
     Xtr = (Dtr_all["X"] - x_mean) / x_std
     Xva = (Dva_all["X"] - x_mean) / x_std
 
-    Rtr = residual_targets(Dtr_all["Yr"], Dtr_all["Br"])
-    Rva = residual_targets(Dva_all["Yr"], Dva_all["Br"])
+    j_pk = RESIDUAL_TARGETS.index("peaking_db")
+    Rtr = residual_targets(Dtr_all["Yr"], Dtr_all["Br"], Dtr_all["Yr"][:, j_pk])
+    Rva = residual_targets(Dva_all["Yr"], Dva_all["Br"], Dva_all["Yr"][:, j_pk])
+    # standardise each residual column: see Surrogate.r_std
+    with np.errstate(all="ignore"):
+        r_sd = np.nanstd(Rtr, 0)
+    r_std = np.where(~np.isfinite(r_sd) | (r_sd < 1e-12), 1.0, r_sd)
+    Rtr, Rva = Rtr / r_std, Rva / r_std
     with np.errstate(all="ignore"):
         d_mean = np.nanmean(Dtr_all["Yd"], 0)
         d_sd = np.nanstd(Dtr_all["Yd"], 0)
@@ -181,6 +188,7 @@ def main() -> int:
     print(f"  trained in {time.perf_counter() - t0:.1f}s")
 
     sur = Surrogate(fit, x_mean, x_std, d_mean, d_std, members, meas,
+                    r_std=r_std,
                     config={"tag": a.tag, "seed": a.seed,
                             "n_records": len(recs), "n_designs": n_designs,
                             "epochs": a.epochs, "val_frac": a.val_frac})
@@ -237,10 +245,18 @@ def validate(sur, va_records, spec, meas, Dva_all, Rva, Dva, a) -> dict:
     # per-metric held-out accuracy
     raw = sur.predict_raw(params, cfs)
     per_metric = {}
+    pk_meas = np.array([r["metrics"].get("peaking_db", np.nan)
+                        for r in va_records], float)
+    has_peak = pk_meas >= PEAK_FLOOR_DB
     for k in RESIDUAL_TARGETS + DIRECT_TARGETS:
         y = np.array([r["metrics"].get(k, np.nan) for r in va_records], float)
         p = np.asarray(raw[k], float)
         m = np.isfinite(y) & np.isfinite(p)
+        if k == "f_peak":
+            # not modelled where SPICE reports the sweep start instead of a
+            # peak, so not scored there either -- scoring a masked target
+            # measures the arbitrary output of an untrained head
+            m &= has_peak
         if m.sum() < 5:
             continue
         ss_res = float(np.sum((y[m] - p[m]) ** 2))
@@ -261,6 +277,16 @@ def validate(sur, va_records, spec, meas, Dva_all, Rva, Dva, a) -> dict:
             b_.append(bool(sp.score(mr, spec)["pass"].get(k)))
         agree[k] = float(np.mean(np.array(a_) == np.array(b_)))
 
+    # The reward gate clips to 0.2 on `not saturated`, so a misclassifying
+    # surrogate hands the policy a boundary to exploit. Reported per class:
+    # overall accuracy hides the case where everything is called saturated.
+    y_sat = np.array([bool(r["metrics"].get("saturated")) for r in va_records])
+    p_sat = np.asarray(raw["saturated"], float) >= 0.5
+    sat = {"accuracy": float(np.mean(y_sat == p_sat)),
+           "n_true": int(y_sat.sum()), "n_pred_true": int(p_sat.sum()),
+           "recall_saturated": float(np.mean(p_sat[y_sat])) if y_sat.any() else None,
+           "recall_unsaturated": float(np.mean(~p_sat[~y_sat])) if (~y_sat).any() else None}
+
     # ---- the three-way comparison that can embarrass the approach ---------
     three = three_way(sur, va_records, Dva_all, Rva, Dva, spec, meas, a)
 
@@ -272,6 +298,7 @@ def validate(sur, va_records, spec, meas, Dva_all, Rva, Dva, a) -> dict:
                              "predicted vs real, on held-out DESIGNS"},
         "per_metric": per_metric,
         "pass_agreement": agree,
+        "saturated_classifier": sat,
         "three_way": three,
         "physfit_quality": sur.fit.quality,
     }
@@ -292,6 +319,9 @@ def three_way(sur, va_records, Dva_all, Rva, Dva, spec, meas, a) -> dict:
         pred = np.asarray(sur.predict_raw([r["params"] for r in va_records],
                                           [r["corner_fields"] for r in va_records])[k], float)
         m = np.isfinite(y) & np.isfinite(base) & np.isfinite(pred)
+        if k == "f_peak":
+            m &= np.asarray(Dva_all["Yr"][:, RESIDUAL_TARGETS.index("peaking_db")],
+                            float) >= PEAK_FLOOR_DB
         if m.sum() < 5:
             continue
 

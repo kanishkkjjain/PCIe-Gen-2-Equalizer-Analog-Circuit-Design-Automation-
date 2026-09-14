@@ -13,3 +13,8 @@ scipy>=1.11
 matplotlib>=3.8
 gymnasium>=1.0      # only needed for the CtleEnv deep-RL interface
 pytest>=8.0         # test suite
+# model-based RL (checkpoint 5). CPU wheels are enough -- the bottleneck is
+# ngspice model parsing, not matrix maths, so a GPU does not help the loop.
+#   pip install --break-system-packages torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.0
+stable-baselines3>=2.0

@@ -24,3 +24,7 @@ spinit
 .idea/
 *.swp
 .DS_Store
+
+# long-run operational files
+logs/
+models/*/ckpt_*

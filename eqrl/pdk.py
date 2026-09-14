@@ -163,3 +163,26 @@ def corner_lib_line(process: str) -> str:
     """Build the ``.lib`` include line selecting a process corner."""
     lib = find_sky130_lib()
     return f'.lib "{lib}" {process}'
+
+
+def robust_search_corners() -> list[Corner]:
+    """The 4-corner set the search ranks candidates over.
+
+    One definition, because this list was copy-pasted into design.py,
+    baseline.py and seed_benchmark.py -- the same fact in three files, which is
+    exactly the drift class this project keeps being bitten by. A reward
+    measured over a different corner set is not comparable to the one
+    report.json quotes, so the set must come from one place.
+
+    tt/nom  typical
+    ss/lo/hot   slow devices, low supply, 125 C -- worst gain and headroom
+    ff/hi/cold  fast devices, high supply, 0 C  -- worst distortion and power
+    tt/ll       typical MOS with low R/C -- sky130 keeps R/C on its own axis,
+                and the RC extreme moves f_peak more than the named corners do
+    """
+    return [
+        Corner("tt", VDD_NOM, 27.0),
+        Corner("ss", VDD_CORNERS["lo"], 125.0),
+        Corner("ff", VDD_CORNERS["hi"], 0.0),
+        Corner("tt", VDD_NOM, 27.0, rc="ll"),
+    ]

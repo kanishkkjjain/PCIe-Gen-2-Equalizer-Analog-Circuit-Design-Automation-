@@ -70,6 +70,45 @@ def held_out_specs(space: GoalSpace, n: int, seed: int = EVAL_SEED) -> list:
     return [space.sample(rng) for _ in range(n)]
 
 
+def feasible_ceiling(specs, tag: str = "collect") -> dict:
+    """How many of these specs is anything at all known to satisfy?
+
+    G2 as a fraction of the evaluation set is misleading on its own. The goal
+    space is calibrated so that roughly half of sampled specs have a
+    demonstrated solution among the collected designs; a policy solving 45 % of
+    them may be solving nearly everything solvable. Measuring against a ceiling
+    that is not 100 % is the difference between "the policy is weak" and "the
+    goal space is the constraint", and those call for opposite responses.
+
+    This is a LOWER bound on what is achievable -- the policy can reach designs
+    nobody simulated -- so a success rate above it is not a contradiction.
+    """
+    try:
+        from eqrl.cache import load
+        from eqrl.spice import MeasCond
+        import importlib.util
+        cg = ROOT / "scripts" / "calibrate_goals.py"
+        spec_ = importlib.util.spec_from_file_location("calibrate_goals", cg)
+        mod = importlib.util.module_from_spec(spec_)
+        spec_.loader.exec_module(mod)
+
+        recs = list(load(tag, meas=MeasCond.from_spec(sp.EqualizerSpec())
+                         ).records.values())
+        designs = [m for m in mod.worst_by_design(recs) if m.saturated]
+        if not designs:
+            return {}
+        n_ok = 0
+        for g in specs:
+            if any(all(sp.score(m, g)["pass"].get(k) for k in sp.BRIEF_SPECS)
+                   for m in designs):
+                n_ok += 1
+        return {"n_specs": len(specs), "n_demonstrably_feasible": n_ok,
+                "fraction": n_ok / max(1, len(specs)),
+                "n_saturated_designs": len(designs)}
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
 def rollout(policy, env, spec, max_steps: int) -> dict:
     """One greedy episode against one spec. Returns what G2 is computed from."""
     obs, info = env.reset(options={"spec": spec})
@@ -172,10 +211,23 @@ def main() -> int:
     # subprocess overhead exceeds the work, and while data collection is running
     # 16 extra processes would simply fight the ngspice workers for cores.
     venv = DummyVecEnv([make(i) for i in range(a.envs)])
+    # G2 is measured from the SAME starting point deploy uses: the
+    # hand-calculated design for that spec. Training keeps the mixture (uniform
+    # and seed starts are exploration), but scoring the policy from starts it
+    # never meets in deployment would give any G2 -> G3 drop a cause that has
+    # nothing to do with the method.
     eval_env = GoalCtleEnv(sur, space, seed=12345,
                            max_steps=a.max_episode_steps,
-                           uncertainty_penalty=0.0, u_seed=u_seed)
+                           uncertainty_penalty=0.0, u_seed=u_seed,
+                           start_mix=(1.0, 0.0, 0.0))
     specs = held_out_specs(space, a.n_eval)
+    ceiling = feasible_ceiling(specs)
+    if ceiling.get("n_specs"):
+        print(f"  of the {ceiling['n_specs']} held-out specs, "
+              f"{ceiling['n_demonstrably_feasible']} "
+              f"({ceiling['fraction']:.0%}) are satisfied by at least one of "
+              f"{ceiling['n_saturated_designs']} collected designs -- that is "
+              f"the demonstrated floor on what is reachable, not a hard cap")
 
     POLICY_DIR.mkdir(parents=True, exist_ok=True)
     done_steps = 0
@@ -215,12 +267,19 @@ def main() -> int:
 
         ev = evaluate(model, eval_env, specs, a.max_episode_steps)
         rec = {"steps": done_steps, "wall_s": time.perf_counter() - t0,
-               "eval_seed": EVAL_SEED, **ev}
+               "eval_seed": EVAL_SEED, "feasible_ceiling": ceiling, **ev}
+        if ceiling.get("n_demonstrably_feasible"):
+            rec["success_vs_feasible"] = (
+                ev["success_rate"] * ev["n"]
+                / ceiling["n_demonstrably_feasible"])
         append_eval(rec)
         best_rate = max(best_rate, ev["success_rate"])
-        print(f"  {done_steps:>8} steps  success {ev['success_rate']:.1%}  "
-              f"mean best reward {ev['mean_best_reward']:.3f}  "
-              f"steps-to-solve {ev['mean_steps_to_solve']}  "
+        vs_feas = rec.get("success_vs_feasible")
+        print(f"  {done_steps:>8} steps  success {ev['success_rate']:.1%}"
+              + (f" ({vs_feas:.0%} of demonstrably feasible)"
+                 if vs_feas is not None else "")
+              + f"  reward {ev['mean_best_reward']:.3f}  "
+              f"steps {ev['mean_steps_to_solve']}  "
               f"unc {ev['mean_uncertainty']:.3f}  "
               f"[{(time.perf_counter() - t0) / 60:.1f}m]", flush=True)
 

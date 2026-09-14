@@ -91,8 +91,12 @@ def collection() -> None:
                   f"{res.n_skipped_meas} meas-mismatch")
         ts = sorted(r["t"] for r in res.records.values())
         if len(ts) > 30:
-            recent = ts[-30:]
-            rate = 30 / max(1e-9, recent[-1] - recent[0]) * 60
+            # over the last 300, not 30: fourteen workers finish in bursts, and
+            # a 30-record window swung the reported rate between 32 and 53/min
+            # on a run whose true rate never moved
+            w = min(300, len(ts))
+            recent = ts[-w:]
+            rate = w / max(1e-9, recent[-1] - recent[0]) * 60
             left = (total - n) / rate if rate > 0 else float("inf")
             print(f"    {rate:.1f} rec/min, last {_age(ts[-1])}, "
                   f"eta {left / 60:.1f} h")

@@ -166,6 +166,9 @@ def main() -> int:
     ap.add_argument("--ent-coef", type=float, default=0.005)
     ap.add_argument("--max-episode-steps", type=int, default=20)
     ap.add_argument("--uncertainty-penalty", type=float, default=0.1)
+    ap.add_argument("--start-noise", type=float, default=0.02,
+                    help="noise on a derived start during TRAINING. The "
+                         "evaluation env always uses 0, matching deployment.")
     ap.add_argument("--ckpt-every", type=int, default=50_000)
     ap.add_argument("--eval-every", type=int, default=50_000)
     ap.add_argument("--n-eval", type=int, default=25)
@@ -204,7 +207,7 @@ def main() -> int:
             return GoalCtleEnv(sur, space, seed=a.seed + i,
                                max_steps=a.max_episode_steps,
                                uncertainty_penalty=a.uncertainty_penalty,
-                               u_seed=u_seed)
+                               u_seed=u_seed, start_noise=a.start_noise)
         return _f
 
     # DummyVecEnv, not SubprocVecEnv: each step is a small CPU forward pass, so
@@ -216,10 +219,14 @@ def main() -> int:
     # and seed starts are exploration), but scoring the policy from starts it
     # never meets in deployment would give any G2 -> G3 drop a cause that has
     # nothing to do with the method.
+    # start_noise=0: deployment starts from the calibrated design exactly, so
+    # G2 must be measured from there too. Perturbing it would score the policy
+    # from starts it never meets in deployment AND would undo the f_peak
+    # calibration the start exists to provide.
     eval_env = GoalCtleEnv(sur, space, seed=12345,
                            max_steps=a.max_episode_steps,
                            uncertainty_penalty=0.0, u_seed=u_seed,
-                           start_mix=(1.0, 0.0, 0.0))
+                           start_mix=(1.0, 0.0, 0.0), start_noise=0.0)
     specs = held_out_specs(space, a.n_eval)
     ceiling = feasible_ceiling(specs)
     if ceiling.get("n_specs"):

@@ -184,7 +184,8 @@ if _HAVE_GYM:
                      corners=None, max_steps: int = 20,
                      step_scale: float = 0.1, seed: int | None = None,
                      uncertainty_penalty: float = 0.1,
-                     start_mix=(0.5, 0.3, 0.2), u_seed=None):
+                     start_mix=(0.5, 0.3, 0.2), u_seed=None,
+                     start_noise: float = 0.02):
             super().__init__()
             self.sur = surrogate
             self.space = goal_space or GoalSpace.load()
@@ -200,6 +201,14 @@ if _HAVE_GYM:
             self.start_mix = np.asarray(start_mix, float) / np.sum(start_mix)
             self.u_seed = (np.asarray(u_seed, float) if u_seed is not None
                            else np.full(N_U, 0.5))
+            # Noise added to a derived start. It is exploration, but it is also
+            # destructive: the analytic start is CALIBRATED so that f_peak sits
+            # inside the goal's band at all four corners, and N(0, 0.1) undoes
+            # that -- measured, the start is in band on 18 of 20 goals but only
+            # 9 of 20 survive the perturbation. Deployment applies no noise at
+            # all, so the evaluation env uses 0 and training uses a smaller
+            # value than it did.
+            self.start_noise = float(start_noise)
 
             self.action_space = spaces.Box(-1.0, 1.0, (N_U,), np.float32)
             self.observation_space = spaces.Box(-5.0, 5.0, (OBS_DIM,),
@@ -268,11 +277,11 @@ if _HAVE_GYM:
                 u0 = np.asarray(analytic_start_u(
                     self._spec, self.sur.fit,
                     surrogate=self.sur, corners_cf=self.cfs), float)
-                u0 = u0 + self._rng.normal(0, 0.1, N_U)
+                u0 = u0 + self._rng.normal(0, self.start_noise, N_U)
             elif kind == 1:
                 u0 = self._rng.uniform(0.0, 1.0, N_U)
             else:
-                u0 = self.u_seed + self._rng.normal(0, 0.1, N_U)
+                u0 = self.u_seed + self._rng.normal(0, self.start_noise, N_U)
             self._u = np.clip(u0, 0.0, 1.0)
             self._t = 0
 

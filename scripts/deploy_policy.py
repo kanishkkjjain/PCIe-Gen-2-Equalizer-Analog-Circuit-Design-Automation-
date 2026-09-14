@@ -240,20 +240,22 @@ def main() -> int:
 
         for method in ("policy", "cem"):
             t0 = time.perf_counter()
+            # The log goes INTO the Objective, so each (candidate, corner)
+            # lands on disk the moment it is simulated. Draining obj.history
+            # after the rollout instead -- which is what this did first -- means
+            # a spec interrupted halfway contributes nothing, and the file sits
+            # there at zero bytes looking like it worked. Measured: the smoke
+            # run produced a deploy_spec0_policy.jsonl of 0 rows.
             with EvalLog(f"deploy_{sid}_{method}",
                          extra={"spec_id": sid, "method": method}) as log:
                 obj = Objective(spec, sim, corners=corners, robust="min",
-                                do_eye=True, jobs=a.jobs, use_channel=True)
+                                do_eye=True, jobs=a.jobs, use_channel=True,
+                                log=log)
                 if method == "policy":
                     out = run_policy(model, sur, obj, spec, a.budget,
                                      a.max_steps)
                 else:
                     out = run_cem(obj, spec, a.budget, sur)
-                for r in obj.history:
-                    for cname, sc in r.per_corner.items():
-                        c = next(c for c in corners if c.name == cname)
-                        log.append(r.u, c, sc["metrics"], meas,
-                                   params=r.params.as_dict(), note=method)
             wall = time.perf_counter() - t0
             solved = bool(out["res"] is not None
                           and obj.all_pass_everywhere(out["res"]))

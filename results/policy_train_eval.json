@@ -1,0 +1,15 @@
+{
+ "git_sha": "6470990",
+ "evals": [
+  {
+   "steps": 51200,
+   "wall_s": 243.6593629869967,
+   "eval_seed": 777,
+   "n": 20,
+   "success_rate": 0.05,
+   "mean_steps_to_solve": 3.0,
+   "mean_best_reward": 0.7330177782218965,
+   "mean_uncertainty": 0.23355952927931437
+  }
+ ]
+}

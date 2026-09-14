@@ -18,9 +18,10 @@ repeated candidates never re-simulate.
 from __future__ import annotations
 
 import hashlib
+import multiprocessing
 import os
+import sys
 from dataclasses import dataclass
-from multiprocessing import Pool
 from pathlib import Path
 
 import numpy as np
@@ -139,7 +140,8 @@ class Objective:
             by_key = {self._digest(k): k for k in todo}
             results: dict[tuple, dict] = {k: {} for k in todo}
             if self.jobs > 1 and len(tasks) > 1:
-                with Pool(min(self.jobs, len(tasks))) as pool:
+                ctx = self._pool_context()
+                with ctx.Pool(min(self.jobs, len(tasks))) as pool:
                     out = pool.map(_eval_task, tasks)
             else:
                 out = [_eval_task(t) for t in tasks]
@@ -170,6 +172,31 @@ class Objective:
                 self._cache[k] = res
                 self.history.append(res)
         return [self._cache[k] for k in keys]
+
+    @staticmethod
+    def _pool_context():
+        """Fork is unsafe once torch has been imported; spawn a clean one.
+
+        `fork` copies only the calling thread but the whole address space,
+        locks included. torch starts an OpenMP thread pool at import, so a fork
+        taken while one of those threads holds an internal mutex hands the
+        child a lock nothing will ever release, and the child blocks on it
+        forever.
+
+        Measured here rather than inferred. The deployment harness -- the one
+        script that loads a policy and then drives real SPICE -- hung with
+        three Pool workers defunct, the fourth asleep in `futex_wait_queue`,
+        no ngspice running at all, and the parent in `do_wait`. `pool.map`
+        waits forever for results from workers that will never produce them,
+        so the symptom is a silent hang rather than an error, and it looked
+        exactly like a slow simulation.
+
+        Everything that does not import torch (design.py, pvt_sweep,
+        collect_data) keeps `fork`, which starts much faster -- spawn
+        re-imports eqrl in every worker.
+        """
+        return multiprocessing.get_context(
+            "spawn" if "torch" in sys.modules else "fork")
 
     @staticmethod
     def _digest(key: tuple) -> str:

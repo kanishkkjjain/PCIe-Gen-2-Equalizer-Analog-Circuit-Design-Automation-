@@ -292,6 +292,13 @@ def score(m: Metrics, spec: EqualizerSpec) -> dict:
     n_pass = sum(1 for v in passd.values() if v)
     reward = ((1.0 - HARD_PASS_WEIGHT) * reward
               + HARD_PASS_WEIGHT * n_pass / max(1, len(passd)))
+    # The gates below CLIP the reward, so two designs that both trip a gate
+    # score identically however different they are -- measured, the box centre
+    # and the analytic seed both came out at exactly 0.3000, which makes the
+    # reward useless for comparing them. `reward_raw` is the ungated value,
+    # reported for diagnostics only. THE SEARCH MUST KEEP USING `reward`: the
+    # clipping is what stops it exploring invalid regions.
+    reward_raw = reward
     # gate: if bias invalid, cap reward low (invalid operating point)
     if not m.saturated:
         reward = min(reward, 0.2)
@@ -300,7 +307,8 @@ def score(m: Metrics, spec: EqualizerSpec) -> dict:
     if not equalises:
         reward = min(reward, 0.3)
 
-    return {"reward": float(reward), "scores": s, "pass": passd, "metrics": m}
+    return {"reward": float(reward), "reward_raw": float(reward_raw),
+            "scores": s, "pass": passd, "metrics": m}
 
 
 def margins(m: Metrics, spec: EqualizerSpec) -> dict:

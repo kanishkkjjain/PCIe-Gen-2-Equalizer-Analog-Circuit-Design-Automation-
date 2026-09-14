@@ -171,3 +171,49 @@ def test_report_pass_dict_splits_into_brief_and_internal():
         f"report is missing brief specs: {sorted(set(sp.BRIEF_SPECS) - keys)}")
     assert keys <= known, (
         f"report scores keys the code does not define: {sorted(keys - known)}")
+
+
+# --------------------------------------------------------------------------
+# 4. the seed-vs-search comparison must stay pinned to its artifact
+# --------------------------------------------------------------------------
+SEEDBENCH = ROOT / "results" / "seed_vs_search.json"
+
+
+@pytest.mark.skipif(not SEEDBENCH.exists(), reason="no seed_vs_search.json")
+def test_seed_benchmark_reproduces_the_report():
+    """The 'after CEM' row is scored through the same Objective as the search.
+
+    If it does not reproduce report.json exactly, the harness is measuring under
+    different conditions -- and the other two rows, which are the whole point of
+    the comparison, mean nothing. This is the check that can actually fail.
+    """
+    d = json.loads(SEEDBENCH.read_text())
+    r = json.loads(REPORT.read_text())
+    cem = next(x for x in d["rows"] if x["name"] == "after CEM")
+
+    assert cem["reward_worst_corner"] == pytest.approx(r["curve"][-1], abs=1e-9)
+    assert cem["pvt"]["all_pass_everywhere"] is r["pvt_meets_all"]
+    assert cem["pvt"]["binding"][0] == r["binding_spec"][0]
+    assert cem["pvt"]["binding"][1] == pytest.approx(r["binding_spec"][1], abs=1e-9)
+    for k, v in r["margins_worst"].items():
+        assert cem["pvt"]["margins"][k] == pytest.approx(v, abs=1e-9), k
+
+
+@pytest.mark.skipif(not SEEDBENCH.exists(), reason="no seed_vs_search.json")
+def test_docs_quote_the_measured_seed_numbers_not_the_stale_ones():
+    """HANDOVER 5 carried "box centre 0.522 (5/9), analytic 0.999 (9/9)" long
+    after the scorer, topology and corner set had all changed under it."""
+    d = json.loads(SEEDBENCH.read_text())
+    by = {x["name"]: x for x in d["rows"]}
+    seed, cem = by["analytic seed"], by["after CEM"]
+
+    blob = _read("HANDOVER.md") + _read("README.md") + _read("VERIFY.md")
+    assert "0.522" not in blob and "0.999 (9/9)" not in blob, (
+        "the stale typical-corner seed figures are back in the docs")
+
+    # the figures the docs now quote must come from the artifact
+    assert f"{seed['pvt']['brief_specs_passed']} / 8" in blob \
+        or f"{seed['pvt']['brief_specs_passed']}/8" in blob
+    assert f"{seed['reward_ungated']:.4f}" in blob, (
+        f"docs should quote the measured seed reward {seed['reward_ungated']:.4f}")
+    assert f"{cem['reward_ungated']:.4f}" in blob

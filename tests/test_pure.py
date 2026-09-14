@@ -1098,3 +1098,29 @@ def test_no_channel_means_the_equalises_check_is_not_asked():
     sc = sp.score(m, sp.EqualizerSpec())
     assert sc["pass"]["equalises"] is True
     assert sc["reward"] > 0.8, "channel-free evaluation must not be gated"
+
+
+def test_gated_designs_are_still_separable_by_reward_raw():
+    """The validity gates CLIP the reward, so two designs that both trip a gate
+    score identically however different they are.
+
+    Measured: the box centre and the analytic seed both came out at exactly
+    0.3000, which made the reward useless for the one comparison it was being
+    asked to make (how much does the hand calculation buy?). `reward_raw` is the
+    ungated value. The SEARCH must keep using `reward` -- the clipping is what
+    steers it out of invalid regions -- so this is reporting only.
+    """
+    bad = _good_metrics(); bad.channel_present = True; bad.eye_improvement = 0.5
+    worse = _good_metrics(); worse.channel_present = True; worse.eye_improvement = 0.5
+    worse.peaking_db = 30.0                       # also far outside the band
+    a, b = sp.score(bad, sp.EqualizerSpec()), sp.score(worse, sp.EqualizerSpec())
+    assert a["reward"] == b["reward"] == pytest.approx(0.3), "both must be gated"
+    assert a["reward_raw"] > b["reward_raw"], (
+        "reward_raw must still separate two gated designs "
+        f"({a['reward_raw']:.4f} vs {b['reward_raw']:.4f})")
+
+
+def test_reward_raw_equals_reward_when_no_gate_trips():
+    m = _good_metrics()
+    sc = sp.score(m, sp.EqualizerSpec())
+    assert sc["reward"] == pytest.approx(sc["reward_raw"])

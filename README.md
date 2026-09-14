@@ -40,6 +40,12 @@ Eye height alone cannot show this, because summing-stage gain is a free
 variable (it correlates with eye height at 0.98, peaking at 0.47), so openness
 — opening as a fraction of the swing at the same node — is scored instead.
 
+**What the RL adds over the hand calculation:** the analytic seed alone reaches
+**5 of 8** brief specs (it fails eye height, eye width and HD3 across PVT);
+after CEM it is **8 of 8**. The equations solve 4 of the 11 knobs from the AC
+response and model no distortion, noise, eye or power — so the spec that now
+binds is one they cannot see. `results/seed_vs_search.json`.
+
 Eye measured at **200 mV pp** transmitter drive — conservative
 against a real Gen2 transmitter's ~800 mV. Converged at iteration
 2 of 15; 800 ngspice launches. Full write-up in
@@ -54,9 +60,10 @@ against a real Gen2 transmitter's ~800 mV. Converged at iteration
 | Closed-loop DFE in SPICE (ideal comparator + 1 UI latch) | ✅ |
 | **RL loop end-to-end, 8/8 brief specs at 20/20 corners** | ✅ |
 | Automatic analytic starting point (no hand-seeding) | ✅ |
-| Test suite (164: 127 fast + 37 against ngspice) | ✅ all passing |
+| Test suite (168: 131 fast + 37 against ngspice) | ✅ all passing |
 | **Schematic output** (we emit netlists) | ❌ |
 | **Sweep-vs-RL baseline** — CEM 0.987 (passes) vs random 0.726 (0/95) | ✅ |
+| **Seed-vs-search measured** — analytic 5/8 specs → after CEM 8/8 | ✅ |
 | Runtime "tunable" mechanism · Anaconda env · LLM wrapper | ❌ |
 
 ## Why CEM (not deep RL)
@@ -82,7 +89,7 @@ eqrl/
   env.py        Objective (parallel, cached) + Gymnasium CtleEnv
   agents/cem.py Cross-Entropy-Method policy search
   design.py     orchestrator: specs in -> sized decks + report.json
-tests/          164 total: 127 pure (no PDK, ~5 s) + 37 against real ngspice
+tests/          168 total: 131 pure (no PDK, ~5 s) + 37 against real ngspice
 scripts/        run_design, build_trimlib, pvt_sweep, smoke_test, plotting,
                 baseline (random search at an equal candidate budget)
 netlists/       xschem schematics -- CROSS-CHECK ONLY, currently STALE
@@ -106,7 +113,7 @@ ngspice-42 (XSPICE + KLU), xschem 3.4.4, Python 3.12. SKY130 via volare.
 ## Run
 
 ```bash
-python3 -m pytest tests/ -q                        # 164 tests, ~2 min
+python3 -m pytest tests/ -q                        # 168 tests, ~2 min
 python3 scripts/build_trimlib.py --grid spec       # 22.4x faster evaluations
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
 ```

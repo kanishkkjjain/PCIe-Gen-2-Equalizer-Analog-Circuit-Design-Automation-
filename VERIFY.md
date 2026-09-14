@@ -16,8 +16,8 @@ The fastest check that nothing is broken. The pure tier needs no PDK and no
 ngspice, so it runs anywhere in under a second:
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 127 tests, ~5 s, no PDK
-python3 -m pytest tests/ -q                      # all 164, ~2 min with the PDK
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 131 tests, ~5 s, no PDK
+python3 -m pytest tests/ -q                      # all 168, ~2 min with the PDK
 ```
 
 Two of those tests are worth reading on their own, because they pin device-model
@@ -466,7 +466,22 @@ for name, p in (("analytic",   analytic.initial_design(spec, sim)),
 EOF
 ```
 
-Measured: analytic 0.999 (9/9), box centre 0.522 (5/9).
+Measured **at the typical corner only**, which flatters both — the real
+comparison is across PVT and is what `scripts/seed_benchmark.py` reports:
+
+```bash
+python3 scripts/seed_benchmark.py     # ~1.7 min, writes results/seed_vs_search.json
+```
+
+| design point | ungated reward | brief specs over 20 corners |
+|---|---|---|
+| blind start | 0.4631 | 3 / 8 |
+| analytic seed | 0.9050 | 5 / 8 (fails eye_h, eye_w, hd3) |
+| after CEM | 0.9873 | 8 / 8 — passes |
+
+The `after CEM` row is checked against `report.json`: reward, binding spec and
+all eight margins must agree to 1e-9, or the harness is measuring under
+different conditions and the other two rows mean nothing.
 
 ## 13. The reward can actually see a spec boundary
 

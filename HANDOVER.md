@@ -125,7 +125,7 @@ reference design, which labels them "(Ideal)" too.
 
 ```bash
 cd ~/pcie_eq_rl
-python3 -m pytest tests/ -q                              # 164 tests
+python3 -m pytest tests/ -q                              # 168 tests
 python3 scripts/smoke_test.py                            # SPICE layer sanity
 python3 scripts/build_trimlib.py --grid spec             # 5.7x less model text
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
@@ -188,12 +188,13 @@ shipping an `environment.yml` remains an open conformance item.
 │   └── agents/cem.py        Cross-Entropy-Method policy search
 ├── tests/
 │   ├── conftest.py          the `needs_pdk` marker
-│   ├── test_pure.py         122 tests, no PDK needed, ~5 s
+│   ├── test_pure.py         124 tests, no PDK needed, ~5 s
 │   └── test_spice.py        37 tests against real ngspice
 ├── scripts/
 │   ├── run_design.py        CLI entry point
 │   ├── build_trimlib.py     build + VALIDATE trimmed model libraries
 │   ├── baseline.py          random search at an equal budget (§11, run)
+│   ├── seed_benchmark.py    blind vs analytic seed vs after-CEM (§5)
 │   ├── pvt_sweep.py         parallel PVT sweep of every spec, with timing
 │   ├── smoke_test.py        SPICE-layer sanity checks (asserts)
 │   ├── plot_eye.py          render the closed-loop eye diagram
@@ -356,8 +357,29 @@ search at the centre of an 11-dimensional box. `gm` and `Cout` are **measured**
 from an `.op` at run time and the result is **calibrated against SPICE in a
 closed loop** (damped — undamped it oscillates, §10 bug 18). That makes it smart
 initialisation, not a hand-tuned seed, which matters for the brief's "zero human
-intervention". Measured: box centre scores 0.522 (5/9 specs), this scores 0.999
-(9/9).
+intervention".
+
+**What it is worth, measured** (`scripts/seed_benchmark.py`,
+`results/seed_vs_search.json` — all three points scored through the same
+`Objective`, corners and scorer the search used):
+
+| design point | ungated reward | brief specs, 20 corners | binding |
+|---|---|---|---|
+| blind start (box centre) | 0.4631 | **3 / 8** | `fpeak` −99.9% |
+| **analytic seed** | **0.9050** | **5 / 8** | `eye_h` −44.8% |
+| after CEM | 0.9873 | **8 / 8**, PASS | `hd3` +4.1% |
+
+So the equations do most of the *distance* (0.46 → 0.91) and none of the
+*compliance*: the seed still fails **eye height, eye width and HD3** across the
+20 corners, and trips the `equalises` check. That is exactly the shape you would
+predict from what `analytic.py` models — it solves 4 of the 11 knobs from the
+small-signal AC equations and has **no model of distortion, noise, eye or
+power**, so the constraint that now binds (HD3, at −26.3 dBc against a −30 dBc
+limit) is one it cannot see. The search's job is everything the equations are
+blind to.
+
+Read the gated `reward` column with care: both non-compliant rows clip to
+exactly 0.3000 at the `equalises` gate, so only `reward_raw` separates them.
 
 ### `eqrl/trimlib.py` — trimmed model libraries
 Writes a per-corner `.lib` holding only the devices this design instantiates
@@ -1258,9 +1280,9 @@ No remote is configured. `git remote add origin <url>` when you have one.
 ```bash
 export PDK_ROOT=/home/kanishk/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b
 
-# tests: 164 total -- 127 fast (no PDK) + 37 against real ngspice.
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 127, ~5 s
-python3 -m pytest tests/ -q                      # all 164, ~2 min
+# tests: 168 total -- 131 fast (no PDK) + 37 against real ngspice.
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 131, ~5 s
+python3 -m pytest tests/ -q                      # all 168, ~2 min
 
 # SPICE layer sanity (asserts, so it can fail)
 python3 scripts/smoke_test.py
@@ -1329,13 +1351,13 @@ parsing no matter how small the circuit — so anything provable without a
 simulator should be.
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 127 tests, ~5 s, no PDK
-python3 -m pytest tests/ -q                      # all 164, ~2 min
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 131 tests, ~5 s, no PDK
+python3 -m pytest tests/ -q                      # all 168, ~2 min
 ```
 
 | tier | file | needs | covers |
 |---|---|---|---|
-| pure | `tests/test_pure.py` (122) | nothing | value↔geometry round trips, `denorm`/`norm`, corner→`.lib` section names, PRBS, eye metrics, the scorer's NaN and gating behaviour, netlist text invariants, the Gymnasium env |
+| pure | `tests/test_pure.py` (124) | nothing | value↔geometry round trips, `denorm`/`norm`, corner→`.lib` section names, PRBS, eye metrics, the scorer's NaN and gating behaviour, netlist text invariants, the Gymnasium env |
 | spice | `tests/test_spice.py` (37) | PDK + ngspice | device-model conventions (`m=` vs `mult=`, `W` total vs per-finger), every analysis, the tap polarity, the combined deck's equivalence, trimmed-library equivalence, `evaluate()` end to end |
 
 `tests/conftest.py` defines the `needs_pdk` marker and skips that tier when

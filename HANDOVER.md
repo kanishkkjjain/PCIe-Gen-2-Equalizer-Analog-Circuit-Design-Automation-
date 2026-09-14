@@ -1990,3 +1990,70 @@ So the project now has **three** methods to compare, not two:
 One caveat recorded rather than buried: `L` sits on a box edge in this design.
 A knob pinned at its bound means the optimiser wanted to go further and could
 not, so the bound — not the circuit — is setting that dimension.
+
+### 18.14 One condition was blocking everything
+
+The retrained policy — better surrogate, bias-aware starts, the cliff visible in
+the observation — still solved 5 % of held-out specs. Reward climbed to 0.88
+and stopped, exactly as before.
+
+Rather than tune, the question asked was *which* condition fails. Running the
+trained checkpoint over the 20 held-out specs and recording the best step of
+each episode:
+
+```
+conditions passed at best step, out of 10:
+   9/10 : 5 specs      which condition blocks it:
+   8/10 : 12 specs       fpeak    fails on 19/20 specs
+   7/10 : 3 specs        peaking  fails on  8/20
+                         power    fails on  7/20
+                         eye_w    fails on  4/20
+```
+
+The policy was meeting eight or nine conditions on every spec and finishing
+none. **`fpeak` alone accounted for it.**
+
+**Why the start could not hit the band.** `analytic_start_u` solves for the
+band centre and corrects the closed form by the fitted `k_f`. Two things make
+that the wrong target:
+
+1. The **environment scores with the surrogate**, which applies a *learned
+   residual on top of the same closed form*. The equations-plus-`k_f` answer
+   and the surrogate's answer are not the same number, so aiming with one and
+   being graded by the other misses.
+2. The target was the band centre **at the nominal corner**, while the slow
+   corner sits about 20 % lower in `f_peak`. A design centred at `tt` puts `ss`
+   under the floor — and `all_pass` is evaluated at every corner.
+
+Measured open-loop: the start landed inside the band at all four corners on
+**2 of 20** sampled goals. For spec 0 — band 1.29–2.48 GHz, target 1.89 — the
+start delivered 1.59 GHz at `tt` and 1.33 GHz at `ss`.
+
+**The fix** closes the calibration loop against the *surrogate*, the same way
+`analytic.initial_design` closes it against SPICE and for the same reason,
+except that here an iteration costs microseconds rather than five ngspice
+launches. It centres the **corner spread** in the band rather than the nominal
+value, and damps the update (`**0.7`) for the reason `CALIB_DAMPING` exists: an
+undamped ratio update oscillates when the model's error is not proportional.
+
+| | open loop | calibrated |
+|---|---|---|
+| f_peak in band at all 4 corners | 2/20 | **18/20** |
+| mean conditions passed | 7.83 | 7.80 |
+
+**Making it affordable.** A fresh calibrated start is several grid solves at
+~175 ms each, which put `reset` at 706 ms against a 4 ms step — 1M steps would
+have taken ten hours. Two changes, both measured:
+
+* calibrated starts cached on coarsely binned goal targets. At 0.5 dB / 50 MHz
+  the cache held 21 entries after 800 steps and missed almost every time; at
+  1 dB / 150 MHz it warms in a few thousand episodes, and the binning error is
+  far smaller than the `N(0, 0.1)` the start is perturbed by immediately after.
+* intermediate iterates solve on a 40-point grid instead of 96. The solve cost
+  goes as `n_grid²` and those iterates are stepping stones, not the answer.
+
+1M steps: **10 h → 1.9 h**.
+
+The 358k-step run in flight was discarded rather than resumed. It was
+optimising against a start that could not satisfy the spec it was handed, so
+its weights encode a different problem.

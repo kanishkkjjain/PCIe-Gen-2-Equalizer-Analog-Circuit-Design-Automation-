@@ -115,6 +115,20 @@ INCLUDE: tuple[str, ...] = (
     "models/policy/ckpt_120000.zip",
 
     # --- schematics and project files -------------------------------------
+    # --- the MCP server: the brief's bonus deliverable --------------------
+    # Listed explicitly rather than relying on the eqrl/scripts/tests globs
+    # above, so that a future narrowing of those cannot drop it silently. The
+    # submission also carries MANIFEST/README/VERIFY/MCP.md and its own
+    # .gitignore, which are written rather than copied.
+    "eqrl/mcp_server.py",
+    "scripts/run_mcp_server.py",
+    "tests/test_mcp.py",
+    "tests/test_mcp_protocol.py",
+    "scripts/test_mcp_e2e.py",
+    "requirements-mcp.txt",
+    "MCP.md",
+    "scripts/make_manifest.py",
+
     "netlists/*.sch",
     "requirements.txt",
     "pytest.ini",
@@ -362,7 +376,8 @@ def main() -> int:
 
         print(f"\n  {len(copied)} files copied, every sha256 verified")
         print(f"  MANIFEST.sha256 written")
-        print(f"\n  still to write by hand: README.md, VERIFY.md")
+        print("\n  still to write by hand: README.md, VERIFY.md")
+        print("  then: python3 scripts/make_manifest.py   (in the submission)")
         return 0
 
     except BuildError as e:

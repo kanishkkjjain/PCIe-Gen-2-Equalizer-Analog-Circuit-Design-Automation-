@@ -7,6 +7,7 @@ in the output would look wrong.
 """
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 from pathlib import Path
 
@@ -200,3 +201,73 @@ def test_checkpoint_cleanup_never_orphans_the_latest_pointer(trn, tmp_path,
         if old.resolve() not in keep:
             old.unlink(missing_ok=True)
     assert new.exists(), "the checkpoint LATEST names was deleted"
+
+
+# --------------------------------------------------------------------------
+# the eye screen
+# --------------------------------------------------------------------------
+def test_the_screen_rejects_a_narrow_eye_and_keeps_a_wide_one(bon, monkeypatch):
+    """Behaviour, not a call string.
+
+    Eye width is the binding failure on 81-92 % of every proposal that fails
+    verification, and it is the one metric the surrogate cannot predict. The
+    screen exists to measure it instead -- so what must be pinned is that a
+    narrow eye is actually dropped, and a wide one actually survives.
+    """
+    import numpy as np
+    from eqrl import specs as sp
+
+    spec = dataclasses.replace(sp.EqualizerSpec(), eye_width_min_ui=0.40)
+
+    class _M:
+        def __init__(self, w):
+            self.eye_width_ui = w
+
+    class _Res:
+        def __init__(self, widths):
+            self.per_corner = {f"c{i}": {"metrics": _M(w)}
+                               for i, w in enumerate(widths)}
+
+    class _Obj:
+        n_launches = 0
+
+        def __init__(self, *a, **k):
+            pass
+
+        def evaluate_batch(self, us):
+            # wide, narrow, wide-then-narrow (the worst corner must decide),
+            # and an eye that could not be measured at all
+            return [_Res([0.80, 0.75]), _Res([0.10, 0.12]),
+                    _Res([0.90, 0.11]), _Res([float("nan"), float("nan")])]
+
+    import eqrl.env
+    monkeypatch.setattr(eqrl.env, "Objective", _Obj)
+
+    props = [{"u": [0.5] * 11} for _ in range(4)]
+    out = bon.screen_eye(props, spec, None, 1, bon.SCREEN_CORNERS[:1] + (), )
+
+    assert props[0]["screen_pass"] is True,  "a wide eye was dropped"
+    assert props[1]["screen_pass"] is False, "a narrow eye survived"
+    assert props[2]["screen_pass"] is False, (
+        "the screen used the best corner, not the worst -- a design is only as "
+        "good as its worst corner")
+    assert props[3]["screen_pass"] is False, (
+        "an unmeasurable eye was given the benefit of the doubt")
+    assert out["n_kept"] == 1 and out["n_in"] == 4
+
+
+def test_a_screened_out_proposal_still_counts_as_a_failure(bon):
+    """`first_success_rank` must be a rank over everything PROPOSED.
+
+    If screened-out proposals were dropped from the list, a spec whose only
+    passing design is its eighth proposal would report rank 1 after the screen
+    removed the seven before it -- and the headline "n proposals for 90 %"
+    would silently become "n SURVIVING proposals", which is not a number anyone
+    can act on.
+    """
+    rows = [{"spec": 0, "first_success_rank": 8, "n_passing": 1,
+             "n_proposals": 8, "diversity_l2": 0.3, "proposals": []}]
+
+    class _A:
+        k, method = 8, "policy"
+    bon._summarise(rows, _A())

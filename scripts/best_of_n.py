@@ -53,6 +53,22 @@ from eqrl.spice import MeasCond, Simulator
 ROOT = Path(__file__).resolve().parents[1]
 _STOP = False
 
+#: Corners the cheap eye screen runs at, and why exactly these two.
+#:
+#: MEASURED over 280 designs evaluated at the full 20-corner grid: `sf` at 0 C
+#: is the worst corner for eye width 70 % of the time (47.5 % at 1.71 V, 22.9 %
+#: at 1.89 V), and screening this pair recovers the TRUE 20-corner worst case
+#: **89.6 %** of the time, mean overestimate +0.008 UI. A third corner takes it
+#: to 91.4 %, which is not worth another third of the screen's cost.
+#:
+#: Note what `sf` is: a process corner the search never looks at and the
+#: surrogate cannot even represent -- `physics.FEATURE_NAMES` carries
+#: proc_tt/proc_ss/proc_ff and nothing for sf or fs, so both encode as
+#: all-zeros, indistinguishable from each other and from nothing. The corner
+#: that decides most eye-width failures is one the model has no word for. That
+#: is why this is measured in SPICE rather than predicted.
+SCREEN_CORNERS = ("sf_1.710V_0C", "sf_1.890V_0C")
+
 
 def _on_signal(signum, frame):
     global _STOP
@@ -139,6 +155,49 @@ def propose_policy(model, spec, sur, cfs, k, max_steps, seed0=0) -> list:
     return props
 
 
+def screen_eye(props, spec, sim, jobs, corner_names, log=None) -> dict:
+    """Measure eye width in SPICE at a couple of corners; drop what cannot pass.
+
+    THE REASON THIS EXISTS. Eye width is the binding failure on 81-92 % of every
+    proposal that fails 20-corner verification, and it is the one metric the
+    surrogate cannot predict -- held-out R2 0.57 against 0.90 for peaking and
+    0.97 for power. Three attempts to fix the prediction were measured and all
+    failed (HANDOVER 20): a phase-sweep feature added +0.001, a logit link on
+    the bimodal target -0.003, a classifier beat the base rate by 11 points.
+    Every other spec has a closed-form scaffold the network corrects; the eye
+    has a comparator in it and there is no equation for that.
+
+    So it is measured instead. Two corners rather than twenty, chosen by
+    measurement (see SCREEN_CORNERS), and only the survivors pay for the full
+    grid.
+
+    This is a FILTER, not a verdict. It recovers the true worst case 89.6 % of
+    the time, so it will occasionally pass a design the 20-corner verify then
+    rejects -- that is what the verify is for. The count of such designs is
+    recorded per proposal (`screen_missed`) rather than assumed to be zero.
+    """
+    from eqrl.env import Objective
+    corners = [c for c in pdk.pvt_grid("spec") if c.name in set(corner_names)]
+    if not corners:
+        raise ValueError(f"no PVT corner matches {corner_names}")
+
+    obj = Objective(spec, sim, corners=corners, robust="min", do_eye=True,
+                    jobs=jobs, use_channel=True, log=log)
+    res = obj.evaluate_batch([p["u"] for p in props])
+    for pr, r in zip(props, res):
+        widths = [sc["metrics"].eye_width_ui for sc in r.per_corner.values()]
+        finite = [w for w in widths if w == w]
+        pr["screen_eye_width_ui"] = min(finite) if finite else float("nan")
+        # A design whose eye cannot be measured is not given the benefit of the
+        # doubt: an unmeasurable eye is not a passing one.
+        pr["screen_pass"] = bool(finite) and min(finite) >= spec.eye_width_min_ui
+    kept = [p for p in props if p["screen_pass"]]
+    return {"kept": kept, "n_in": len(props), "n_kept": len(kept),
+            "corners": [c.name for c in corners],
+            "evaluations": len(props) * len(corners),
+            "launches": obj.n_launches}
+
+
 def diversity(props) -> float:
     """Mean pairwise L2 between proposals, in normalised design space."""
     us = [np.asarray(p["u"], float) for p in props]
@@ -165,6 +224,14 @@ def main() -> int:
     ap.add_argument("--surrogate", default=None)
     ap.add_argument("--out", default=None)
     ap.add_argument("--redo", action="store_true")
+    ap.add_argument("--screen-corners", default=",".join(SCREEN_CORNERS),
+                    help="corners the cheap eye screen runs at. The default "
+                         "pair is measured, not chosen: see SCREEN_CORNERS.")
+    ap.add_argument("--no-screen", dest="screen", action="store_false",
+                    default=True,
+                    help="skip the eye screen and verify every proposal at all "
+                         "20 corners, as checkpoint 6 did. Kept so the old "
+                         "pipeline stays runnable for comparison.")
     ap.add_argument("--extend", action="store_true",
                     help="ADD proposals to specs already in the output file, "
                          "continuing the seed sequence, instead of skipping "
@@ -281,13 +348,39 @@ def main() -> int:
         # designs -- the region the surrogate is weakest in and has least data
         # for. Draining them afterwards, or not keeping them at all, throws
         # away more simulation than the whole original collection run.
+        screen = None
         with EvalLog(f"bon_{a.method}_spec{i}",
                      extra={"spec_id": f"spec{i}", "method": a.method}) as log:
-            for j, pr in enumerate(props):
+            to_verify = props
+            if a.screen:
+                t1 = time.perf_counter()
+                screen = screen_eye(props, spec, sim, a.jobs,
+                                    a.screen_corners.split(","), log=log)
+                screen["wall_s"] = time.perf_counter() - t1
+                to_verify = screen["kept"]
+                print(f"  eye screen at {len(screen['corners'])} corners: "
+                      f"{screen['n_kept']}/{screen['n_in']} survive "
+                      f"({screen['evaluations']} evaluations, "
+                      f"{screen['wall_s']:.0f} s)", flush=True)
+
+            # A proposal the screen dropped is a FAILURE, not an absence: it
+            # was proposed, it was rejected, and the headline counts it. Marking
+            # it here rather than deleting it keeps first_success_rank honest --
+            # the rank is over everything proposed, not over what survived.
+            for pr in props:
+                pr.setdefault("screen_pass", True)
+                if not pr["screen_pass"]:
+                    pr["real_pass"] = False
+                    pr["pvt"] = None
+
+            for j, pr in enumerate(to_verify):
                 pr["pvt"] = verify(pr["u"], spec, sim, a.jobs, f"spec{i}",
                                    log=log)
                 pr["real_pass"] = bool(pr["pvt"]["all_pass_everywhere"])
-                print(f"    [{j + 1}/{len(props)}] pred m_min "
+                # the screen said this could pass and the full grid disagreed;
+                # that is the screen's own error rate, recorded not assumed
+                pr["screen_missed"] = bool(a.screen and not pr["real_pass"])
+                print(f"    [{j + 1}/{len(to_verify)}] pred m_min "
                       f"{pr['predicted_m_min']:+.4f} ({pr['predicted_binding']})"
                       f"  -> 20-corner "
                       f"{pr['pvt']['brief_specs_passed']}/8 "
@@ -302,6 +395,8 @@ def main() -> int:
                "propose_s": propose_s,
                "first_success_rank": (ranks[0] + 1) if ranks else None,
                "n_passing": len(ranks),
+               "screen": screen and {k: v for k, v in screen.items()
+                                     if k != "kept"},
                "spec_fields": {k: getattr(spec, k) for k in
                                ("peaking_min_db", "peaking_max_db",
                                 "peaking_target_db", "fpeak_lo", "fpeak_hi",

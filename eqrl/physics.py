@@ -432,13 +432,20 @@ PULSE_OVERSAMPLE = 32
 PULSE_NFFT = 2048
 
 
-def pulse_taps(gm, RL, Rs, Cs, cout, gm_g1, Rsum, ui_s, cl=40e-15):
-    """ISI taps (h[-1], h[0], h[1], h[2]) of channel -> CTLE -> summer.
+def _pulse_response(gm, RL, Rs, Cs, cout, gm_g1, Rsum, ui_s, cl=40e-15):
+    """`(p, i0)` -- the pulse response of channel -> CTLE -> summer, and the
+    index of its main cursor.
 
-    The cascade is evaluated on a uniform frequency grid, multiplied by the
-    spectrum of a single one-UI rectangular symbol, and inverse-transformed.
-    The main cursor is the peak of the result; the taps are the samples one and
-    two symbol periods either side of it.
+    Split out of `pulse_taps` during the phase-sweep experiment of checkpoint 7
+    so that a second sampler could reuse the SAME cascade rather than grow a
+    copy of it. That experiment FAILED and its sampler is gone (HANDOVER 20.1:
+    an eye-width feature built from this, swept over 32 phases, added +0.001 to
+    a fit that already had the seven existing eye features -- the hand model
+    says the eye is open across 78 % of the symbol where SPICE measures 33 %).
+    The split is kept because it is a clean separation with no behaviour change
+    -- verified identical to the old `pulse_taps` at the centre phase -- and
+    because the next person to think the eye is predictable from this cascade
+    should find the result rather than the idea.
     """
     gm, RL, Rs, Cs, cout, gm_g1, Rsum = (
         np.atleast_1d(np.asarray(x, float))
@@ -460,8 +467,18 @@ def pulse_taps(gm, RL, Rs, Cs, cout, gm_g1, Rsum, ui_s, cl=40e-15):
     Pf = ui_s * np.sinc(f * ui_s) * np.exp(-1j * np.pi * f * ui_s)
 
     p = np.fft.irfft(Hch * Hctle * Hsum * Pf[None, :], n=PULSE_NFFT, axis=-1)
+    return p, np.argmax(np.abs(p), axis=-1)
 
-    i0 = np.argmax(np.abs(p), axis=-1)
+
+def pulse_taps(gm, RL, Rs, Cs, cout, gm_g1, Rsum, ui_s, cl=40e-15):
+    """ISI taps (h[-1], h[0], h[1], h[2]) of channel -> CTLE -> summer.
+
+    The cascade is evaluated on a uniform frequency grid, multiplied by the
+    spectrum of a single one-UI rectangular symbol, and inverse-transformed.
+    The main cursor is the peak of the result; the taps are the samples one and
+    two symbol periods either side of it.
+    """
+    p, i0 = _pulse_response(gm, RL, Rs, Cs, cout, gm_g1, Rsum, ui_s, cl)
     n_ui = PULSE_OVERSAMPLE
     idx = lambda d: np.clip(i0 + d * n_ui, 0, PULSE_NFFT - 1)
     take = lambda j: p[np.arange(len(p)), j]

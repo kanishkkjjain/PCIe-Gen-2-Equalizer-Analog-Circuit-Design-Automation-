@@ -158,3 +158,45 @@ def test_objective_can_write_every_evaluation_to_a_log():
     assert "log" in inspect.signature(Objective.__init__).parameters
     assert "self.log = log" in src
     assert "self.log.append(" in inspect.getsource(Objective.evaluate_batch)
+
+
+# --------------------------------------------------------------------------
+# tag matching: prefixes, and never a silent empty set
+# --------------------------------------------------------------------------
+def test_a_tag_matching_no_file_is_an_error_not_an_empty_set(tmp_path):
+    """Silence is the wrong answer to "give me data that does not exist".
+
+    `--tag collect,bon` quietly loaded only `collect`: it looked for
+    `bon.jsonl`, did not find it, skipped it without a word, and the caller
+    trained on half the data it asked for while reporting success. The failure
+    surfaces much later as a model that is inexplicably no better than the one
+    before it.
+    """
+    with EvalLog("real", directory=tmp_path) as log:
+        log.append((0.1,) * 11, "tt_1.800V_27C", {"ok": True})
+
+    assert len(load(["real"], directory=tmp_path)) == 1
+    with pytest.raises(FileNotFoundError) as e:
+        load(["real", "absent"], directory=tmp_path)
+    assert "absent" in str(e.value)
+    # the message must say what IS there, or the next step is a blind guess
+    assert "real" in str(e.value)
+
+
+def test_a_tag_may_name_a_prefix(tmp_path):
+    """The runs that produce the most valuable data write one file per spec.
+
+    A best-of-n run writes `bon_policy_spec0` ... `bon_policy_spec9`; naming
+    ten of them by hand is how one gets left out.
+    """
+    for i in range(3):
+        with EvalLog(f"bon_policy_spec{i}", directory=tmp_path) as log:
+            log.append((float(i),) * 11, "tt_1.800V_27C", {"ok": True})
+    with EvalLog("other", directory=tmp_path) as log:
+        log.append((9.0,) * 11, "tt_1.800V_27C", {"ok": True})
+
+    assert len(load(["bon_"], directory=tmp_path)) == 3
+    assert len(load(["bon_", "other"], directory=tmp_path)) == 4
+    # an exact stem still wins, and overlapping prefixes do not double-count
+    assert len(load(["bon_policy_spec1"], directory=tmp_path)) == 1
+    assert len(load(["bon_", "bon_policy_spec1"], directory=tmp_path)) == 3

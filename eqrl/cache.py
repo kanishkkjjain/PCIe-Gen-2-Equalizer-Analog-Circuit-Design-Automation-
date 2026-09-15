@@ -242,7 +242,40 @@ def load(tags=None, directory: Path | None = None, meas=None,
     else:
         if isinstance(tags, (str, Path)):
             tags = [tags]
-        files = [d / f"{t}.jsonl" for t in tags]
+        # A tag is either an exact file stem or a PREFIX. The prefix form
+        # exists because the runs that produce the most valuable data write one
+        # file per spec -- `bon_policy_spec0` ... `bon_surrogate_cem_spec9` --
+        # and naming twenty of them by hand is how one gets left out.
+        #
+        # A tag matching NOTHING is an error, not an empty set. Before this,
+        # `--tag collect,bon` quietly loaded only `collect`: it looked for
+        # `bon.jsonl`, did not find it, skipped it without a word, and the
+        # caller trained on half the data it asked for while reporting
+        # success. Silence is the wrong answer to "I asked for data that does
+        # not exist".
+        files, missing = [], []
+        for t in tags:
+            exact = d / f"{t}.jsonl"
+            if exact.exists():
+                files.append(exact)
+                continue
+            hits = sorted(d.glob(f"{t}*.jsonl"))
+            if hits:
+                files.extend(hits)
+            else:
+                missing.append(str(t))
+        if missing:
+            have = sorted(f.stem for f in d.glob("*.jsonl"))
+            raise FileNotFoundError(
+                f"no evaluation file matches tag(s) {missing} in {d}. "
+                f"Available: {have}")
+        # one file may match two prefixes; keep each once, in order
+        seen, uniq = set(), []
+        for f in files:
+            if f not in seen:
+                seen.add(f)
+                uniq.append(f)
+        files = uniq
 
     want = meas_dict(meas)
     out = LoadResult(records={}, files=tuple(f.name for f in files))

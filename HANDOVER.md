@@ -125,7 +125,7 @@ reference design, which labels them "(Ideal)" too.
 
 ```bash
 cd ~/pcie_eq_rl
-python3 -m pytest tests/ -q                              # 232 tests
+python3 -m pytest tests/ -q                              # 236 tests
 python3 scripts/smoke_test.py                            # SPICE layer sanity
 python3 scripts/build_trimlib.py --grid spec             # 5.7x less model text
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
@@ -1280,9 +1280,9 @@ No remote is configured. `git remote add origin <url>` when you have one.
 ```bash
 export PDK_ROOT=/home/kanishk/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b
 
-# tests: 232 total -- 195 fast (no PDK) + 37 against real ngspice.
+# tests: 236 total -- 199 fast (no PDK) + 37 against real ngspice.
 python3 -m pytest tests/ -q -m "not needs_pdk"   # 131, ~5 s
-python3 -m pytest tests/ -q                      # all 232, ~2 min
+python3 -m pytest tests/ -q                      # all 236, ~2 min
 
 # SPICE layer sanity (asserts, so it can fail)
 python3 scripts/smoke_test.py
@@ -1351,8 +1351,8 @@ parsing no matter how small the circuit — so anything provable without a
 simulator should be.
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 195 tests, ~32 s, no PDK
-python3 -m pytest tests/ -q                      # all 232, ~2 min
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 199 tests, ~32 s, no PDK
+python3 -m pytest tests/ -q                      # all 236, ~2 min
 ```
 
 | tier | file | needs | covers |
@@ -2790,3 +2790,110 @@ and propose against the acceptance corners.
 
 Recorded before doing it, so the prediction is on the record rather than
 fitted afterwards.
+
+---
+
+## 20. Checkpoint 7 — eye width is not the surrogate's to predict
+
+Checkpoint 6 left both methods plateaued at 80 % of specs, and the cause was
+not ambiguous: **eye width is the binding failure on 81-92 % of every proposal
+that fails 20-corner verification** (policy 92 %, CEM 81 %). It is also the
+metric the surrogate is worst at -- held-out R² 0.57 and pass/fail agreement
+82 %, against 0.90/0.97 for peaking and power.
+
+The obvious move was to predict it better. Three attempts, **all measured
+before any training, all failed**, and the whole exercise cost about twenty
+minutes because the cheap test came first.
+
+### 20.1 The phase-sweep feature (+0.001)
+
+The diagnosis was structural and looked airtight. `dfe.measure_eye` defines eye
+width as *the fraction of the symbol period over which the eye is open* -- it
+evaluates the opening at 64 sampling phases and takes the longest contiguous
+positive run. Every eye feature the surrogate had was sampled at ONE phase, the
+cursor: `pulse_taps` takes `i0 + d·n_ui`, and `openness_est`/`eye_est` are built
+from those. The model was being asked to predict a phase sweep from features
+containing no phase information at all -- which is exactly why eye HEIGHT, which
+does have a single-phase scaffold, reaches 0.80 while width sits at 0.57.
+
+So the sweep was built (`PULSE_OVERSAMPLE` is already 32 samples per UI, so the
+phases needed no interpolation) and checked against 5 993 measured records:
+
+    eye_width_est alone                          R²  0.001   spearman 0.118
+    added to the 7 existing eye features        +0.001
+
+Nothing. The reason is visible in the distributions: the hand model says the
+eye is open across **78 %** of the symbol where SPICE measures **33 %**. The
+linear pulse cascade has no slicer, no latch and no feedback loop in it, and
+those are what close a real eye.
+
+**A note on the kill-switch that caught this.** The plan's stated bar was "the
+new feature must beat the trained model's R² 0.57 on its own, with no network".
+That bar was badly calibrated -- a single raw feature beating a 5-member
+ensemble over 32 features would be remarkable, and almost nothing would pass it.
+The bar that matters is the second line above: does it add anything to what is
+already there. It gave the same verdict, so the conclusion stands, but the
+lesson is that a kill-switch has to test the right quantity or it will
+eventually kill something good.
+
+### 20.2 Two standard fixes for a bimodal target, also nothing
+
+Measured eye width is strongly bimodal -- a mode of closed eyes near 0.15, a
+second of open eyes near 0.82, and only 23 % of designs in the 0.35-0.65 band
+between them. That is a classic reason regression underperforms, so both
+standard remedies were tried:
+
+    predict width directly (linear, all 32 features)   R²  0.295
+    predict logit(width), invert                       R²  0.292
+    classify open/closed                               76.7 % vs 65.8 % base
+
+The trained network already reaches 0.565, above all of these. It is extracting
+close to what these features contain, and the features do not contain the eye.
+
+### 20.3 The conclusion, and why it is not a consolation prize
+
+Eye width is **not** physically out of reach -- 47 % of every design ever
+simulated clears the easiest value the goal space asks for. It is simply not
+predictable from hand physics. Every other spec has a closed form the network
+corrects; the eye has a comparator in it, and there is no equation for a
+comparator.
+
+So it is measured instead, and two further measurements make that cheap.
+
+**The worst corner for eye width is one nothing looks at.** Over 280 designs
+measured at the full 20-corner grid:
+
+    sf_1.710V_0C   worst 47.5 %     screen 1 corner  -> true 20-corner min 66.8 %
+    sf_1.890V_0C   worst 22.9 %     screen 2 corners -> 89.6 %, mean err +0.008 UI
+    ff_1.890V_0C   worst 13.2 %     screen 3 corners -> 91.4 %  (not worth the cost)
+
+**And the surrogate cannot represent that corner.** The acceptance grid spans
+five processes (tt, ss, ff, sf, fs); `physics.FEATURE_NAMES` carries
+`proc_tt`, `proc_ss`, `proc_ff` and nothing else, so `sf` and `fs` both encode
+as all-zeros -- indistinguishable from each other and from nothing. The corner
+that decides most eye-width failures is one the model has no word for, and was
+never trained on.
+
+`scripts/best_of_n.py` now screens each proposal at those two `sf` corners and
+sends only the survivors to the full 20-corner verify:
+
+    checkpoint 6   27 proposals x 20 corners      540 evaluations   ~10 min
+    checkpoint 7   screen 8 x 2, verify ~2 x 20    56 evaluations   ~1.5 min
+
+The screen is a FILTER, not a verdict: at 89.6 % it will sometimes pass a design
+the full grid rejects, which is what the full grid is for. Every such design is
+recorded (`screen_missed`) so the screen's own error rate is measured rather
+than assumed.
+
+### 20.4 A silent data-loading bug, found on the way
+
+`cache.load` matched exact filenames only, so `--tag collect,bon` looked for
+`bon.jsonl`, did not find it, **skipped it without a word**, and would have
+trained on half the requested data while reporting success. The checkpoint-6
+runs write one file per spec (`bon_policy_spec0` ... `bon_surrogate_cem_spec9`),
+so the retraining step planned for this checkpoint would have silently used
+**zero** of those 5 600 new records.
+
+Tags now also match prefixes, and a tag matching no file raises with the list of
+what is available. Silence is the wrong answer to "give me data that does not
+exist".

@@ -1,19 +1,30 @@
 {
-  "created": 1789393412.886981,
-  "git_sha": "344a760",
+  "created": 1789409429.8936582,
+  "git_sha": "287d08b",
   "method": "policy",
-  "k": 32,
+  "k": 8,
   "deploy_seed": 999,
   "m_specs": 10,
-  "n_per_spec": 32,
+  "n_per_spec": 8,
   "specs": [
     {
       "spec": 0,
       "n_proposals": 8,
       "diversity_l2": 0.07864300864682003,
-      "propose_s": 1.1027528350023204,
+      "propose_s": 1.2075386110082036,
       "first_success_rank": 1,
       "n_passing": 7,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 7,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 15.66420085800928
+      },
       "spec_fields": {
         "peaking_min_db": 6.394125087901362,
         "peaking_max_db": 11.394125087901362,
@@ -47,6 +58,8 @@
           "predicted_m_min": 0.19605256539742397,
           "predicted_binding": "eye_h",
           "predicted_reward": 0.9929343936564548,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -68,7 +81,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 1,
@@ -91,6 +105,8 @@
           "predicted_m_min": 0.22711133457149368,
           "predicted_binding": "eye_h",
           "predicted_reward": 0.9931650055173025,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -112,7 +128,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 2,
@@ -135,6 +152,8 @@
           "predicted_m_min": 0.20225210580768543,
           "predicted_binding": "power",
           "predicted_reward": 0.9841985783310833,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -156,7 +175,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 3,
@@ -179,6 +199,8 @@
           "predicted_m_min": 0.19739994866044738,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9927603162485431,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -200,7 +222,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 4,
@@ -223,6 +246,8 @@
           "predicted_m_min": 0.19856242876032798,
           "predicted_binding": "power",
           "predicted_reward": 0.9937964358070089,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -244,7 +269,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 5,
@@ -267,6 +293,8 @@
           "predicted_m_min": 0.21836666194362617,
           "predicted_binding": "eye_h",
           "predicted_reward": 0.9926234517403666,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -288,7 +316,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 6,
@@ -311,6 +340,8 @@
           "predicted_m_min": 0.20524964588444594,
           "predicted_binding": "power",
           "predicted_reward": 0.9810973508931298,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -332,7 +363,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 7,
@@ -355,30 +387,10 @@
           "predicted_m_min": 0.20348531325316388,
           "predicted_binding": "eye_h",
           "predicted_reward": 0.9872929334316766,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.03203145945867384
-            ],
-            "margins": {
-              "peaking": 0.25468316358027254,
-              "fpeak": 0.23686631790910592,
-              "hd3": 0.5887629415553425,
-              "noise": 0.24267847519326746,
-              "power": 0.2324368726229101,
-              "area": 0.9929438096834262,
-              "eye_h": 0.45091222252527746,
-              "eye_w": -0.03203145945867384
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.359375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         }
       ]
     },
@@ -386,9 +398,20 @@
       "spec": 1,
       "n_proposals": 8,
       "diversity_l2": 0.1813065906880664,
-      "propose_s": 1.2031588989993907,
+      "propose_s": 1.164704069000436,
       "first_success_rank": 3,
       "n_passing": 1,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 6,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 15.660328273006598
+      },
       "spec_fields": {
         "peaking_min_db": 5.556143523302461,
         "peaking_max_db": 10.556143523302461,
@@ -422,6 +445,8 @@
           "predicted_m_min": 0.05539597925412511,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9857672789570515,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": false,
             "brief_specs_passed": 7,
@@ -445,7 +470,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": false
+          "real_pass": false,
+          "screen_missed": true
         },
         {
           "source": 1,
@@ -468,6 +494,8 @@
           "predicted_m_min": 0.059970581220607395,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.986811540046745,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": false,
             "brief_specs_passed": 7,
@@ -491,7 +519,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": false
+          "real_pass": false,
+          "screen_missed": true
         },
         {
           "source": 2,
@@ -514,6 +543,8 @@
           "predicted_m_min": 0.06449181574095386,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9833951780393753,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -535,7 +566,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 3,
@@ -558,6 +590,8 @@
           "predicted_m_min": 0.08377314677755256,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9875893540308959,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": false,
             "brief_specs_passed": 7,
@@ -581,7 +615,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": false
+          "real_pass": false,
+          "screen_missed": true
         },
         {
           "source": 4,
@@ -604,6 +639,8 @@
           "predicted_m_min": 0.05687994201979216,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9842649994875448,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": false,
             "brief_specs_passed": 7,
@@ -627,7 +664,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": false
+          "real_pass": false,
+          "screen_missed": true
         },
         {
           "source": 5,
@@ -650,6 +688,8 @@
           "predicted_m_min": 0.08231951806950046,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9784781951508013,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": false,
             "brief_specs_passed": 7,
@@ -673,7 +713,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": false
+          "real_pass": false,
+          "screen_missed": true
         },
         {
           "source": 6,
@@ -696,30 +737,10 @@
           "predicted_m_min": 0.08148568661515339,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9900828306082802,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.018493184505436196
-            ],
-            "margins": {
-              "peaking": 0.33016123266049247,
-              "fpeak": 0.053958835955033105,
-              "hd3": 0.47912557590647825,
-              "noise": 0.514447055689195,
-              "power": 0.6263341885164448,
-              "area": 0.9936630948146553,
-              "eye_h": 0.6487928454226165,
-              "eye_w": -0.018493184505436196
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 7,
@@ -742,31 +763,10 @@
           "predicted_m_min": 0.05887770786928181,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.988187433221061,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 6,
-            "failed": [
-              "eye_w",
-              "fpeak"
-            ],
-            "binding": [
-              "fpeak",
-              -0.09480656241671476
-            ],
-            "margins": {
-              "peaking": 0.3124519026604922,
-              "fpeak": -0.09480656241671476,
-              "hd3": 0.4550974402686455,
-              "noise": 0.5585147473665781,
-              "power": 0.6247191106163971,
-              "area": 0.9935053276898025,
-              "eye_h": 0.6433851713809293,
-              "eye_w": -0.018493184505436196
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         }
       ]
     },
@@ -774,9 +774,20 @@
       "spec": 2,
       "n_proposals": 8,
       "diversity_l2": 0.20467173259585372,
-      "propose_s": 1.1403715829947032,
+      "propose_s": 1.1640509650023887,
       "first_success_rank": 1,
       "n_passing": 8,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 8,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 16.261355330003425
+      },
       "spec_fields": {
         "peaking_min_db": 4.912343886837882,
         "peaking_max_db": 9.912343886837881,
@@ -810,6 +821,8 @@
           "predicted_m_min": 0.18611404666264814,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9889249584746319,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -831,7 +844,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 1,
@@ -854,6 +868,8 @@
           "predicted_m_min": 0.18105055780793572,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.989678152472646,
+          "screen_eye_width_ui": 0.484375,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -875,7 +891,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 2,
@@ -898,6 +915,8 @@
           "predicted_m_min": 0.1801352280874947,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9977320344679539,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -919,7 +938,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 3,
@@ -942,6 +962,8 @@
           "predicted_m_min": 0.18999512963517384,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9972665182867276,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -963,7 +985,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 4,
@@ -986,6 +1009,8 @@
           "predicted_m_min": 0.18562858667725068,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.995954261396305,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1007,7 +1032,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 5,
@@ -1030,6 +1056,8 @@
           "predicted_m_min": 0.19103933131015363,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.997474196630721,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1051,7 +1079,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 6,
@@ -1074,6 +1103,8 @@
           "predicted_m_min": 0.18170595313425966,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9928238043296903,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1095,7 +1126,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 7,
@@ -1118,6 +1150,8 @@
           "predicted_m_min": 0.17457053547654441,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9902786614866385,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1139,7 +1173,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         }
       ]
     },
@@ -1147,9 +1182,20 @@
       "spec": 3,
       "n_proposals": 8,
       "diversity_l2": 0.13718781443598452,
-      "propose_s": 1.2160815940005705,
+      "propose_s": 1.299485288996948,
       "first_success_rank": 1,
       "n_passing": 8,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 8,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 16.480643770002644
+      },
       "spec_fields": {
         "peaking_min_db": 3.2933837178249075,
         "peaking_max_db": 8.293383717824907,
@@ -1183,6 +1229,8 @@
           "predicted_m_min": 0.2100642926416691,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9906417881830859,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1204,7 +1252,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 1,
@@ -1227,6 +1276,8 @@
           "predicted_m_min": 0.20985387542972178,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9890919616406765,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1248,7 +1299,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 2,
@@ -1271,6 +1323,8 @@
           "predicted_m_min": 0.1917654874264552,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9952487192533015,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1292,7 +1346,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 3,
@@ -1315,6 +1370,8 @@
           "predicted_m_min": 0.21577070076072577,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9956169771422586,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1336,7 +1393,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 4,
@@ -1359,6 +1417,8 @@
           "predicted_m_min": 0.211367685679344,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9955040897915416,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1380,7 +1440,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 5,
@@ -1403,6 +1464,8 @@
           "predicted_m_min": 0.228460623758377,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9982556273940832,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1424,7 +1487,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 6,
@@ -1447,6 +1511,8 @@
           "predicted_m_min": 0.22809172695650193,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9882074700260244,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1468,7 +1534,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 7,
@@ -1491,6 +1558,8 @@
           "predicted_m_min": 0.17338896625848824,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9899754946638756,
+          "screen_eye_width_ui": 0.484375,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1512,7 +1581,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         }
       ]
     },
@@ -1520,9 +1590,20 @@
       "spec": 4,
       "n_proposals": 8,
       "diversity_l2": 0.14154170074960723,
-      "propose_s": 1.206550649003475,
+      "propose_s": 1.74227369298751,
       "first_success_rank": 1,
       "n_passing": 8,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 8,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 22.173403484004666
+      },
       "spec_fields": {
         "peaking_min_db": 5.327495954674319,
         "peaking_max_db": 10.327495954674319,
@@ -1556,6 +1637,8 @@
           "predicted_m_min": 0.2555964002169545,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9877414744635271,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1577,7 +1660,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 1,
@@ -1600,6 +1684,8 @@
           "predicted_m_min": 0.26789384546728207,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9965746339811734,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1621,7 +1707,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 2,
@@ -1644,6 +1731,8 @@
           "predicted_m_min": 0.2841613968108369,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9943839186174361,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1665,7 +1754,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 3,
@@ -1688,6 +1778,8 @@
           "predicted_m_min": 0.27375860026630777,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9938412084276514,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1709,7 +1801,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 4,
@@ -1732,6 +1825,8 @@
           "predicted_m_min": 0.2635219897414355,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9866366927578605,
+          "screen_eye_width_ui": 0.484375,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1753,7 +1848,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 5,
@@ -1776,6 +1872,8 @@
           "predicted_m_min": 0.25865904738974366,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9963316390621033,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1797,7 +1895,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 6,
@@ -1820,6 +1919,8 @@
           "predicted_m_min": 0.2637316180405956,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9976017845048637,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1841,7 +1942,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 7,
@@ -1864,6 +1966,8 @@
           "predicted_m_min": 0.2607320498777171,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9986092410757301,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -1885,17 +1989,29 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         }
       ]
     },
     {
       "spec": 5,
-      "n_proposals": 32,
-      "diversity_l2": 0.127670645068715,
-      "propose_s": 1.8693235609971453,
+      "n_proposals": 8,
+      "diversity_l2": 0.11595931828404958,
+      "propose_s": 1.2423244660021737,
       "first_success_rank": null,
       "n_passing": 0,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 0,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 16.505399282992585
+      },
       "spec_fields": {
         "peaking_min_db": 5.636377462120372,
         "peaking_max_db": 10.636377462120372,
@@ -1929,30 +2045,10 @@
           "predicted_m_min": 0.179221482723082,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9968067691432116,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.35137808957592576,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.419771450548929,
-              "noise": 0.22164575890059043,
-              "power": 0.25910001748336936,
-              "area": 0.9922684409880906,
-              "eye_h": 0.4017531372443448,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 1,
@@ -1975,30 +2071,10 @@
           "predicted_m_min": 0.19590651125689285,
           "predicted_binding": "eye_w",
           "predicted_reward": 0.9824446881557133,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.18139243396265403
-            ],
-            "margins": {
-              "peaking": 0.20551713242407424,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.4371765854877137,
-              "noise": 0.1890548706512192,
-              "power": 0.29329816401099534,
-              "area": 0.9932286231841813,
-              "eye_h": 0.42242887986845895,
-              "eye_w": -0.18139243396265403
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 2,
@@ -2021,30 +2097,10 @@
           "predicted_m_min": 0.16892860111404012,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9963005288992282,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.27367800757592564,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.38229039595546754,
-              "noise": 0.20500975390906054,
-              "power": 0.2692049506166281,
-              "area": 0.9927877483568978,
-              "eye_h": 0.4026206134052801,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 3,
@@ -2067,30 +2123,10 @@
           "predicted_m_min": 0.21394269395400836,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9985518268849378,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.3504441715759256,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.2624328715237516,
-              "noise": 0.2091482349148941,
-              "power": 0.2964482394268427,
-              "area": 0.9931034375872592,
-              "eye_h": 0.34462220767846324,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 4,
@@ -2113,30 +2149,10 @@
           "predicted_m_min": 0.17912677990563142,
           "predicted_binding": "eye_w",
           "predicted_reward": 0.9922619292808696,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.14864813132116017
-            ],
-            "margins": {
-              "peaking": 0.26808775842407434,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.3091959294767226,
-              "noise": 0.1262296176537905,
-              "power": 0.31177586291701703,
-              "area": 0.9929298175415237,
-              "eye_h": 0.32542638066697444,
-              "eye_w": -0.14864813132116017
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 5,
@@ -2159,30 +2175,10 @@
           "predicted_m_min": 0.20031760205351604,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9938011613093205,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.2582769455759255,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.3559688281315629,
-              "noise": 0.2598962016746974,
-              "power": 0.2436414526160517,
-              "area": 0.9927104563415816,
-              "eye_h": 0.43680032439547295,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 6,
@@ -2205,30 +2201,10 @@
           "predicted_m_min": 0.19016191867235038,
           "predicted_binding": "eye_w",
           "predicted_reward": 0.9908633221437373,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.19560103197592582,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.5086373302848204,
-              "noise": 0.17839323387899161,
-              "power": 0.19879590153557325,
-              "area": 0.9922518606615246,
-              "eye_h": 0.4467993958330939,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 7,
@@ -2251,1134 +2227,10 @@
           "predicted_m_min": 0.20829267227615392,
           "predicted_binding": "eye_w",
           "predicted_reward": 0.9911393260617047,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.2865149824240742,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.32003374807577484,
-              "noise": 0.18046701175186972,
-              "power": 0.29868920756709516,
-              "area": 0.9933497280925495,
-              "eye_h": 0.3444954382359433,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 8,
-          "u": [
-            0.2251256333588801,
-            0.0,
-            0.6272812742555968,
-            0.8654705146744257,
-            0.4521735157964653,
-            0.6959298224874684,
-            0.6814500355066206,
-            0.9854722319534118,
-            0.3292920290436031,
-            0.4581389306186038,
-            0.0006288341246545315
-          ],
-          "rollout_m_min": 0.19119712320362056,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.19119712320362056,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.997156371713702,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.3145468035759258,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.3393777504814658,
-              "noise": 0.18794170385230477,
-              "power": 0.25946291215716644,
-              "area": 0.9929109905638441,
-              "eye_h": 0.4284820933052759,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 9,
-          "u": [
-            0.1873384814866997,
-            0.0,
-            0.6275345455671183,
-            0.8550931601037612,
-            0.4546339437279752,
-            0.6883297973882319,
-            0.7613758289625343,
-            0.9760966856512311,
-            0.3163171600493969,
-            0.4452718808970685,
-            0.0025547174736857414
-          ],
-          "rollout_m_min": 0.1526345176786252,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.1526345176786252,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9961403114703905,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.33422650157592565,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.3115421053238473,
-              "noise": 0.209975205514119,
-              "power": 0.2825085945343873,
-              "area": 0.9925131532014994,
-              "eye_h": 0.39210849864840164,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 10,
-          "u": [
-            0.19725015870474202,
-            0.0,
-            0.6010010899791948,
-            0.8510699945452964,
-            0.45175881648044053,
-            0.6865840630244375,
-            0.7367099910878983,
-            0.9278678659712966,
-            0.34004416819097416,
-            0.5549414865745502,
-            0.0
-          ],
-          "rollout_m_min": 0.160860374474326,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.160860374474326,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.9939435689581024,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.33778433157592574,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.49042836795455835,
-              "noise": 0.21325152861022673,
-              "power": 0.18538002215169108,
-              "area": 0.9921421953201062,
-              "eye_h": 0.4691912523233347,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 11,
-          "u": [
-            0.2057862390688799,
-            0.0,
-            0.6005642108086019,
-            0.820225967368797,
-            0.45481371052171055,
-            0.6587930979777039,
-            0.7405979461872425,
-            0.9531442288672621,
-            0.32251689712883846,
-            0.5077799633218246,
-            0.009773146943189204
-          ],
-          "rollout_m_min": 0.16668987152646736,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.16668987152646736,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9936544800890033,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.29554461357592565,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.4045624426644559,
-              "noise": 0.272185282571409,
-              "power": 0.2768032916731435,
-              "area": 0.9922786796574626,
-              "eye_h": 0.4775208499937614,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 12,
-          "u": [
-            0.18860327470295055,
-            0.0,
-            0.6138936618973955,
-            0.8471560278392738,
-            0.4494339127473435,
-            0.6803962488530115,
-            0.7005827153006043,
-            0.9634786353809829,
-            0.3454422600510897,
-            0.44646501169337804,
-            0.0014650726225227118
-          ],
-          "rollout_m_min": 0.1855695313542312,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.1855695313542312,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9949917225393125,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.2731150535759257,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.32598521061901126,
-              "noise": 0.21604137246370816,
-              "power": 0.2940127298119773,
-              "area": 0.9929115307517435,
-              "eye_h": 0.3260439047916436,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 13,
-          "u": [
-            0.24009550124585552,
-            0.0,
-            0.6257197066026262,
-            0.8728130155921556,
-            0.4557303361421586,
-            0.6793336562450887,
-            0.6405740711742487,
-            1.0,
-            0.3373975510652544,
-            0.40820145048930223,
-            0.0
-          ],
-          "rollout_m_min": 0.2108499847510714,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.2108499847510714,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9919509565158703,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.28597898042407444,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.31527235705139334,
-              "noise": 0.18830434166629215,
-              "power": 0.32210152580031726,
-              "area": 0.9931985086047578,
-              "eye_h": 0.32953408179851124,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 14,
-          "u": [
-            0.18506709783516748,
-            0.0,
-            0.5920079411754838,
-            0.8490229382130658,
-            0.44261933763352174,
-            0.6884266863681288,
-            0.7258107108899798,
-            0.9658809759086068,
-            0.34012857768120186,
-            0.5515428334547477,
-            0.0
-          ],
-          "rollout_m_min": 0.17495404974952736,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.17495404974952736,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.9952812003894234,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.2516433395759258,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.5199721055140059,
-              "noise": 0.19978929960815192,
-              "power": 0.18532764560083376,
-              "area": 0.9922900678376557,
-              "eye_h": 0.4988307757253951,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 15,
-          "u": [
-            0.2084666613414131,
-            0.0,
-            0.6128403889762691,
-            0.8335260174188173,
-            0.46210504520292345,
-            0.6930057803738774,
-            0.7182308599257317,
-            0.9269012234537001,
-            0.33173123318137543,
-            0.531199295081039,
-            0.0014109659241512418
-          ],
-          "rollout_m_min": 0.20084934916847005,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.20084934916847005,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9940861760179814,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.2664158055759257,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.3866012887377704,
-              "noise": 0.2534838832463338,
-              "power": 0.20001552693410804,
-              "area": 0.9924179269043605,
-              "eye_h": 0.502992166286968,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 16,
-          "u": [
-            0.2331426960631918,
-            0.0,
-            0.6235348566134914,
-            0.8826518366529947,
-            0.44882712803388897,
-            0.6900294962734361,
-            0.6877578567617979,
-            1.0,
-            0.3367739579583885,
-            0.4395647754790998,
-            0.0
-          ],
-          "rollout_m_min": 0.18490847064189403,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.18490847064189403,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.991101539629941,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.2798273124240744,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.36690239467852825,
-              "noise": 0.155873649896065,
-              "power": 0.28237017079283583,
-              "area": 0.9928645904248306,
-              "eye_h": 0.3728834411514509,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 17,
-          "u": [
-            0.22385522601373417,
-            0.0,
-            0.6582917880315787,
-            0.8763584003734743,
-            0.4549946973480186,
-            0.6988890745315612,
-            0.6292345414311944,
-            1.0,
-            0.296692926337886,
-            0.3604587740337747,
-            0.0
-          ],
-          "rollout_m_min": 0.17688390521480143,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.17688390521480143,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.996105782994389,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.32940573357592556,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.18250636409156898,
-              "noise": 0.1762957585973745,
-              "power": 0.31937794515573664,
-              "area": 0.9934655954765018,
-              "eye_h": 0.2610843299842075,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 18,
-          "u": [
-            0.22087284189594833,
-            0.0,
-            0.6172118399573944,
-            0.8598732233929789,
-            0.45055746949817005,
-            0.6855732575255016,
-            0.6830902794280496,
-            0.957679222304381,
-            0.3433966186306806,
-            0.48562715017034586,
-            0.0
-          ],
-          "rollout_m_min": 0.1987873151229531,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.1987873151229531,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9971100060884796,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.3250194355759257,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.3811307885490568,
-              "noise": 0.19756362167187108,
-              "power": 0.2547789520376403,
-              "area": 0.9927996157279647,
-              "eye_h": 0.4015370121264787,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 19,
-          "u": [
-            0.25385010085713045,
-            0.0,
-            0.653325209934496,
-            0.8634620159116915,
-            0.46827772317062083,
-            0.6775886371952393,
-            0.5078518404297006,
-            1.0,
-            0.2964062094428245,
-            0.3889388288444179,
-            0.006301903631538153
-          ],
-          "rollout_m_min": 0.1688746840663813,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.1688746840663813,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9973249805754484,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.35362891242407424,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.2232989428892975,
-              "noise": 0.23978495176430942,
-              "power": 0.3411216961259327,
-              "area": 0.9939414445077251,
-              "eye_h": 0.3519052873993968,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 20,
-          "u": [
-            0.191169265836402,
-            0.0,
-            0.6088645917645178,
-            0.8409518546375787,
-            0.45907191058228675,
-            0.6865306246664287,
-            0.6803187938311543,
-            0.9845153697198327,
-            0.299794313864726,
-            0.4811009094191986,
-            0.014595331624150276
-          ],
-          "rollout_m_min": 0.21121011546614035,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.21121011546614035,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9948127612592766,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.14864813132116017
-            ],
-            "margins": {
-              "peaking": 0.3510260195759255,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.39535804554703635,
-              "noise": 0.24055444298262804,
-              "power": 0.2564662252116869,
-              "area": 0.9928524639238122,
-              "eye_h": 0.48761318130851466,
-              "eye_w": -0.14864813132116017
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 21,
-          "u": [
-            0.17923173722058458,
-            0.0,
-            0.6095035129275627,
-            0.8601583443067378,
-            0.447018598081348,
-            0.706407105933121,
-            0.6823706921094503,
-            0.970634366701364,
-            0.3215691352192097,
-            0.44890173362365837,
-            0.0
-          ],
-          "rollout_m_min": 0.2050026223269858,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.2050026223269858,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9928455307607869,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.2725246615759257,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.3519870884843475,
-              "noise": 0.18543792108262563,
-              "power": 0.24657828064626564,
-              "area": 0.9931150062090537,
-              "eye_h": 0.3712378655190879,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 22,
-          "u": [
-            0.23181928712122066,
-            0.0,
-            0.6094665262664191,
-            0.8265065772409892,
-            0.4611363328209049,
-            0.6720119623105885,
-            0.7645037691944685,
-            0.9162625827258523,
-            0.3308574393335165,
-            0.527459912009378,
-            0.0
-          ],
-          "rollout_m_min": 0.1919606550180209,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.1919606550180209,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9973110009088166,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.33386941557592564,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.3870683534764695,
-              "noise": 0.26704312415916004,
-              "power": 0.23741986661064285,
-              "area": 0.9920323064590951,
-              "eye_h": 0.49377476516019647,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 23,
-          "u": [
-            0.2418392809963964,
-            0.0,
-            0.6595705501278414,
-            0.8764490227165973,
-            0.46456830796393517,
-            0.6807205992855043,
-            0.5115285752653085,
-            1.0,
-            0.2627380809457408,
-            0.38943317771919916,
-            0.0
-          ],
-          "rollout_m_min": 0.18325363787598734,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.18325363787598734,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9907977443816988,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.14864813132116017
-            ],
-            "margins": {
-              "peaking": 0.26224071442407426,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.2432680078539746,
-              "noise": 0.21495272891693565,
-              "power": 0.3371747489006133,
-              "area": 0.9939377360549126,
-              "eye_h": 0.3895346427902711,
-              "eye_w": -0.14864813132116017
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 24,
-          "u": [
-            0.22085294797263963,
-            0.0,
-            0.6267263753854192,
-            0.8727231722276068,
-            0.4442170724419779,
-            0.6685070885915221,
-            0.6869718612541851,
-            1.0,
-            0.3313666786010744,
-            0.4533104025831717,
-            0.014230489730834961
-          ],
-          "rollout_m_min": 0.16555390184481505,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.16555390184481505,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9979938305650999,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.3595050275759256,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.3825258899216788,
-              "noise": 0.1734984343530403,
-              "power": 0.3091420706453347,
-              "area": 0.9927838902027589,
-              "eye_h": 0.34044597364289586,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 25,
-          "u": [
-            0.24990258895970804,
-            0.0,
-            0.6167109867839596,
-            0.8721253073725259,
-            0.4605152560312203,
-            0.6981286494747647,
-            0.681488879574224,
-            1.0,
-            0.34850645154382975,
-            0.4238915438836711,
-            0.0
-          ],
-          "rollout_m_min": 0.19386786164670983,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.19386786164670983,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.9885369293276569,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.26038512842407435,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.33270757141365503,
-              "noise": 0.18718337876506738,
-              "power": 0.27683322113077624,
-              "area": 0.9929336448346444,
-              "eye_h": 0.37212009289673026,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 26,
-          "u": [
-            0.20707432780593557,
-            0.0,
-            0.6459186587764404,
-            0.8638329178045845,
-            0.43858107225111637,
-            0.6820240622956217,
-            0.7846684126087871,
-            0.9339837199905957,
-            0.2764451665747346,
-            0.45931943075994874,
-            0.0
-          ],
-          "rollout_m_min": 0.2176505057164192,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.2176505057164192,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9976636778429744,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.3843491804240745,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.3092314062924725,
-              "noise": 0.1709655364357852,
-              "power": 0.2851723162637025,
-              "area": 0.9924098284191225,
-              "eye_h": 0.37051611378400495,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 27,
-          "u": [
-            0.23626690777430234,
-            0.0,
-            0.6365632142571255,
-            0.8837628654271705,
-            0.448067079507899,
-            0.6943258087895257,
-            0.5256553358302858,
-            1.0,
-            0.3385062837218301,
-            0.3810234007032859,
-            0.0
-          ],
-          "rollout_m_min": 0.17978862645936658,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.17978862645936658,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9965681679290426,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.2867933435759255,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.26460904133773683,
-              "noise": 0.1660994207215382,
-              "power": 0.3147201733116392,
-              "area": 0.9939908383261152,
-              "eye_h": 0.2392039091546122,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 28,
-          "u": [
-            0.22870388592539279,
-            0.0,
-            0.6383621692895528,
-            0.8869581367305821,
-            0.4484148326942599,
-            0.692763808566323,
-            0.6890583444291201,
-            0.9979372429661453,
-            0.33139035945659445,
-            0.44172749017163093,
-            0.0
-          ],
-          "rollout_m_min": 0.18782554956034672,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.18782554956034672,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9957997411993049,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.3369023764240744,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.3357240341377238,
-              "noise": 0.1501441547589187,
-              "power": 0.27826983509714853,
-              "area": 0.9928388148766621,
-              "eye_h": 0.3720410512544984,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 29,
-          "u": [
-            0.22912881820641381,
-            0.0,
-            0.5971351328354783,
-            0.8367995217393494,
-            0.4558878472221917,
-            0.6840409365586848,
-            0.6803783088361319,
-            0.965954679729424,
-            0.34858380609093176,
-            0.49619810842706735,
-            0.0004632663622032851
-          ],
-          "rollout_m_min": 0.22687634809590768,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.22687634809590768,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.9971476717572684,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.3043036275759256,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.4065693407773246,
-              "noise": 0.23825332011044442,
-              "power": 0.24553449081132336,
-              "area": 0.9927870167919537,
-              "eye_h": 0.4750723429063698,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 30,
-          "u": [
-            0.22230936057578696,
-            0.0,
-            0.6420829328291572,
-            0.859004111914883,
-            0.4667027619348741,
-            0.7024782709532329,
-            0.6576554365127754,
-            0.9668211489915848,
-            0.31770339900994615,
-            0.3929551080873507,
-            0.0
-          ],
-          "rollout_m_min": 0.20470119477431348,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.20470119477431348,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9936386797738446,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.11590382867966634
-            ],
-            "margins": {
-              "peaking": 0.3491348995759257,
-              "fpeak": 0.10094124910356049,
-              "hd3": 0.19824643908121878,
-              "noise": 0.2201612064937931,
-              "power": 0.29262849239646244,
-              "area": 0.9932430770007399,
-              "eye_h": 0.2936311072737472,
-              "eye_w": -0.11590382867966634
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 31,
-          "u": [
-            0.2198440622928731,
-            0.0,
-            0.6463907310118654,
-            0.8641608946907675,
-            0.4414721490962333,
-            0.6824137630510987,
-            0.5937352884465303,
-            0.9871087055653334,
-            0.2903163504264684,
-            0.42448079802126537,
-            0.0
-          ],
-          "rollout_m_min": 0.22389941339942765,
-          "start_m_min": -0.04661814118326703,
-          "solved_at_start": false,
-          "predicted_m_min": 0.22389941339942765,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9893984282734936,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.0831595260381725
-            ],
-            "margins": {
-              "peaking": 0.2619950515759257,
-              "fpeak": 0.17274816333817136,
-              "hd3": 0.2825349203429795,
-              "noise": 0.1823919586845859,
-              "power": 0.3105786846117069,
-              "area": 0.9935986272511673,
-              "eye_h": 0.3913267495269125,
-              "eye_w": -0.0831595260381725
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         }
       ]
     },
@@ -3386,9 +2238,20 @@
       "spec": 6,
       "n_proposals": 8,
       "diversity_l2": 0.19416293064975979,
-      "propose_s": 1.2584486189953168,
+      "propose_s": 1.0846793450036785,
       "first_success_rank": 1,
       "n_passing": 7,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 8,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 15.908249523999984
+      },
       "spec_fields": {
         "peaking_min_db": 7.336757531904144,
         "peaking_max_db": 12.336757531904144,
@@ -3422,6 +2285,8 @@
           "predicted_m_min": 0.18315547589021924,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9828809262631953,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -3443,7 +2308,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 1,
@@ -3466,6 +2332,8 @@
           "predicted_m_min": 0.18493621269072438,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9850207558958805,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -3487,7 +2355,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 2,
@@ -3510,6 +2379,8 @@
           "predicted_m_min": 0.19419005921518215,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9912324023498352,
+          "screen_eye_width_ui": 0.375,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -3531,7 +2402,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 3,
@@ -3554,6 +2426,8 @@
           "predicted_m_min": 0.17019671242453654,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9784064480583118,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -3575,7 +2449,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 4,
@@ -3598,6 +2473,8 @@
           "predicted_m_min": 0.15078405231128636,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9957600578423178,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -3619,7 +2496,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 5,
@@ -3642,6 +2520,8 @@
           "predicted_m_min": 0.16042903932055047,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9807613199091083,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -3663,7 +2543,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 6,
@@ -3686,6 +2567,8 @@
           "predicted_m_min": 0.17080887950735435,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9932655443467939,
+          "screen_eye_width_ui": 0.375,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -3707,7 +2590,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 7,
@@ -3730,6 +2614,8 @@
           "predicted_m_min": 0.17076309577521323,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9824506246096809,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": false,
             "brief_specs_passed": 7,
@@ -3753,7 +2639,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": false
+          "real_pass": false,
+          "screen_missed": true
         }
       ]
     },
@@ -3761,9 +2648,20 @@
       "spec": 7,
       "n_proposals": 8,
       "diversity_l2": 0.12226757575603482,
-      "propose_s": 0.2618292970000766,
+      "propose_s": 0.25097678499878384,
       "first_success_rank": 7,
       "n_passing": 2,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 2,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 15.934731403001933
+      },
       "spec_fields": {
         "peaking_min_db": 6.299759478467127,
         "peaking_max_db": 11.299759478467127,
@@ -3797,30 +2695,10 @@
           "predicted_m_min": 0.266905387129982,
           "predicted_binding": "eye_w",
           "predicted_reward": 0.997567293133081,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.040186163641614446
-            ],
-            "margins": {
-              "peaking": 0.3525063383065746,
-              "fpeak": 0.21784003926972698,
-              "hd3": 0.5429039338194279,
-              "noise": 0.29407667878777083,
-              "power": 0.7185357805763157,
-              "area": 0.9915600488862267,
-              "eye_h": 0.6725765623886748,
-              "eye_w": -0.040186163641614446
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 1,
@@ -3843,30 +2721,10 @@
           "predicted_m_min": 0.27533940234073784,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9896772433513009,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.07710208042462928
-            ],
-            "margins": {
-              "peaking": 0.3293833596934256,
-              "fpeak": 0.2824088547740126,
-              "hd3": 0.46686431894232866,
-              "noise": 0.3039067718451282,
-              "power": 0.7357756022123996,
-              "area": 0.992803700004345,
-              "eye_h": 0.7015170337318922,
-              "eye_w": -0.07710208042462928
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 2,
@@ -3889,30 +2747,10 @@
           "predicted_m_min": 0.2799846092485736,
           "predicted_binding": "eye_w",
           "predicted_reward": 0.9976074925685421,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.040186163641614446
-            ],
-            "margins": {
-              "peaking": 0.30713841230657446,
-              "fpeak": 0.21784003926972698,
-              "hd3": 0.544453912487828,
-              "noise": 0.2769528795725907,
-              "power": 0.7085218580359118,
-              "area": 0.9918141241596902,
-              "eye_h": 0.6837246786636773,
-              "eye_w": -0.040186163641614446
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 3,
@@ -3935,30 +2773,10 @@
           "predicted_m_min": 0.28096882152273017,
           "predicted_binding": "eye_w",
           "predicted_reward": 0.9946902154201543,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.00327024685859962
-            ],
-            "margins": {
-              "peaking": 0.27102329630657457,
-              "fpeak": 0.21784003926972698,
-              "hd3": 0.5179434448745689,
-              "noise": 0.27614545327860046,
-              "power": 0.7046466897095899,
-              "area": 0.991627848001921,
-              "eye_h": 0.7251880195237647,
-              "eye_w": -0.00327024685859962
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 4,
@@ -3981,30 +2799,10 @@
           "predicted_m_min": 0.2573015992208135,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9936978930902571,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.00327024685859962
-            ],
-            "margins": {
-              "peaking": 0.34792067230657436,
-              "fpeak": 0.15688398841632992,
-              "hd3": 0.3005398909899658,
-              "noise": 0.2914616485150246,
-              "power": 0.7204336775730037,
-              "area": 0.992162021935403,
-              "eye_h": 0.5439118826137526,
-              "eye_w": -0.00327024685859962
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 5,
@@ -4027,30 +2825,10 @@
           "predicted_m_min": 0.2844752762017786,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.990212245685775,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.00327024685859962
-            ],
-            "margins": {
-              "peaking": 0.31312408030657457,
-              "fpeak": 0.21784003926972698,
-              "hd3": 0.27392876887437473,
-              "noise": 0.33821356762445404,
-              "power": 0.74334451181831,
-              "area": 0.992482924196086,
-              "eye_h": 0.6551863056382282,
-              "eye_w": -0.00327024685859962
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 6,
@@ -4073,6 +2851,8 @@
           "predicted_m_min": 0.25814552592496215,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9903343485416751,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -4094,7 +2874,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 7,
@@ -4117,6 +2898,8 @@
           "predicted_m_min": 0.2558292608546613,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9906994440059727,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -4138,17 +2921,29 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         }
       ]
     },
     {
       "spec": 8,
-      "n_proposals": 32,
-      "diversity_l2": 0.1389220545434473,
-      "propose_s": 0.7161501539958408,
+      "n_proposals": 8,
+      "diversity_l2": 0.11007448071796534,
+      "propose_s": 0.25083989699487574,
       "first_success_rank": null,
       "n_passing": 0,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 0,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 16.191853347991128
+      },
       "spec_fields": {
         "peaking_min_db": 5.544662759356582,
         "peaking_max_db": 10.544662759356582,
@@ -4182,30 +2977,10 @@
           "predicted_m_min": 0.19618814626312864,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9954126100927353,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.33938151012868367,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.35109001341004736,
-              "noise": 0.2358882710023215,
-              "power": 0.7052926638411579,
-              "area": 0.9932510201095717,
-              "eye_h": 0.5555387764515292,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 1,
@@ -4228,30 +3003,10 @@
           "predicted_m_min": 0.18949462319590124,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9969046198532154,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.3035239061286836,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.3981780972893252,
-              "noise": 0.287827853868199,
-              "power": 0.6645184037553463,
-              "area": 0.9921553456935784,
-              "eye_h": 0.8047893698679345,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 2,
@@ -4274,30 +3029,10 @@
           "predicted_m_min": 0.1972448877120111,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9974297834265832,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.3312678321286837,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.3265400013005275,
-              "noise": 0.22747591285752913,
-              "power": 0.6883808254531414,
-              "area": 0.9928628965197183,
-              "eye_h": 0.707614928337555,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 3,
@@ -4320,30 +3055,10 @@
           "predicted_m_min": 0.17405771523297808,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9984773615605267,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.34589814212868364,
-              "fpeak": 0.03710703953643142,
-              "hd3": 0.22087933738805682,
-              "noise": 0.26222309576872566,
-              "power": 0.7055904762377136,
-              "area": 0.9928213481098344,
-              "eye_h": 0.496493709570961,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 4,
@@ -4366,30 +3081,10 @@
           "predicted_m_min": 0.1275974141493732,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9975090861950006,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.32598228612868374,
-              "fpeak": 0.03710703953643142,
-              "hd3": 0.1824205467583978,
-              "noise": 0.25546316301471866,
-              "power": 0.7057222948394677,
-              "area": 0.9930786151793622,
-              "eye_h": 0.4394832621002449,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 5,
@@ -4412,30 +3107,10 @@
           "predicted_m_min": 0.1662408967613985,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.992566788625822,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.05431876707180577
-            ],
-            "margins": {
-              "peaking": 0.2240601289286836,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.33312417076436923,
-              "noise": 0.2752887768304862,
-              "power": 0.6941759617598896,
-              "area": 0.9925032555545635,
-              "eye_h": 0.6426696351354928,
-              "eye_w": -0.05431876707180577
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 6,
@@ -4458,30 +3133,10 @@
           "predicted_m_min": 0.13991124955104964,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.992089823000491,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.05431876707180577
-            ],
-            "margins": {
-              "peaking": 0.23473496532868357,
-              "fpeak": 0.03710703953643142,
-              "hd3": 0.38435998968872165,
-              "noise": 0.23861313133422252,
-              "power": 0.693147451188178,
-              "area": 0.9920899980125518,
-              "eye_h": 0.682514452082043,
-              "eye_w": -0.05431876707180577
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 7,
@@ -4504,1134 +3159,10 @@
           "predicted_m_min": 0.1633472661415509,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9981601015783105,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.2944556579286838,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.34817833044607466,
-              "noise": 0.21208703615932856,
-              "power": 0.7063032731212732,
-              "area": 0.9932451040498409,
-              "eye_h": 0.6147849316188531,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 8,
-          "u": [
-            0.262529170785024,
-            0.0,
-            0.5941587463768653,
-            0.8321681938085115,
-            0.4355845890154964,
-            0.6275434062454761,
-            0.710550604471698,
-            0.8644843435278232,
-            0.3906309503539832,
-            0.4903807845039564,
-            0.007097773486748338
-          ],
-          "rollout_m_min": 0.1622924534866673,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.1622924534866673,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.9943525169326349,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.3065788049286837,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.32943165998404605,
-              "noise": 0.23603440759475972,
-              "power": 0.711418160347364,
-              "area": 0.9925227043288094,
-              "eye_h": 0.5135165764572549,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 9,
-          "u": [
-            0.19311648578561766,
-            0.0,
-            0.5724304503111622,
-            0.8323984696015125,
-            0.44866579735259476,
-            0.6324555449291975,
-            0.7477001376354542,
-            0.9092060428476031,
-            0.38492165239894705,
-            0.5271428627966243,
-            0.0030760192312300205
-          ],
-          "rollout_m_min": 0.14563579214796318,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.14563579214796318,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9932194905209702,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.119538162446164
-            ],
-            "margins": {
-              "peaking": 0.3444768186713162,
-              "fpeak": 0.03710703953643142,
-              "hd3": 0.4419422687329315,
-              "noise": 0.256546124650333,
-              "power": 0.6933004258618186,
-              "area": 0.9919714057656855,
-              "eye_h": 0.6910813272877128,
-              "eye_w": -0.119538162446164
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 10,
-          "u": [
-            0.19536544493578298,
-            0.0,
-            0.6057805392940051,
-            0.8510107945601797,
-            0.43901466682161155,
-            0.6219185604468831,
-            0.8182917347548004,
-            0.8615709751276369,
-            0.34774446756945865,
-            0.48963517510129984,
-            0.0
-          ],
-          "rollout_m_min": 0.14361480796796983,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.14361480796796983,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9879828853679373,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.1521478601333431
-            ],
-            "margins": {
-              "peaking": 0.2875068878713165,
-              "fpeak": 0.03710703953643142,
-              "hd3": 0.3560172088899074,
-              "noise": 0.2225757095733681,
-              "power": 0.7160806331131134,
-              "area": 0.9917455091063091,
-              "eye_h": 0.5368942678689639,
-              "eye_w": -0.1521478601333431
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 11,
-          "u": [
-            0.23782353284016175,
-            0.0,
-            0.6222706890131801,
-            0.8325739370609975,
-            0.45066606822962824,
-            0.6293596048245118,
-            0.5933221387348544,
-            0.9313173041110928,
-            0.309750966105088,
-            0.45622295328213747,
-            0.007189479656517506
-          ],
-          "rollout_m_min": 0.16505262664797754,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.16505262664797754,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9964484293415247,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.3665308221286837,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.28483552684016633,
-              "noise": 0.2654820375133481,
-              "power": 0.724743230855551,
-              "area": 0.9933609268641485,
-              "eye_h": 0.7563513308035115,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 12,
-          "u": [
-            0.19910431496512068,
-            0.0,
-            0.5850804454695887,
-            0.8322034494902348,
-            0.4363866507688439,
-            0.645421406869954,
-            0.7222659539801475,
-            0.892306431046694,
-            0.41454229121463315,
-            0.5102148186488348,
-            0.0
-          ],
-          "rollout_m_min": 0.14885519873966951,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.14885519873966951,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9933305605479814,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.05431876707180577
-            ],
-            "margins": {
-              "peaking": 0.20255397512868373,
-              "fpeak": 0.03710703953643142,
-              "hd3": 0.36997403527857553,
-              "noise": 0.2308222484363197,
-              "power": 0.6926218041713064,
-              "area": 0.992429493779293,
-              "eye_h": 0.5907779954310329,
-              "eye_w": -0.05431876707180577
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 13,
-          "u": [
-            0.25661304622601644,
-            0.0,
-            0.6290054790317069,
-            0.8682608186916789,
-            0.44013309396411243,
-            0.6418725456215353,
-            0.6597561911584284,
-            0.9296050691874768,
-            0.34503990495013015,
-            0.45741128526425834,
-            0.0076916643884032965
-          ],
-          "rollout_m_min": 0.12210423115020282,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.12210423115020282,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.997442263633135,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.119538162446164
-            ],
-            "margins": {
-              "peaking": 0.3535857098713162,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.31109720463592505,
-              "noise": 0.1848104253415066,
-              "power": 0.7160855152835488,
-              "area": 0.9929134366421478,
-              "eye_h": 0.6169278859343589,
-              "eye_w": -0.119538162446164
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 14,
-          "u": [
-            0.22226320911843253,
-            0.0,
-            0.5794856255108013,
-            0.8227865956849294,
-            0.4528147998412973,
-            0.6293899763014079,
-            0.6536303014398959,
-            0.8866658837897773,
-            0.4144123852196516,
-            0.48090718827008183,
-            0.0
-          ],
-          "rollout_m_min": 0.1617315842700369,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.1617315842700369,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9980850137180042,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.3136349543286837,
-              "fpeak": 0.03710703953643142,
-              "hd3": 0.3316560074813852,
-              "noise": 0.2770257126522181,
-              "power": 0.7141586853517347,
-              "area": 0.9928800676994904,
-              "eye_h": 0.5465375206111756,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 15,
-          "u": [
-            0.23249866042581313,
-            0.0,
-            0.6092859933434508,
-            0.8370659968475687,
-            0.4600858451945609,
-            0.6254728933973266,
-            0.5614426149658334,
-            0.8595522980569,
-            0.35673234572768153,
-            0.4849486146195131,
-            0.003490886650979519
-          ],
-          "rollout_m_min": 0.15690386216123842,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.15690386216123842,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.991737699275443,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.119538162446164
-            ],
-            "margins": {
-              "peaking": 0.34208132987131634,
-              "fpeak": 0.03710703953643142,
-              "hd3": 0.30574985317708847,
-              "noise": 0.27907197231868774,
-              "power": 0.7167771560952217,
-              "area": 0.993392672887177,
-              "eye_h": 0.5556857754006612,
-              "eye_w": -0.119538162446164
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 16,
-          "u": [
-            0.22171164781732408,
-            0.0,
-            0.6202970696196414,
-            0.8429044451748362,
-            0.42978857171198653,
-            0.6379413723817007,
-            0.6360981474535015,
-            0.9308370173340733,
-            0.3529337666872324,
-            0.4512147048444758,
-            0.0
-          ],
-          "rollout_m_min": 0.183698788904315,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.183698788904315,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9873940549609618,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.05431876707180577
-            ],
-            "margins": {
-              "peaking": 0.2084723721286837,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.2834467021298115,
-              "noise": 0.20893647632432474,
-              "power": 0.7208716697003267,
-              "area": 0.9932497788115271,
-              "eye_h": 0.6380309472373212,
-              "eye_w": -0.05431876707180577
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 17,
-          "u": [
-            0.20565238985411746,
-            0.0,
-            0.6325042504342261,
-            0.8221866768270141,
-            0.46438883110255885,
-            0.6485507237712764,
-            0.6130612759406153,
-            0.83499464214687,
-            0.32189141607649974,
-            0.40343780717377464,
-            0.01083886157721281
-          ],
-          "rollout_m_min": 0.18558226584410903,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.18558226584410903,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9932875727122996,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.119538162446164
-            ],
-            "margins": {
-              "peaking": 0.40169659812868375,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.12882618333413817,
-              "noise": 0.2924009168350005,
-              "power": 0.7286847697870152,
-              "area": 0.9935679767129237,
-              "eye_h": 0.3661365586245383,
-              "eye_w": -0.119538162446164
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 18,
-          "u": [
-            0.2111279603018604,
-            0.0,
-            0.5770236049594811,
-            0.8129718418184078,
-            0.456490135859502,
-            0.6399742417607368,
-            0.7371018217781033,
-            0.9008184939986165,
-            0.3481197891700448,
-            0.5676768422199684,
-            0.0
-          ],
-          "rollout_m_min": 0.173153709471733,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.173153709471733,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9979366418859634,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.119538162446164
-            ],
-            "margins": {
-              "peaking": 0.3603112921286836,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.4444897503667084,
-              "noise": 0.2945260697984161,
-              "power": 0.6699555142301696,
-              "area": 0.9917981429333275,
-              "eye_h": 0.9284200802939762,
-              "eye_w": -0.119538162446164
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 19,
-          "u": [
-            0.2401046209893368,
-            0.0,
-            0.6057735036176152,
-            0.8441133432041263,
-            0.4729062580359536,
-            0.6753977205417496,
-            0.5777506726698425,
-            0.9112198846516036,
-            0.3612823198049172,
-            0.4769836588893822,
-            0.0
-          ],
-          "rollout_m_min": 0.15915281969788436,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.15915281969788436,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.9843412179244948,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.1521478601333431
-            ],
-            "margins": {
-              "peaking": 0.27763286787131636,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.298510346560062,
-              "noise": 0.2677711092199755,
-              "power": 0.6860504027653392,
-              "area": 0.9933743872601531,
-              "eye_h": 0.762766727140223,
-              "eye_w": -0.1521478601333431
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 20,
-          "u": [
-            0.23390822808553388,
-            0.0,
-            0.5970485937597684,
-            0.8376006961751139,
-            0.45373314606565,
-            0.6649795453168363,
-            0.6443327272680994,
-            0.8471341908108513,
-            0.3804841138366045,
-            0.5276929491738128,
-            0.0
-          ],
-          "rollout_m_min": 0.1576769840756283,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.1576769840756283,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.9944869413204145,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.119538162446164
-            ],
-            "margins": {
-              "peaking": 0.36954423012868354,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.3468112478779149,
-              "noise": 0.24539880361612718,
-              "power": 0.6728799343209381,
-              "area": 0.9928707572975952,
-              "eye_h": 0.6443710169372698,
-              "eye_w": -0.119538162446164
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 21,
-          "u": [
-            0.17081629229189751,
-            0.0,
-            0.5790729791207693,
-            0.8358024869065142,
-            0.4367218817847683,
-            0.6637811170995147,
-            0.697736331810936,
-            0.8546109533300693,
-            0.382666697626877,
-            0.5134832710100609,
-            0.0
-          ],
-          "rollout_m_min": 0.17860185279104532,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.17860185279104532,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.994483237816065,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.119538162446164
-            ],
-            "margins": {
-              "peaking": 0.3245287681286836,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.382883395588553,
-              "noise": 0.2189264815693763,
-              "power": 0.6792316380573148,
-              "area": 0.9927616380807956,
-              "eye_h": 0.5398379253199591,
-              "eye_w": -0.119538162446164
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 22,
-          "u": [
-            0.20529903768740518,
-            0.0,
-            0.5933183502221934,
-            0.8320044067639267,
-            0.4407996886207624,
-            0.6403589874144555,
-            0.7628081900437769,
-            0.8552693210905488,
-            0.37210795925365703,
-            0.526762912057181,
-            0.0
-          ],
-          "rollout_m_min": 0.19173828111843239,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.19173828111843239,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.998562764754348,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.3479581601286837,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.3710084667491122,
-              "noise": 0.2425585372964516,
-              "power": 0.6892042848665686,
-              "area": 0.9920255634317655,
-              "eye_h": 0.6303204506706725,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 23,
-          "u": [
-            0.22485480475418193,
-            0.0,
-            0.607185796210774,
-            0.8182947289149618,
-            0.45617678248397026,
-            0.619331265018499,
-            0.587788421394996,
-            0.8415654470110382,
-            0.3499591079484107,
-            0.43947208568717266,
-            0.0
-          ],
-          "rollout_m_min": 0.20044568175684876,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.20044568175684876,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9964748459034928,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.39997539812868366,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.22687260844949014,
-              "noise": 0.29730678103224056,
-              "power": 0.7358322673043526,
-              "area": 0.9935201474334459,
-              "eye_h": 0.4464632145934506,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 24,
-          "u": [
-            0.2171913595562048,
-            0.0,
-            0.5913643183468363,
-            0.8348124467718756,
-            0.449468506142301,
-            0.6508615193061442,
-            0.6735989892294105,
-            0.8878749831011589,
-            0.3708726017388416,
-            0.5370135456396538,
-            0.0
-          ],
-          "rollout_m_min": 0.18314000000840475,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.18314000000840475,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.9973869843823017,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.119538162446164
-            ],
-            "margins": {
-              "peaking": 0.33972336012868354,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.4001348008405154,
-              "noise": 0.24820614669118604,
-              "power": 0.6783121626253259,
-              "area": 0.9925430312099878,
-              "eye_h": 0.7523890129961993,
-              "eye_w": -0.119538162446164
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 25,
-          "u": [
-            0.2019976424676545,
-            0.0,
-            0.6229229125475965,
-            0.8212300413704818,
-            0.43930359273742253,
-            0.6284619669068516,
-            0.6987302546875958,
-            0.8782336670802976,
-            0.3306551717718266,
-            0.4487127268294143,
-            0.0
-          ],
-          "rollout_m_min": 0.1583275186527306,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.1583275186527306,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9896624205429326,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.05431876707180577
-            ],
-            "margins": {
-              "peaking": 0.25722296612868367,
-              "fpeak": 0.03710703953643142,
-              "hd3": 0.22545934794427472,
-              "noise": 0.2623282357368183,
-              "power": 0.727561870586887,
-              "area": 0.9928946852813396,
-              "eye_h": 0.580902395825074,
-              "eye_w": -0.05431876707180577
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 26,
-          "u": [
-            0.20926645439296884,
-            0.0,
-            0.6221339120258332,
-            0.824770827120856,
-            0.4406901379321138,
-            0.6051379425089718,
-            0.791803114898264,
-            0.7947736804736848,
-            0.2955193995907338,
-            0.47434014664760704,
-            0.0
-          ],
-          "rollout_m_min": 0.21256470583463322,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.21256470583463322,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9964916307528625,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.1521478601333431
-            ],
-            "margins": {
-              "peaking": 0.3771630238713165,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.2643430886881249,
-              "noise": 0.27373418501783553,
-              "power": 0.7322113242314756,
-              "area": 0.9920494989382194,
-              "eye_h": 0.43642464651744317,
-              "eye_w": -0.1521478601333431
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 27,
-          "u": [
-            0.23350453837022112,
-            0.0,
-            0.6159889977590635,
-            0.8245094872962093,
-            0.46246017945538226,
-            0.6380937445547343,
-            0.43600904426047915,
-            0.8461513662142749,
-            0.373753602052051,
-            0.44446644327401097,
-            0.0
-          ],
-          "rollout_m_min": 0.14278581641077118,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.14278581641077118,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9979926596684546,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.29085478212868365,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.20186666898946637,
-              "noise": 0.30724851882428067,
-              "power": 0.7240125326803952,
-              "area": 0.9944402045093679,
-              "eye_h": 0.4481190002521172,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 28,
-          "u": [
-            0.22701519652448518,
-            0.0,
-            0.5752276508884958,
-            0.8099033891174352,
-            0.44492739822323385,
-            0.6314078817713917,
-            0.8090313222163763,
-            0.8791038327282364,
-            0.37670509192993806,
-            0.5212539527638155,
-            0.0
-          ],
-          "rollout_m_min": 0.1688916618454387,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.1688916618454387,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9942321846627974,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.3176545781286837,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.3737726824286156,
-              "noise": 0.28247814527067605,
-              "power": 0.6958717022910975,
-              "area": 0.9916811216079939,
-              "eye_h": 0.7241846399746296,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 29,
-          "u": [
-            0.1981976681313656,
-            0.0,
-            0.6034625718768208,
-            0.8150630833532071,
-            0.4542079178996286,
-            0.6711990398226217,
-            0.6729483668131229,
-            0.8378392733531143,
-            0.42070189219102205,
-            0.47708879772837187,
-            0.0
-          ],
-          "rollout_m_min": 0.16005318375574124,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.16005318375574124,
-          "predicted_binding": "fpeak",
-          "predicted_reward": 0.9908206768697808,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.021709069384626658
-            ],
-            "margins": {
-              "peaking": 0.14575989012868362,
-              "fpeak": 0.03710703953643142,
-              "hd3": 0.20712973834302667,
-              "noise": 0.27486864087370017,
-              "power": 0.6887095582624543,
-              "area": 0.9930419992415144,
-              "eye_h": 0.4775026674711782,
-              "eye_w": -0.021709069384626658
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 30,
-          "u": [
-            0.23194646713502629,
-            0.0,
-            0.5865319376627437,
-            0.8290485183659351,
-            0.4318201318297437,
-            0.6406947287369431,
-            0.7660091331598755,
-            0.8928332262104447,
-            0.36447221356810944,
-            0.546946328140636,
-            0.0
-          ],
-          "rollout_m_min": 0.18880587029556734,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.18880587029556734,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.992093615990054,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.2788284397286837,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.426934829799866,
-              "noise": 0.23036922195222723,
-              "power": 0.6793683388295045,
-              "area": 0.9918729549441265,
-              "eye_h": 0.7803695843447247,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
-        },
-        {
-          "source": 31,
-          "u": [
-            0.23885643360383732,
-            0.0,
-            0.5834147188744961,
-            0.8334486561778343,
-            0.4543371357636428,
-            0.6520152908388437,
-            0.6345329075956192,
-            0.9133602910107071,
-            0.39270464906020963,
-            0.5179203758089143,
-            0.0
-          ],
-          "rollout_m_min": 0.17346384745638285,
-          "start_m_min": -0.015285191312213125,
-          "solved_at_start": false,
-          "predicted_m_min": 0.17346384745638285,
-          "predicted_binding": "eye_w",
-          "predicted_reward": 0.9971714806928546,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.08692846475898489
-            ],
-            "margins": {
-              "peaking": 0.32633237252868363,
-              "fpeak": 0.12003502179077068,
-              "hd3": 0.393059706685659,
-              "noise": 0.255959520772949,
-              "power": 0.6852480994237984,
-              "area": 0.992857364383583,
-              "eye_h": 0.7489577100954022,
-              "eye_w": -0.08692846475898489
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         }
       ]
     },
@@ -5639,9 +3170,20 @@
       "spec": 9,
       "n_proposals": 8,
       "diversity_l2": 0.14953993275871172,
-      "propose_s": 1.2398847869990277,
+      "propose_s": 1.1626941009890288,
       "first_success_rank": 2,
       "n_passing": 4,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 4,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 16.22061810300511
+      },
       "spec_fields": {
         "peaking_min_db": 7.066471412752856,
         "peaking_max_db": 12.066471412752856,
@@ -5675,30 +3217,10 @@
           "predicted_m_min": 0.254335992567551,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9880169802453631,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.053567993081001124
-            ],
-            "margins": {
-              "peaking": 0.3293267945505711,
-              "fpeak": 0.2314760330051442,
-              "hd3": 0.30630840535383863,
-              "noise": 0.4954524087890329,
-              "power": 0.7566180849062043,
-              "area": 0.9935033833234836,
-              "eye_h": 0.6741233310108073,
-              "eye_w": -0.053567993081001124
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 1,
@@ -5721,6 +3243,8 @@
           "predicted_m_min": 0.2328749984552882,
           "predicted_binding": "peaking",
           "predicted_reward": 0.9820481228611243,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -5742,7 +3266,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 2,
@@ -5765,6 +3290,8 @@
           "predicted_m_min": 0.25650578365792076,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9936181060037,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -5786,7 +3313,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 3,
@@ -5809,30 +3337,10 @@
           "predicted_m_min": 0.2480606082925726,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9939246017493695,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.015710712804241172
-            ],
-            "margins": {
-              "peaking": 0.3886118994494286,
-              "fpeak": 0.17681813158186752,
-              "hd3": 0.335295510311424,
-              "noise": 0.4527985284348435,
-              "power": 0.7675738825240758,
-              "area": 0.9932184825121098,
-              "eye_h": 0.6752179014185471,
-              "eye_w": -0.015710712804241172
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 4,
@@ -5855,6 +3363,8 @@
           "predicted_m_min": 0.2381457219717732,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9904185901709921,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -5876,7 +3386,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         },
         {
           "source": 5,
@@ -5899,30 +3410,10 @@
           "predicted_m_min": 0.2522127794394175,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.9939129277241653,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.015710712804241172
-            ],
-            "margins": {
-              "peaking": 0.320319525449429,
-              "fpeak": 0.17681813158186752,
-              "hd3": 0.369896995261633,
-              "noise": 0.4572670264007398,
-              "power": 0.7441199983142851,
-              "area": 0.9928467065586853,
-              "eye_h": 0.8139343035020145,
-              "eye_w": -0.015710712804241172
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 6,
@@ -5945,31 +3436,10 @@
           "predicted_m_min": 0.23255987987014426,
           "predicted_binding": "eye_w",
           "predicted_reward": 0.9878750090793574,
-          "pvt": {
-            "all_pass_everywhere": false,
-            "brief_specs_passed": 7,
-            "failed": [
-              "equalises",
-              "eye_w"
-            ],
-            "binding": [
-              "eye_w",
-              -0.053567993081001124
-            ],
-            "margins": {
-              "peaking": 0.33630300855057094,
-              "fpeak": 0.151246169309515,
-              "hd3": 0.40176316310508997,
-              "noise": 0.45149611118566657,
-              "power": 0.7531149233923784,
-              "area": 0.9922765341620153,
-              "eye_h": 0.5964055694025268,
-              "eye_w": -0.053567993081001124
-            },
-            "n_corners": 20,
-            "launches": 40
-          },
-          "real_pass": false
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
         },
         {
           "source": 7,
@@ -5992,6 +3462,8 @@
           "predicted_m_min": 0.2336150190079343,
           "predicted_binding": "fpeak",
           "predicted_reward": 0.992861566007548,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": true,
           "pvt": {
             "all_pass_everywhere": true,
             "brief_specs_passed": 8,
@@ -6013,7 +3485,8 @@
             "n_corners": 20,
             "launches": 40
           },
-          "real_pass": true
+          "real_pass": true,
+          "screen_missed": false
         }
       ]
     }

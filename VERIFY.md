@@ -16,8 +16,8 @@ The fastest check that nothing is broken. The pure tier needs no PDK and no
 ngspice, so it runs anywhere in under a second:
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 257 tests, ~32 s, no PDK
-python3 -m pytest tests/ -q                      # all 301, ~2 min with the PDK
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 266 tests, ~32 s, no PDK
+python3 -m pytest tests/ -q                      # all 310, ~2 min with the PDK
 ```
 
 Two of those tests are worth reading on their own, because they pin device-model

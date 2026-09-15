@@ -1,0 +1,183 @@
+{
+ "ok": true,
+ "artifact_dir": "/tmp/eqrl_mcp/190627-e3ff4dfa",
+ "all_pass": true,
+ "method": "policy",
+ "in_envelope": true,
+ "outside_trained_range": {},
+ "sized_parameters": {
+  "W": 24.36204337887466,
+  "L": 0.15,
+  "RL": 1147.758762195067,
+  "Rs": 3591.6634561132337,
+  "Cs": 1.5964981660017233e-13,
+  "Itail": 0.0006262038375905266,
+  "Wtail": 143.1235796911642,
+  "Rsum": 1315.9703406695498,
+  "Wg1": 35.19942656997591,
+  "Ig1": 0.0008470663710447465,
+  "tap_pct": 1.0
+ },
+ "scorecard": [
+  {
+   "spec": "peaking",
+   "required": "3 - 12 dB",
+   "internal": false,
+   "margin": 0.4182,
+   "pass": true
+  },
+  {
+   "spec": "fpeak",
+   "required": "1.25 - 2.5 GHz",
+   "internal": false,
+   "margin": 0.1991,
+   "pass": true
+  },
+  {
+   "spec": "hd3",
+   "required": "< -30 dBc",
+   "internal": false,
+   "margin": 0.3991,
+   "pass": true
+  },
+  {
+   "spec": "noise",
+   "required": "< 1.5 mVrms",
+   "internal": false,
+   "margin": 0.3316,
+   "pass": true
+  },
+  {
+   "spec": "power",
+   "required": "< 15 mW",
+   "internal": false,
+   "margin": 0.7183,
+   "pass": true
+  },
+  {
+   "spec": "area",
+   "required": "< 0.05 mm2",
+   "internal": false,
+   "margin": 0.992,
+   "pass": true
+  },
+  {
+   "spec": "eye_h",
+   "required": "> 100 mV",
+   "internal": false,
+   "margin": 0.591,
+   "pass": true
+  },
+  {
+   "spec": "eye_w",
+   "required": "> 0.4 UI",
+   "internal": false,
+   "margin": 0.1328,
+   "pass": true
+  },
+  {
+   "spec": "bias",
+   "required": "devices biased in saturation",
+   "internal": true,
+   "margin": null,
+   "pass": true
+  },
+  {
+   "spec": "equalises",
+   "required": "eye openness improved vs the equaliser input",
+   "internal": true,
+   "margin": null,
+   "pass": true
+  }
+ ],
+ "specs_passed": "8/8 brief specs, 10/10 including internal checks, at all 20 PVT corners",
+ "applied_spec": [
+  {
+   "limit": "peaking",
+   "value": "3 - 12 dB",
+   "source": "default",
+   "parameter": "peaking_db"
+  },
+  {
+   "limit": "fpeak",
+   "value": "1.25 - 2.5 GHz",
+   "source": "asked",
+   "parameter": "fpeak_lo_ghz/fpeak_hi_ghz"
+  },
+  {
+   "limit": "hd3",
+   "value": "< -30 dBc",
+   "source": "asked",
+   "parameter": "hd3_max_db"
+  },
+  {
+   "limit": "noise",
+   "value": "< 1.5 mVrms",
+   "source": "asked",
+   "parameter": "noise_max_mvrms"
+  },
+  {
+   "limit": "power",
+   "value": "< 15 mW",
+   "source": "asked",
+   "parameter": "power_max_mw"
+  },
+  {
+   "limit": "area",
+   "value": "< 0.05 mm2",
+   "source": "default",
+   "parameter": "not settable"
+  },
+  {
+   "limit": "eye_h",
+   "value": "> 100 mV",
+   "source": "asked",
+   "parameter": "eye_height_min_mv"
+  },
+  {
+   "limit": "eye_w",
+   "value": "> 0.4 UI",
+   "source": "asked",
+   "parameter": "eye_width_min_ui"
+  },
+  {
+   "limit": "bias",
+   "value": "devices biased in saturation",
+   "source": "default",
+   "parameter": "not settable"
+  },
+  {
+   "limit": "equalises",
+   "value": "eye openness improved vs the equaliser input",
+   "source": "default",
+   "parameter": "not settable"
+  }
+ ],
+ "unreachable": {},
+ "unchecked_by_envelope": [
+  "noise",
+  "area"
+ ],
+ "binding_spec": [
+  "eye_w",
+  0.13281249999999994
+ ],
+ "failed_specs": [],
+ "attempts": [
+  {
+   "method": "policy",
+   "proposed": 8,
+   "survived_eye_screen": 8,
+   "verified_at_20_corners": 1
+  }
+ ],
+ "wall_s": 44.5,
+ "netlist_path": "/tmp/eqrl_mcp/190627-e3ff4dfa/design.sp",
+ "eye_png": "/tmp/eqrl_mcp/190627-e3ff4dfa/eye.png",
+ "eye_measured": {
+  "height_mv": 217.9,
+  "width_ui": 0.4844
+ },
+ "ac_png": "/tmp/eqrl_mcp/190627-e3ff4dfa/ac.png",
+ "report_path": "/tmp/eqrl_mcp/190627-e3ff4dfa/report.html"
+}

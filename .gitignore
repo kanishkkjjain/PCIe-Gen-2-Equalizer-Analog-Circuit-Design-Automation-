@@ -16,6 +16,11 @@ spinit
 
 # --- generated plots ---
 *.png
+# ...except the report's figures, which ARE source: the document embeds them.
+# The blanket *.png above is for regenerated simulation plots; without this
+# exception `docs/figures/` would be silently dropped from every commit, which
+# is how this repo nearly lost the trained policy checkpoint once already.
+!docs/figures/*.png
 *.svg
 *.pdf
 

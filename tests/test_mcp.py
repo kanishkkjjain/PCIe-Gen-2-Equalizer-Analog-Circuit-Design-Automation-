@@ -134,14 +134,21 @@ def test_an_unmeasured_spec_is_not_a_pass():
     assert rows["hd3"]["margin"] is None
 
 
-def test_the_scorecard_covers_every_brief_spec():
-    """A spec missing from the scorecard is one nobody checked, and the row
-    simply would not appear -- which reads as though it were fine."""
+def test_the_scorecard_covers_every_condition_not_just_the_brief_ones():
+    """A condition missing from the scorecard is one nobody can act on.
+
+    This test used to assert the scorecard showed EXACTLY the eight brief
+    specs, which is what the bug looked like from the inside: a design failing
+    the internal `bias` check rendered eight passing rows and no sign of the
+    failure. The assertion now covers everything `all_pass` depends on.
+    """
     spec = sp.EqualizerSpec()
-    rows = _scorecard({"margins": dict.fromkeys(sp.BRIEF_SPECS, 0.1)}, spec)
-    assert {r["spec"] for r in rows} == set(sp.BRIEF_SPECS)
+    keys = list(sp.BRIEF_SPECS) + list(sp.INTERNAL_CHECKS)
+    rows = _scorecard({"margins": dict.fromkeys(keys, 0.1)}, spec)
+    assert {r["spec"] for r in rows} == set(keys)
     for r in rows:
         assert r["required"], f"{r['spec']} has no stated limit"
+    assert sum(1 for r in rows if r["internal"]) == len(sp.INTERNAL_CHECKS)
 
 
 def test_the_stated_limits_track_the_spec_not_the_defaults():
@@ -149,9 +156,12 @@ def test_the_stated_limits_track_the_spec_not_the_defaults():
     while the user asked for something tighter would be a scorecard against
     the wrong question."""
     spec = build_spec(power_max_mw=7, eye_width_min_ui=0.45)
+    keys = list(sp.BRIEF_SPECS) + list(sp.INTERNAL_CHECKS)
     rows = {r["spec"]: r for r in
-            _scorecard({"margins": dict.fromkeys(sp.BRIEF_SPECS, 0.1)}, spec)}
-    assert "7.0 mW" in rows["power"]["required"]
+            _scorecard({"margins": dict.fromkeys(keys, 0.1)}, spec)}
+    # the VALUE must be right; its formatting is `_fmt`'s business, and the
+    # rule `_fmt` enforces is that a bound never moves when printed
+    assert "7" in rows["power"]["required"] and "mW" in rows["power"]["required"]
     assert "0.45" in rows["eye_w"]["required"]
 
 

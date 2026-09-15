@@ -52,7 +52,7 @@ directory, not from this one.
 | tool | time | what it does |
 |---|---|---|
 | `check_spec` | < 1 s | Is the request inside the range the RL policy was trained on, and does any already-measured design satisfy it? No simulation. |
-| `design_equalizer` | ~45 s | Propose, screen the eye in SPICE, verify at all 20 PVT corners. Returns sizes, scorecard, plots, netlist. |
+| `design_equalizer` | median 37 s ([details](#how-long-it-takes)) | Propose, screen the eye in SPICE, verify at all 20 PVT corners. Returns sizes, scorecard, plots, netlist, and a self-contained HTML report. |
 | `explain_capabilities` | instant | The measured capabilities **and the measured limits**, so the model quotes them rather than inferring. |
 
 ## Which method answers
@@ -68,6 +68,48 @@ within 1.1–1.6 / 2.0–2.8 GHz, hd3 −34…−26 dBc, power 3–15 mW, eye 60
 instead **and says so** — an extrapolating policy still answers, it just does not
 carry the measured reliability, and presenting it as though it did is the
 failure this design avoids.
+
+## Ten conditions, not eight
+
+A design is judged on the eight brief specs **plus two internal validity
+checks**, and `all_pass` covers all ten:
+
+| check | what it asks |
+|---|---|
+| `bias` | are the devices biased in saturation? An unbiased circuit can post good-looking small-signal numbers that mean nothing. |
+| `equalises` | is the eye more *open* at the slicer than at the input? The summing stage's gain is a free variable, so a design can enlarge the eye without equalising anything. |
+
+The scorecard shows all ten, the internal two marked as such. A count of "8/8"
+refers only to the brief specs and is always reported next to the ten — never
+instead of it. That mattered: for a while a design failing only `bias` rendered
+as *"DOES NOT PASS — 8/8 at all 20 PVT corners"* with eight passing rows and no
+sign of the condition that failed.
+
+The opposite error followed it, and is worth recording because the test suite
+did not catch it. The 20-corner verification records *margins* for the eight
+brief specs only -- `bias` and `equalises` have no entry -- and the renderer
+read a missing margin as a failed one. So a design that passed everywhere
+printed `bias ... n/a FAIL` beside `all_pass: True`. The fixtures agreed with
+the renderer about a dict the simulator never returns, so every test passed.
+It was found by driving one real design through an MCP client, which is now
+what the shape in `tests/test_mcp_reporting.py` is modelled on. The verdict for
+every row comes from the same per-corner pass state `all_pass` is computed
+from; the margin is displayed when it exists and is never invented.
+
+## The report page
+
+Every `design_equalizer` call writes a self-contained `report.html` and returns
+its path as `report_path`. One file, no external references: the eye diagram
+and AC response are embedded as `data:` URIs, alongside the ten-row scorecard,
+the eleven sized devices with their units, which limits were **asked for**
+versus **defaulted from the brief**, the method and envelope check, and the
+netlist.
+
+It exists because MCP image content is collapsed behind an expander in Claude
+Desktop and most terminals cannot render images at all, so "here are your
+diagrams" frequently shows the caller nothing. The page does not depend on the
+host. If writing it fails the design is still returned, with `report_error`
+set -- a report must never cost a result.
 
 ## What it will not do
 
@@ -85,7 +127,24 @@ Roughly 20 % of specifications are not solved by either method — see the READM
 When that happens the server says so rather than returning a design that does
 not meet the request.
 
-## Why ~45 seconds
+## How long it takes
+
+| request | measured |
+|---|---|
+| solvable, inside the trained range | **median 37 s, range 28 - 102 s** over the 16 calls in `results/mcp_e2e.json`; two later runs of the README example took 48 s and 51 s |
+| unsolvable | **up to ~420 s** — both methods run and every screen survivor is verified at 20 corners |
+
+The median is not a bound. `budget_s` is checked *between* proposals, so one
+slow 20-corner verification runs past it to completion.
+
+`design_equalizer` takes a `budget_s` (default 150). On expiry it returns the
+best design found so far with `budget_exceeded: True` and `all_pass: False` —
+never a pass, because a pass means twenty corners were simulated and a
+truncated run did not finish them.
+
+Call `check_spec` first when a request looks ambitious; it costs nothing.
+
+## Why a solvable one is ~40 seconds
 
 ```
 propose 8 designs             1.2 s   no simulator at all

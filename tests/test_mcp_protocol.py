@@ -166,3 +166,99 @@ def test_design_returns_text_and_images_over_the_wire():
     assert kinds.count("image") >= 2, f"expected eye + AC images, got {kinds}"
     text = next(c.text for c in res.content if getattr(c, "type", None) == "text")
     assert "PVT corners" in text and "sized devices" in text
+
+
+# --------------------------------------------------------------------------
+# resources and prompts -- the two primitives that were advertised and empty
+# --------------------------------------------------------------------------
+def test_no_capability_is_advertised_without_anything_behind_it():
+    """The defect that prompted all of this.
+
+    The server declared `prompts` and `resources` in its capabilities and
+    provided ZERO of each. A client that asked got an empty list -- so the
+    feature silently did not exist, while the handshake said it did. That is
+    worse than not advertising: nothing errors, and nobody looks again.
+    """
+    async def go(s):
+        init = await s.initialize()
+        return (init.capabilities, await s.list_tools(),
+                await s.list_resources(), await s.list_prompts())
+
+    caps, tools, resources, prompts = _run(go)
+    if caps.tools is not None:
+        assert tools.tools, "tools capability advertised, none provided"
+    if caps.resources is not None:
+        assert resources.resources, "resources advertised, none provided"
+    if caps.prompts is not None:
+        assert prompts.prompts, "prompts advertised, none provided"
+
+
+def test_the_resources_a_model_can_read_are_present_and_readable():
+    """`explain_capabilities` is a tool the model must think to call. The same
+    content as a RESOURCE can be pulled in as context without a round trip,
+    which is the difference between limits the model happens to ask for and
+    limits it has in front of it."""
+    async def go(s):
+        listed = await s.list_resources()
+        caps = await s.read_resource("eqrl://capabilities")
+        rng = await s.read_resource("eqrl://trained-range")
+        return listed, caps, rng
+
+    listed, caps, rng = _run(go)
+    uris = {str(r.uri) for r in listed.resources}
+    assert {"eqrl://capabilities", "eqrl://trained-range",
+            "eqrl://guide"} <= uris, uris
+
+    # the limits must survive being served as a resource, not just as a tool
+    text = caps.contents[0].text
+    assert "80 %" in text or "80%" in text
+    assert "0.57" in text
+
+    # and the trained range must be real numbers a model can compare against
+    import json
+    r = json.loads(rng.contents[0].text)
+    assert r["peaking_db"] == [5.0, 10.0], r["peaking_db"]
+    assert "not impossible" in r["note"], "the note must not read as a hard no"
+
+
+def test_the_prompts_are_usable_workflows_not_placeholders():
+    """In Claude Code these become /mcp__pcie-equalizer__<name>. A prompt that
+    lists but expands to nothing useful is a dead menu entry."""
+    async def go(s):
+        listed = await s.list_prompts()
+        got = await s.get_prompt("design_equalizer",
+                                 {"peaking_db": "7", "power_max_mw": "8"})
+        limits = await s.get_prompt("explain_limits", {})
+        return listed, got, limits
+
+    listed, got, limits = _run(go)
+    names = {p.name for p in listed.prompts}
+    assert names == {"design_equalizer", "check_feasibility",
+                     "explain_limits"}, names
+    # no `_prompt` suffix leaking into what the user types
+    assert not any(n.endswith("_prompt") for n in names), names
+
+    body = got.messages[0].content.text
+    assert "7 dB" in body and "8 mW" in body, "arguments did not reach the text"
+    assert "scorecard" in body, "the design prompt does not ask for the proof"
+
+    lim = limits.messages[0].content.text
+    assert "CANNOT" in lim or "cannot" in lim
+    assert "eqrl://capabilities" in lim, "does not point at the limits resource"
+
+
+def test_the_instructions_carry_the_guarantees_the_model_relies_on():
+    """`instructions` is the server's one channel into the model's reading
+    path. For a server whose whole point is not overstating results, it has to
+    state what `all_pass` means and that "nothing found" is a real answer --
+    otherwise the model fills both gaps with optimism."""
+    async def go(s):
+        return (await s.initialize()).instructions
+
+    t = _run(go) or ""
+    assert len(t) > 1500, f"instructions are only {len(t)} chars"
+    assert "all 20 corners" in t
+    assert "failed_specs" in t
+    assert "20 %" in t or "20%" in t          # some specs have no answer
+    assert "check_spec" in t                  # what to call first
+    assert "eqrl://capabilities" in t         # where the limits live

@@ -189,14 +189,20 @@ def main() -> int:
         print("\n=== out-of-envelope (must route to CEM) ===", flush=True)
         for j, kw in enumerate(OUT_OF_ENVELOPE):
             row = run_one(f"ooe{j}", kw, a.jobs)
+            # Routing is about which method was TRIED, not which one won.
+            # The top-level `method` is None when no design is found -- and an
+            # out-of-envelope request finding nothing is a legitimate outcome,
+            # not a routing failure. Checking `method` conflated the two and
+            # reported a correct CEM route as wrong.
+            tried = [a["method"] for a in (row.get("attempts") or [])]
             ok_route = (row.get("in_envelope") is False
-                        and "cem" in str(row.get("method", "")).lower()
+                        and tried == ["surrogate_cem"]
                         and bool(row.get("outside")))
             row["routing_correct"] = ok_route
             rows.append(row)
             print(f"  ooe{j} {kw}: method={row.get('method')} "
                   f"in_envelope={row.get('in_envelope')} "
-                  f"outside={row.get('outside')} "
+                  f"outside={row.get('outside')} tried={[a['method'] for a in (row.get('attempts') or [])]} "
                   f"{row['wall_s']:5.1f} s  "
                   f"{'ROUTING OK' if ok_route else 'ROUTING WRONG'}",
                   flush=True)

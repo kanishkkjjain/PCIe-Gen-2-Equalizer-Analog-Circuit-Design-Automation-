@@ -34,11 +34,14 @@ MANIFEST = ROOT / "MANIFEST.sha256"
 
 #: Written for this submission rather than copied from the working repository.
 #: Anything not listed here is expected to be byte-identical to its source.
+#: The MCP server was originally in this set: it was written directly in the
+#: submission, so there was nothing to compare it against. It has since been
+#: mirrored into the working repository and verified byte-identical, which
+#: makes it a COPY like everything else -- a stronger claim, and the reason
+#: this set shrank from twelve entries to four. Only the documents that exist
+#: solely for this submission remain, and they have no original by design.
 ORIGINAL = {
     "README.md", "VERIFY.md", "MANIFEST.sha256", ".gitignore",
-    "MCP.md", "requirements-mcp.txt",
-    "eqrl/mcp_server.py", "scripts/run_mcp_server.py",
-    "scripts/make_manifest.py", "tests/test_mcp.py",
 }
 
 SKIP_DIRS = {".git", "__pycache__", ".pytest_cache"}
@@ -112,11 +115,13 @@ def main() -> int:
         "# built from. For those the hash proves byte-identity with the source;",
         "# `diff` against that repository reports no differences.",
         "#",
-        f"# {len(original)} files are ORIGINAL to this submission -- the two",
-        "# documents written for it, its .gitignore, and the MCP server added",
-        "# afterwards. For those the hash proves only that nothing has changed",
-        "# since this manifest was written, which is a weaker and different",
-        "# claim. They are:",
+        f"# {len(original)} files are ORIGINAL to this submission -- the",
+        "# documents written for it, this manifest, and its .gitignore. They",
+        "# have no original by design: the working repository's README refers",
+        "# to an internal engineering log this submission does not ship. For",
+        "# these the hash proves only that nothing has changed since the",
+        "# manifest was written, which is a weaker and different claim. They",
+        "# are:",
     ]
     lines += [f"#   {r}" for r, _ in original]
     lines += ["#"]

@@ -1,0 +1,839 @@
+{
+  "created": 1789483623.2717328,
+  "jobs": 10,
+  "quick": false,
+  "n_specs": 10,
+  "n_passed": 8,
+  "determinism": true,
+  "artifact_isolation": true,
+  "routing_failures": [
+    "ooe0"
+  ],
+  "problems": [],
+  "disagrees": [],
+  "rows": [
+    {
+      "label": "spec0",
+      "request": {
+        "peaking_db": 8.894125087901362,
+        "fpeak_lo_ghz": 1.1861243154125058,
+        "fpeak_hi_ghz": 2.570858234759588,
+        "hd3_max_db": -27.997319377767766,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 5.053308922295909,
+        "eye_height_min_mv": 123.13471925720441,
+        "eye_width_min_ui": 0.37126723126665184
+      },
+      "wall_s": 40.5,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "policy",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 36.6,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 7,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "eye_w",
+        0.05213971797970235
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/143454-47d82599",
+      "eye_png": "/tmp/eqrl_mcp/143454-47d82599/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/143454-47d82599/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/143454-47d82599/design.sp",
+      "sized_parameters": {
+        "W": 22.511184985283762,
+        "L": 0.15,
+        "RL": 1317.332286577992,
+        "Rs": 5057.6560320461695,
+        "Cs": 1.5781134342931126e-13,
+        "Itail": 0.000598442506823151,
+        "Wtail": 116.10872577410191,
+        "Rsum": 1999.9999999999998,
+        "Wg1": 24.284219354391098,
+        "Ig1": 0.0006390727005239173,
+        "tap_pct": 1.0
+      },
+      "problems": [],
+      "expected_pass": true,
+      "matches_artifact": true
+    },
+    {
+      "label": "spec1",
+      "request": {
+        "peaking_db": 8.056143523302461,
+        "fpeak_lo_ghz": 1.5554715598454252,
+        "fpeak_hi_ghz": 2.152618618047843,
+        "hd3_max_db": -29.540800783716783,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 10.344764174846427,
+        "eye_height_min_mv": 95.90505474292557,
+        "eye_width_min_ui": 0.4457432114514167
+      },
+      "wall_s": 72.1,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "policy",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 68.4,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 6,
+          "verified_at_20_corners": 3
+        }
+      ],
+      "binding": [
+        "eye_w",
+        0.05161444517274693
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/143534-e29e4439",
+      "eye_png": "/tmp/eqrl_mcp/143534-e29e4439/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/143534-e29e4439/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/143534-e29e4439/design.sp",
+      "sized_parameters": {
+        "W": 23.532042956445366,
+        "L": 0.15829476648941634,
+        "RL": 728.7210560604334,
+        "Rs": 2086.586068678366,
+        "Cs": 2.3574302747076884e-13,
+        "Itail": 0.000624837151300108,
+        "Wtail": 71.63936309167184,
+        "Rsum": 1650.7625303441714,
+        "Wg1": 42.02846999873873,
+        "Ig1": 0.0007482956153815473,
+        "tap_pct": 1.4852054831571877
+      },
+      "problems": [],
+      "expected_pass": true,
+      "matches_artifact": true
+    },
+    {
+      "label": "spec2",
+      "request": {
+        "peaking_db": 7.412343886837882,
+        "fpeak_lo_ghz": 1.244402981569341,
+        "fpeak_hi_ghz": 2.033032346534494,
+        "hd3_max_db": -32.50384983214684,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 6.5152199588228275,
+        "eye_height_min_mv": 111.00613356701703,
+        "eye_width_min_ui": 0.42419199709554234
+      },
+      "wall_s": 36.7,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "policy",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 33.2,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 8,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "eye_w",
+        0.06820732852708905
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/143646-3f2621ef",
+      "eye_png": "/tmp/eqrl_mcp/143646-3f2621ef/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/143646-3f2621ef/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/143646-3f2621ef/design.sp",
+      "sized_parameters": {
+        "W": 27.21969066467136,
+        "L": 0.15,
+        "RL": 1270.3288212539649,
+        "Rs": 3841.1290566070625,
+        "Cs": 1.8496481485788702e-13,
+        "Itail": 0.0005438210191144405,
+        "Wtail": 71.27743232238572,
+        "Rsum": 1999.9999999999998,
+        "Wg1": 33.32358047255548,
+        "Ig1": 0.0006338675886771099,
+        "tap_pct": 1.3244516260092496
+      },
+      "problems": [],
+      "expected_pass": true,
+      "matches_artifact": true
+    },
+    {
+      "label": "spec3",
+      "request": {
+        "peaking_db": 5.7933837178249075,
+        "fpeak_lo_ghz": 1.3164032230292761,
+        "fpeak_hi_ghz": 2.324381601020026,
+        "hd3_max_db": -30.44944141837192,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 11.058372329098662,
+        "eye_height_min_mv": 80.89207630710793,
+        "eye_width_min_ui": 0.4054180504066117
+      },
+      "wall_s": 37.0,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "policy",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 33.4,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 8,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "fpeak",
+        0.09781019030115407
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/143723-09dc4235",
+      "eye_png": "/tmp/eqrl_mcp/143723-09dc4235/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/143723-09dc4235/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/143723-09dc4235/design.sp",
+      "sized_parameters": {
+        "W": 27.843577383900993,
+        "L": 0.15,
+        "RL": 1436.373328892775,
+        "Rs": 4651.318949255762,
+        "Cs": 1.172598091465029e-13,
+        "Itail": 0.0004752868596769737,
+        "Wtail": 110.02805989701301,
+        "Rsum": 1212.2004932619625,
+        "Wg1": 35.23928152761073,
+        "Ig1": 0.0007399053868525845,
+        "tap_pct": 1.0
+      },
+      "problems": [],
+      "expected_pass": true,
+      "matches_artifact": true
+    },
+    {
+      "label": "spec4",
+      "request": {
+        "peaking_db": 7.827495954674319,
+        "fpeak_lo_ghz": 1.125553335380556,
+        "fpeak_hi_ghz": 2.324787786097642,
+        "hd3_max_db": -27.982581607378062,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 14.328017307402842,
+        "eye_height_min_mv": 69.58812170468195,
+        "eye_width_min_ui": 0.4359688410072873
+      },
+      "wall_s": 36.3,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "policy",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 32.6,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 8,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "eye_w",
+        0.07519151808412101
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/143800-049f0081",
+      "eye_png": "/tmp/eqrl_mcp/143800-049f0081/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/143800-049f0081/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/143800-049f0081/design.sp",
+      "sized_parameters": {
+        "W": 20.56387219717726,
+        "L": 0.15,
+        "RL": 1094.4721478236368,
+        "Rs": 3990.2901420327144,
+        "Cs": 1.4133117107729732e-13,
+        "Itail": 0.0004741895540438059,
+        "Wtail": 153.51064237765968,
+        "Rsum": 1457.89231408663,
+        "Wg1": 39.97593794745626,
+        "Ig1": 0.0007534843536702504,
+        "tap_pct": 1.0
+      },
+      "problems": [],
+      "expected_pass": true,
+      "matches_artifact": true
+    },
+    {
+      "label": "spec5",
+      "request": {
+        "peaking_db": 8.136377462120372,
+        "fpeak_lo_ghz": 1.4554137020837632,
+        "fpeak_hi_ghz": 2.765871211684474,
+        "hd3_max_db": -31.511368444620132,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 5.0518790502414195,
+        "eye_height_min_mv": 103.6503483313935,
+        "eye_width_min_ui": 0.4771822497205934
+      },
+      "wall_s": 42.6,
+      "error": null,
+      "ok": false,
+      "all_pass": false,
+      "method": null,
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 42.6,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 0,
+          "verified_at_20_corners": 0
+        },
+        {
+          "method": "surrogate_cem",
+          "proposed": 8,
+          "survived_eye_screen": 0,
+          "verified_at_20_corners": 0
+        }
+      ],
+      "binding": null,
+      "failed_specs": null,
+      "artifact_dir": null,
+      "eye_png": null,
+      "ac_png": null,
+      "netlist_path": null,
+      "sized_parameters": null,
+      "problems": [],
+      "expected_pass": false,
+      "matches_artifact": true
+    },
+    {
+      "label": "spec6",
+      "request": {
+        "peaking_db": 9.836757531904144,
+        "fpeak_lo_ghz": 1.361826062017419,
+        "fpeak_hi_ghz": 2.0775387937577063,
+        "hd3_max_db": -26.36574939245383,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 12.796960386778457,
+        "eye_height_min_mv": 99.20451150358578,
+        "eye_width_min_ui": 0.3548095016204579
+      },
+      "wall_s": 36.8,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "policy",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 33.2,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 8,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "fpeak",
+        0.0742863940023834
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/143919-15c1c1d8",
+      "eye_png": "/tmp/eqrl_mcp/143919-15c1c1d8/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/143919-15c1c1d8/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/143919-15c1c1d8/design.sp",
+      "sized_parameters": {
+        "W": 28.83600803196896,
+        "L": 0.15,
+        "RL": 997.5973679182908,
+        "Rs": 3120.085272744534,
+        "Cs": 2.4272457447538303e-13,
+        "Itail": 0.0005518799185331875,
+        "Wtail": 57.93004730483518,
+        "Rsum": 1877.2357694963991,
+        "Wg1": 32.73285992859019,
+        "Ig1": 0.0007444620085609255,
+        "tap_pct": 1.0
+      },
+      "problems": [],
+      "expected_pass": true,
+      "matches_artifact": true
+    },
+    {
+      "label": "spec7",
+      "request": {
+        "peaking_db": 8.799759478467127,
+        "fpeak_lo_ghz": 1.1991502530125533,
+        "fpeak_hi_ghz": 2.574966416065811,
+        "hd3_max_db": -28.943661306174384,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 13.334285287432833,
+        "eye_height_min_mv": 88.74528081424057,
+        "eye_width_min_ui": 0.42325916194472324
+      },
+      "wall_s": 36.5,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "policy",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 32.7,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 2,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "eye_w",
+        0.03364566992441521
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/143956-e8ae1634",
+      "eye_png": "/tmp/eqrl_mcp/143956-e8ae1634/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/143956-e8ae1634/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/143956-e8ae1634/design.sp",
+      "sized_parameters": {
+        "W": 21.36274659819901,
+        "L": 0.15,
+        "RL": 1209.8269001028746,
+        "Rs": 4099.371329590936,
+        "Cs": 1.527033043207758e-13,
+        "Itail": 0.0005864609037616755,
+        "Wtail": 159.09505238683778,
+        "Rsum": 1444.7730701220826,
+        "Wg1": 34.25196457677521,
+        "Ig1": 0.0006138243983609492,
+        "tap_pct": 1.0
+      },
+      "problems": [],
+      "expected_pass": true,
+      "matches_artifact": true
+    },
+    {
+      "label": "spec8",
+      "request": {
+        "peaking_db": 8.044662759356582,
+        "fpeak_lo_ghz": 1.545586878277733,
+        "fpeak_hi_ghz": 2.680305310367357,
+        "hd3_max_db": -32.58739246754857,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 11.613687139960634,
+        "eye_height_min_mv": 77.52972090809072,
+        "eye_width_min_ui": 0.47915194277140305
+      },
+      "wall_s": 64.5,
+      "error": null,
+      "ok": true,
+      "all_pass": false,
+      "method": "surrogate_cem (did not pass)",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 61.0,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 0,
+          "verified_at_20_corners": 0
+        },
+        {
+          "method": "surrogate_cem",
+          "proposed": 8,
+          "survived_eye_screen": 1,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "eye_h",
+        -0.14857283323960155
+      ],
+      "failed_specs": [
+        "eye_h",
+        "fpeak"
+      ],
+      "artifact_dir": "/tmp/eqrl_mcp/144032-4741e93f",
+      "eye_png": "/tmp/eqrl_mcp/144032-4741e93f/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/144032-4741e93f/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/144032-4741e93f/design.sp",
+      "sized_parameters": {
+        "W": 38.89439779832887,
+        "L": 0.2666123529836537,
+        "RL": 590.1600119980884,
+        "Rs": 3303.7147300810966,
+        "Cs": 9.350565620979047e-14,
+        "Itail": 0.0003565599777924539,
+        "Wtail": 150.9583470155323,
+        "Rsum": 1716.6964821166107,
+        "Wg1": 41.212896949584696,
+        "Ig1": 0.00026312699691128993,
+        "tap_pct": 1.1991084696066787
+      },
+      "problems": [],
+      "expected_pass": false,
+      "matches_artifact": true
+    },
+    {
+      "label": "spec9",
+      "request": {
+        "peaking_db": 9.566471412752856,
+        "fpeak_lo_ghz": 1.1201789248499727,
+        "fpeak_hi_ghz": 2.051778288941524,
+        "hd3_max_db": -30.678070277414122,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 14.313270970266947,
+        "eye_height_min_mv": 86.41532954976523,
+        "eye_width_min_ui": 0.4127343508506596
+      },
+      "wall_s": 37.5,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "policy",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 34.0,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 3,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "eye_w",
+        0.022146567472518783
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/144137-1bca0962",
+      "eye_png": "/tmp/eqrl_mcp/144137-1bca0962/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/144137-1bca0962/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/144137-1bca0962/design.sp",
+      "sized_parameters": {
+        "W": 19.41854824242182,
+        "L": 0.15,
+        "RL": 1050.1145627382737,
+        "Rs": 3500.269459519664,
+        "Cs": 2.116079744977984e-13,
+        "Itail": 0.0005451894698487817,
+        "Wtail": 134.94586272718152,
+        "Rsum": 1608.7909315157972,
+        "Wg1": 35.358898574719205,
+        "Ig1": 0.0007865301828945212,
+        "tap_pct": 1.0
+      },
+      "problems": [],
+      "expected_pass": true,
+      "matches_artifact": true
+    },
+    {
+      "label": "ooe0",
+      "request": {
+        "peaking_db": 11.5
+      },
+      "wall_s": 28.2,
+      "error": null,
+      "ok": false,
+      "all_pass": false,
+      "method": null,
+      "in_envelope": false,
+      "outside": [],
+      "reported_wall_s": 28.2,
+      "attempts": [
+        {
+          "method": "surrogate_cem",
+          "proposed": 8,
+          "survived_eye_screen": 0,
+          "verified_at_20_corners": 0
+        }
+      ],
+      "binding": null,
+      "failed_specs": null,
+      "artifact_dir": null,
+      "eye_png": null,
+      "ac_png": null,
+      "netlist_path": null,
+      "sized_parameters": null,
+      "problems": [],
+      "routing_correct": false
+    },
+    {
+      "label": "ooe1",
+      "request": {
+        "eye_height_min_mv": 150
+      },
+      "wall_s": 49.2,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "surrogate_cem",
+      "in_envelope": false,
+      "outside": [
+        "eye_height_min_v"
+      ],
+      "reported_wall_s": 45.7,
+      "attempts": [
+        {
+          "method": "surrogate_cem",
+          "proposed": 8,
+          "survived_eye_screen": 8,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "eye_w",
+        0.054687499999999944
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/144242-ac81a4ca",
+      "eye_png": "/tmp/eqrl_mcp/144242-ac81a4ca/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/144242-ac81a4ca/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/144242-ac81a4ca/design.sp",
+      "sized_parameters": {
+        "W": 33.495957639180055,
+        "L": 0.15,
+        "RL": 1084.3570841325072,
+        "Rs": 3180.777851947898,
+        "Cs": 1.800058733262429e-13,
+        "Itail": 0.0006586001528922559,
+        "Wtail": 175.44182477658114,
+        "Rsum": 1862.2360316822542,
+        "Wg1": 27.889244668019018,
+        "Ig1": 0.0006189577359398296,
+        "tap_pct": 1.0
+      },
+      "problems": [],
+      "routing_correct": true
+    },
+    {
+      "label": "ooe2",
+      "request": {
+        "power_max_mw": 2.0
+      },
+      "wall_s": 101.7,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "surrogate_cem",
+      "in_envelope": false,
+      "outside": [
+        "power_max_w"
+      ],
+      "reported_wall_s": 98.2,
+      "attempts": [
+        {
+          "method": "surrogate_cem",
+          "proposed": 8,
+          "survived_eye_screen": 7,
+          "verified_at_20_corners": 4
+        }
+      ],
+      "binding": [
+        "eye_h",
+        0.006792060843751613
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/144332-d81877e6",
+      "eye_png": "/tmp/eqrl_mcp/144332-d81877e6/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/144332-d81877e6/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/144332-d81877e6/design.sp",
+      "sized_parameters": {
+        "W": 43.978171377855304,
+        "L": 0.1611267852180733,
+        "RL": 817.8099764121988,
+        "Rs": 1858.3370496413177,
+        "Cs": 2.0657330506686776e-13,
+        "Itail": 0.0002851596515833375,
+        "Wtail": 197.78268364991277,
+        "Rsum": 1291.3375774190563,
+        "Wg1": 27.345854477140787,
+        "Ig1": 0.0003364235628834199,
+        "tap_pct": 1.0
+      },
+      "problems": [],
+      "routing_correct": true
+    },
+    {
+      "label": "repeat_a",
+      "request": {
+        "peaking_db": 8.894125087901362,
+        "fpeak_lo_ghz": 1.1861243154125058,
+        "fpeak_hi_ghz": 2.570858234759588,
+        "hd3_max_db": -27.997319377767766,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 5.053308922295909,
+        "eye_height_min_mv": 123.13471925720441,
+        "eye_width_min_ui": 0.37126723126665184
+      },
+      "wall_s": 36.3,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "policy",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 32.7,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 7,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "eye_w",
+        0.05213971797970235
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/144513-47d82599",
+      "eye_png": "/tmp/eqrl_mcp/144513-47d82599/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/144513-47d82599/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/144513-47d82599/design.sp",
+      "sized_parameters": {
+        "W": 22.511184985283762,
+        "L": 0.15,
+        "RL": 1317.332286577992,
+        "Rs": 5057.6560320461695,
+        "Cs": 1.5781134342931126e-13,
+        "Itail": 0.000598442506823151,
+        "Wtail": 116.10872577410191,
+        "Rsum": 1999.9999999999998,
+        "Wg1": 24.284219354391098,
+        "Ig1": 0.0006390727005239173,
+        "tap_pct": 1.0
+      },
+      "problems": []
+    },
+    {
+      "label": "other_spec",
+      "request": {
+        "peaking_db": 7.412343886837882,
+        "fpeak_lo_ghz": 1.244402981569341,
+        "fpeak_hi_ghz": 2.033032346534494,
+        "hd3_max_db": -32.50384983214684,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 6.5152199588228275,
+        "eye_height_min_mv": 111.00613356701703,
+        "eye_width_min_ui": 0.42419199709554234
+      },
+      "wall_s": 36.5,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "policy",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 33.1,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 8,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "eye_w",
+        0.06820732852708905
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/144550-3f2621ef",
+      "eye_png": "/tmp/eqrl_mcp/144550-3f2621ef/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/144550-3f2621ef/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/144550-3f2621ef/design.sp",
+      "sized_parameters": {
+        "W": 27.21969066467136,
+        "L": 0.15,
+        "RL": 1270.3288212539649,
+        "Rs": 3841.1290566070625,
+        "Cs": 1.8496481485788702e-13,
+        "Itail": 0.0005438210191144405,
+        "Wtail": 71.27743232238572,
+        "Rsum": 1999.9999999999998,
+        "Wg1": 33.32358047255548,
+        "Ig1": 0.0006338675886771099,
+        "tap_pct": 1.3244516260092496
+      },
+      "problems": []
+    },
+    {
+      "label": "repeat_b",
+      "request": {
+        "peaking_db": 8.894125087901362,
+        "fpeak_lo_ghz": 1.1861243154125058,
+        "fpeak_hi_ghz": 2.570858234759588,
+        "hd3_max_db": -27.997319377767766,
+        "noise_max_mvrms": 1.5,
+        "power_max_mw": 5.053308922295909,
+        "eye_height_min_mv": 123.13471925720441,
+        "eye_width_min_ui": 0.37126723126665184
+      },
+      "wall_s": 36.7,
+      "error": null,
+      "ok": true,
+      "all_pass": true,
+      "method": "policy",
+      "in_envelope": true,
+      "outside": [],
+      "reported_wall_s": 33.1,
+      "attempts": [
+        {
+          "method": "policy",
+          "proposed": 8,
+          "survived_eye_screen": 7,
+          "verified_at_20_corners": 1
+        }
+      ],
+      "binding": [
+        "eye_w",
+        0.05213971797970235
+      ],
+      "failed_specs": [],
+      "artifact_dir": "/tmp/eqrl_mcp/144626-47d82599",
+      "eye_png": "/tmp/eqrl_mcp/144626-47d82599/eye.png",
+      "ac_png": "/tmp/eqrl_mcp/144626-47d82599/ac.png",
+      "netlist_path": "/tmp/eqrl_mcp/144626-47d82599/design.sp",
+      "sized_parameters": {
+        "W": 22.511184985283762,
+        "L": 0.15,
+        "RL": 1317.332286577992,
+        "Rs": 5057.6560320461695,
+        "Cs": 1.5781134342931126e-13,
+        "Itail": 0.000598442506823151,
+        "Wtail": 116.10872577410191,
+        "Rsum": 1999.9999999999998,
+        "Wg1": 24.284219354391098,
+        "Ig1": 0.0006390727005239173,
+        "tap_pct": 1.0
+      },
+      "problems": []
+    }
+  ]
+}

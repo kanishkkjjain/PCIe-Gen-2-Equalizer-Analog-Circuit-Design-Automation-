@@ -148,8 +148,8 @@ than its name implies.
 | Closed-loop DFE in SPICE (ideal comparator + 1 UI latch) | ✅ |
 | **RL loop end-to-end, 8/8 brief specs at 20/20 corners** | ✅ |
 | Automatic analytic starting point (no hand-seeding) | ✅ |
-| Test suite (295: 257 fast + 38 against ngspice) | ✅ all passing |
-| **Schematic output** (we emit netlists) | ❌ |
+| Test suite (301: 257 fast + 44 against ngspice) | ✅ all passing |
+| **Schematic output** — `netlists/eq_core.sch`, opens in xschem; its connectivity is diffed against `netlist.py` by `tests/test_schematic_sch.py` | ✅ |
 | **Sweep-vs-RL baseline** — CEM 0.987 (passes) vs random 0.726 (0/95) | ✅ |
 | **Seed-vs-search measured** — analytic 5/8 specs → after CEM 8/8 | ✅ |
 | **Durable, resumable evaluation cache** — 5 993 records, 0 lost to 5 interruptions | ✅ |
@@ -262,8 +262,8 @@ launches; only one of them then works.
 | Closed-loop DFE in SPICE (ideal comparator + 1 UI latch) | ✅ |
 | **RL loop end-to-end, 8/8 brief specs at 20/20 corners** | ✅ |
 | Automatic analytic starting point (no hand-seeding) | ✅ |
-| Test suite (295: 257 fast + 38 against ngspice) | ✅ all passing |
-| **Schematic output** (we emit netlists) | ❌ |
+| Test suite (301: 257 fast + 44 against ngspice) | ✅ all passing |
+| **Schematic output** — `netlists/eq_core.sch`, opens in xschem; its connectivity is diffed against `netlist.py` by `tests/test_schematic_sch.py` | ✅ |
 | **Sweep-vs-RL baseline** — CEM 0.987 (passes) vs random 0.726 (0/95) | ✅ |
 | **Seed-vs-search measured** — analytic 5/8 specs → after CEM 8/8 | ✅ |
 | **Durable, resumable evaluation cache** — 5 993 records, 0 lost to 5 interruptions | ✅ |
@@ -360,10 +360,11 @@ eqrl/
                 response, noise, power, gm/Cout fits, analytic start
   surrogate.py  grey-box residual surrogate (physics + learned correction)
   env_goal.py   goal-conditioned env: the spec is an input, not a constant
-tests/          295 total: 257 pure (no PDK, ~32 s) + 38 against real ngspice
+tests/          301 total: 257 pure (no PDK, ~32 s) + 44 against real ngspice
 scripts/        run_design, build_trimlib, pvt_sweep, smoke_test, plotting,
                 baseline (random search at an equal candidate budget)
-netlists/       xschem schematics -- CROSS-CHECK ONLY, currently STALE
+netlists/       xschem schematics. eq_core.sch is CURRENT and tested;
+                the other three are STALE (old merged-summer topology)
 ```
 
 ## Design variables (11)
@@ -384,7 +385,7 @@ ngspice-42 (XSPICE + KLU), xschem 3.4.4, Python 3.12. SKY130 via volare.
 ## Run
 
 ```bash
-python3 -m pytest tests/ -q                        # 295 tests, ~2 min
+python3 -m pytest tests/ -q                        # 301 tests, ~2 min
 python3 scripts/build_trimlib.py --grid spec       # 22.4x faster evaluations
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
 ```

@@ -17,7 +17,7 @@ ngspice, so it runs anywhere in under a second:
 
 ```bash
 python3 -m pytest tests/ -q -m "not needs_pdk"   # 257 tests, ~32 s, no PDK
-python3 -m pytest tests/ -q                      # all 295, ~2 min with the PDK
+python3 -m pytest tests/ -q                      # all 301, ~2 min with the PDK
 ```
 
 Two of those tests are worth reading on their own, because they pin device-model

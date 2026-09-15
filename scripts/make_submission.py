@@ -125,6 +125,7 @@ INCLUDE: tuple[str, ...] = (
     "tests/test_mcp.py",
     "tests/test_mcp_protocol.py",
     "tests/test_mcp_reporting.py",
+    "tests/test_schematic_sch.py",
     "scripts/test_mcp_e2e.py",
     # the end-to-end measurement's own artifact: 10 specs with a known expected
     # outcome, every design verified at all 20 PVT corners

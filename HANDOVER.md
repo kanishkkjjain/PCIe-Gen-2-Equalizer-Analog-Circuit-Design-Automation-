@@ -91,7 +91,7 @@ mistaken for done:
 | takes target specs as input | ✅ `EqualizerSpec`, CLI flags |
 | integrates with a SPICE simulator | ✅ ngspice, 22.4× faster than the naive path (§9) |
 | outputs the resulting specs | ✅ `results/report.json`, per corner |
-| **outputs the final schematic** | ⚠️ **netlists, not a schematic.** `results/ctle_final*.sp` run and reproduce the report; `netlists/*.sch` are hand-drawn and now describe the OLD topology |
+| **outputs the final schematic** | ✅ `netlists/eq_core.sch` opens in xschem and draws the CURRENT topology; `tests/test_schematic_sch.py` netlists it and diffs the connectivity against `netlist.py`. `results/ctle_final*.sp` run and reproduce the report. The other three `netlists/*.sch` are hand-drawn and still describe the OLD topology |
 | SKY130 PDK | ✅ |
 | Gym Utils | ⚠️ `CtleEnv` exists and passes `check_env`, but no deep-RL agent has been run through it |
 | **fewer search points than a sweep** | ✅ **measured** (§11). 95 candidates to a passing design; random search at the same budget reached 0.726 with **0 of 95** passing. A 5-point grid over 11 variables is 5¹¹ = 48.8 M designs = **6.8 years** at the measured per-candidate cost. |
@@ -125,7 +125,7 @@ reference design, which labels them "(Ideal)" too.
 
 ```bash
 cd ~/pcie_eq_rl
-python3 -m pytest tests/ -q                              # 295 tests
+python3 -m pytest tests/ -q                              # 301 tests
 python3 scripts/smoke_test.py                            # SPICE layer sanity
 python3 scripts/build_trimlib.py --grid spec             # 5.7x less model text
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
@@ -1206,9 +1206,9 @@ of the full suite. **Check the path that can fail, or the check is decorative.**
 
 | Item | Notes |
 |---|---|
-| **`netlists/*.sch` are STALE** | They describe the OLD merged topology. They are a cross-check only — never simulated — but they no longer match `netlist.py`, so the device-for-device diff in VERIFY.md §3 will not agree until they are regenerated. |
+| **`netlists/*.sch` are STALE** | `eq_tb.sch`, `eq_dfe_tb.sch` and `ctle_tb.sch` describe the OLD merged topology and no longer match `netlist.py`. `eq_core.sch` supersedes them for the current circuit and is checked automatically; the other three are kept as history and are still never simulated. |
 | **Sweep-vs-RL baseline — MEASURED** | Random search at an equal **95-candidate** budget, same 4 corners, same scorer, same channel and eye: **best reward 0.726, 0 of 95 passing**, against CEM's **0.987 and a design that passes every spec at every corner**. `results/baseline.json`. The exhaustive side stays arithmetic: at the measured 4.42 s per candidate a 5-point grid over 11 variables (5¹¹ = 48.8 M designs) is **6.8 years**, a 3-point grid 217.7 hours. Caveat worth stating: CEM also had the analytic seed, so this compares two methods as a whole, not the search operator alone — the unseeded CEM run (§16) is the third data point. |
-| **No schematic export** | The brief asks for "the final schematic"; we emit `.sp` netlists. xschem's `.sch` is a text format, so generating one from `full_netlist()` is tractable and unbuilt. |
+| **No PER-DESIGN schematic export** | `netlists/eq_core.sch` draws the topology and is verified against `full_netlist()`, but it carries the `CtleParams()` defaults: it is not re-emitted per design with that run's sizing. The sized values are in each run's report and netlist. |
 | **"Tunable" has no mechanism** | The brief says *tunable 1.25–2.5 GHz* and *variable Rs, Cs*. `Cs` is a design-time constant; a switchable cap bank with a control word is not built, and nothing tests tunability (§0). |
 | **`ad`/`as`/`pd`/`ps` pinned to 0** | Junction capacitance is zero in the netlist, so output capacitance is understated and every `f_peak` is optimistic. Measured `Cdd` = 0.14 fF, which is the tell. |
 | **Slicer/latch are ideal** | XSPICE code models with 20 ps clk→Q against 50–150 ps for a real StrongARM, no offset, no metastability, no kickback. The <200 ps loop-delay budget is asserted, not proven. The reference labels its own comparator and flop "(Ideal)" too. |
@@ -1280,9 +1280,9 @@ No remote is configured. `git remote add origin <url>` when you have one.
 ```bash
 export PDK_ROOT=/home/kanishk/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b
 
-# tests: 295 total -- 257 fast (no PDK) + 38 against real ngspice.
+# tests: 301 total -- 257 fast (no PDK) + 44 against real ngspice.
 python3 -m pytest tests/ -q -m "not needs_pdk"   # 131, ~5 s
-python3 -m pytest tests/ -q                      # all 295, ~2 min
+python3 -m pytest tests/ -q                      # all 301, ~2 min
 
 # SPICE layer sanity (asserts, so it can fail)
 python3 scripts/smoke_test.py
@@ -1352,7 +1352,7 @@ simulator should be.
 
 ```bash
 python3 -m pytest tests/ -q -m "not needs_pdk"   # 257 tests, ~32 s, no PDK
-python3 -m pytest tests/ -q                      # all 295, ~2 min
+python3 -m pytest tests/ -q                      # all 301, ~2 min
 ```
 
 | tier | file | needs | covers |

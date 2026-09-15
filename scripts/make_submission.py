@@ -40,7 +40,24 @@ DEFAULT_DEST = ROOT.parent / "pcie_eq_rl_submission"
 
 #: Files written by this script rather than copied. Listed so the manifest can
 #: mark them and a reader is never misled about what is original.
-GENERATED = ("README.md", "VERIFY.md", "MANIFEST.sha256")
+GENERATED = ("README.md", "VERIFY.md", "MANIFEST.sha256", ".gitignore")
+
+#: The submission's own .gitignore. Deliberately NOT the working repo's.
+#:
+#: This is the bug that made the guard below necessary. The working repo ignores
+#: `models/*/ckpt_*`, which matches `models/policy/ckpt_120000.zip` -- the
+#: trained RL policy. Copying that file verbatim meant that the moment the
+#: submission became a git repository, the single artifact that lets anyone RUN
+#: the policy would be silently dropped from it, and every check short of
+#: cloning the result would still pass.
+#:
+#: The original's rules are about this machine's operational files -- run logs,
+#: spare training checkpoints. None of that exists in a submission.
+SUBMISSION_GITIGNORE = """\
+__pycache__/
+*.py[cod]
+.pytest_cache/
+"""
 
 #: What ships. Explicit, and deliberately NOT "copy everything, then delete":
 #: an allow-list fails closed, a deny-list ships whatever nobody thought of.
@@ -101,7 +118,7 @@ INCLUDE: tuple[str, ...] = (
     "netlists/*.sch",
     "requirements.txt",
     "pytest.ini",
-    ".gitignore",
+    # .gitignore is NOT copied -- see SUBMISSION_GITIGNORE above.
 )
 
 #: Files an INCLUDE glob picks up that must NOT ship. Kept as an explicit
@@ -217,6 +234,34 @@ def check_latest_pointers(dest: Path) -> None:
                 f"exist in the submission. The model it names was not copied.")
 
 
+def check_nothing_shipped_is_gitignored(dest: Path, copied: list) -> None:
+    """Refuse if the submission's own .gitignore would hide a shipped file.
+
+    A submission is turned into a git repository. A file that is present on
+    disk but ignored by git is present in every check anyone is likely to run --
+    sha256, diff, pytest -- and absent from the thing that actually gets sent.
+    That is as close to invisible as a failure gets, and it happened: the
+    working repo's `models/*/ckpt_*` matched the trained policy.
+    """
+    import fnmatch
+    pats = [p.strip() for p in (dest / ".gitignore").read_text().splitlines()
+            if p.strip() and not p.startswith("#")]
+    hits = []
+    for rel, _ in copied:
+        for pat in pats:
+            pp = pat.rstrip("/")
+            if (fnmatch.fnmatch(rel, pp) or fnmatch.fnmatch(rel, pp + "/*")
+                    or any(fnmatch.fnmatch(part, pp) for part in rel.split("/"))
+                    or fnmatch.fnmatch(rel, "*/" + pp)):
+                hits.append((rel, pat))
+                break
+    if hits:
+        raise BuildError(
+            "the submission's .gitignore would hide files that were just "
+            "copied into it:\n  "
+            + "\n  ".join(f"{r}  (matched by '{p}')" for r, p in hits))
+
+
 def check_python_compiles(dest: Path) -> None:
     """Every shipped .py must at least parse. Cheap, and catches a truncated
     copy that a checksum would also catch but that this reports readably."""
@@ -232,15 +277,19 @@ def check_python_compiles(dest: Path) -> None:
 
 def write_manifest(dest: Path, copied: list[tuple[str, str]], src_sha: str) -> None:
     lines = [
-        "# MANIFEST.sha256 -- every file in this submission.",
+        "# MANIFEST.sha256 -- the COPIED files in this submission.",
         "#",
         "# Verify with:   sha256sum -c MANIFEST.sha256",
         "#",
         f"# Built from commit {src_sha} at "
         f"{time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())} UTC.",
+        "#",
         "# Every file listed below is byte-for-byte identical to the working",
-        "# repository it was copied from, except these, which were written for",
-        "# this submission: " + ", ".join(GENERATED) + ".",
+        "# repository it was copied from -- that is what this manifest proves.",
+        "#",
+        "# These files are NOT listed, because they were written for this",
+        "# submission rather than copied, so there is no original to match:",
+        "#   " + ", ".join(GENERATED),
         "#",
     ]
     body = [f"{h}  {rel}" for rel, h in copied]
@@ -305,8 +354,10 @@ def main() -> int:
                     f"  source      {want}\n  destination {got}")
             copied.append((rel, got))
 
+        (dest / ".gitignore").write_text(SUBMISSION_GITIGNORE, encoding="utf-8")
         check_latest_pointers(dest)
         check_python_compiles(dest)
+        check_nothing_shipped_is_gitignored(dest, copied)
         write_manifest(dest, copied, src_sha)
 
         print(f"\n  {len(copied)} files copied, every sha256 verified")

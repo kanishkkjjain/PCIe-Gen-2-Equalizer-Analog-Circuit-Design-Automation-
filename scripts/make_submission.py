@@ -104,6 +104,18 @@ INCLUDE: tuple[str, ...] = (
     ".gitignore",
 )
 
+#: Files an INCLUDE glob picks up that must NOT ship. Kept as an explicit
+#: subtraction rather than by narrowing the globs, so the reason travels with
+#: the decision and `scripts/*.py` stays readable.
+SUBTRACT: tuple[str, ...] = (
+    # This builder itself. It is a tool for producing the submission, not part
+    # of the framework being submitted, and it names files -- HANDOVER.md,
+    # test_docs.py, the bon_* records -- that deliberately do not exist in the
+    # output. Shipping it would put a dozen dangling references in the very
+    # artifact this exercise exists to make clean.
+    "scripts/make_submission.py",
+)
+
 #: What is deliberately left out, with the reason. Not used by the build -- the
 #: allow-list above decides that -- but recorded here because "why is X not in
 #: the submission" is the question this file exists to answer.
@@ -150,10 +162,12 @@ def resolve_include() -> list[Path]:
     ships an empty directory is the exact failure this project has already been
     bitten by once, and it is invisible in a success message.
     """
+    subtract = {(ROOT / s).resolve() for s in SUBTRACT}
     out: list[Path] = []
     empty: list[str] = []
     for pattern in INCLUDE:
-        hits = sorted(p for p in ROOT.glob(pattern) if p.is_file())
+        hits = sorted(p for p in ROOT.glob(pattern)
+                      if p.is_file() and p.resolve() not in subtract)
         if not hits:
             empty.append(pattern)
         out.extend(hits)
@@ -174,9 +188,12 @@ def resolve_include() -> list[Path]:
 
 def check_no_stragglers(files: list[Path]) -> None:
     """Refuse to ship anything the allow-list did not mean to include."""
+    never = {"HANDOVER.md", "test_docs.py", "run_checkpoint5.sh",
+             "make_submission.py"}
     bad = [f for f in files
            if "__pycache__" in f.parts or f.suffix in {".pyc", ".log"}
-           or f.name == "HANDOVER.md" or f.name == "test_docs.py"]
+           or f.name in never
+           or (f.name.startswith("bon_") and f.suffix == ".jsonl")]
     if bad:
         raise BuildError("allow-list matched files that must not ship:\n  "
                          + "\n  ".join(str(f.relative_to(ROOT)) for f in bad))

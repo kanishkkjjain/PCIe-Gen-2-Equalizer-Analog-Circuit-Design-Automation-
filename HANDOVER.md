@@ -125,7 +125,7 @@ reference design, which labels them "(Ideal)" too.
 
 ```bash
 cd ~/pcie_eq_rl
-python3 -m pytest tests/ -q                              # 282 tests
+python3 -m pytest tests/ -q                              # 295 tests
 python3 scripts/smoke_test.py                            # SPICE layer sanity
 python3 scripts/build_trimlib.py --grid spec             # 5.7x less model text
 python3 scripts/run_design.py --robust --pvt-grid spec --eye --channel
@@ -1280,9 +1280,9 @@ No remote is configured. `git remote add origin <url>` when you have one.
 ```bash
 export PDK_ROOT=/home/kanishk/.volare/volare/sky130/versions/c6d73a35f524070e85faff4a6a9eef49553ebc2b
 
-# tests: 282 total -- 244 fast (no PDK) + 38 against real ngspice.
+# tests: 295 total -- 257 fast (no PDK) + 38 against real ngspice.
 python3 -m pytest tests/ -q -m "not needs_pdk"   # 131, ~5 s
-python3 -m pytest tests/ -q                      # all 282, ~2 min
+python3 -m pytest tests/ -q                      # all 295, ~2 min
 
 # SPICE layer sanity (asserts, so it can fail)
 python3 scripts/smoke_test.py
@@ -1351,8 +1351,8 @@ parsing no matter how small the circuit — so anything provable without a
 simulator should be.
 
 ```bash
-python3 -m pytest tests/ -q -m "not needs_pdk"   # 244 tests, ~32 s, no PDK
-python3 -m pytest tests/ -q                      # all 282, ~2 min
+python3 -m pytest tests/ -q -m "not needs_pdk"   # 257 tests, ~32 s, no PDK
+python3 -m pytest tests/ -q                      # all 295, ~2 min
 ```
 
 | tier | file | needs | covers |

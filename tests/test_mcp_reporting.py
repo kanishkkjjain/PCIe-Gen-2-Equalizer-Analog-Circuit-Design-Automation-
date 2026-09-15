@@ -305,3 +305,59 @@ def test_a_budget_result_renders_instead_of_crashing_the_tool_call():
     assert "DOES NOT PASS" in text, text
     assert "PASSES --" not in text, text
     assert "eye_w" in text
+
+
+# --------------------------------------------------------------------------
+# the brief's own eye-height number, printed as 1/100th of itself
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("value,expect", [
+    (100, "100"),        # the brief's eye height, printed as "1"
+    (1000, "1000"),
+    (250, "250"),        # printed as "25"
+    (120, "120"),        # printed as "12"
+    (10, "10"),
+    (30, "30"),
+    (15, "15"),
+    (1.5, "1.5"),
+    (0.05, "0.05"),
+    (0.001, "0.001"),
+    (0.4, "0.4"),
+])
+def test_a_round_number_is_not_shortened_by_its_own_trailing_zeros(value, expect):
+    """`.rstrip("0")` ran whether or not there was a decimal point, so every
+    integer ending in zero lost it: 100 -> "1", 1000 -> "1", 250 -> "25".
+
+    This is the failure `_fmt` was written to prevent, in its worst form. The
+    helper exists so a requirement never moves when printed, and it was moving
+    the brief's own eye-height limit by a factor of a hundred.
+    """
+    assert impl._fmt(value) == expect
+
+
+def test_the_briefs_eye_height_requirement_prints_as_100_mv():
+    """The scorecard showed `eye_h > 1 mV` for a spec whose limit is 0.100 V.
+
+    The VERIFICATION was never wrong -- `sp.margins` reads
+    `spec.eye_height_min_v` directly, so pass/fail and the margin were always
+    against 100 mV. Only the stated requirement was wrong, which is arguably
+    worse: a reader checking the scorecard against the brief sees a limit the
+    brief does not set, and a 1 mV eye would look acceptable.
+    """
+    spec = sp.EqualizerSpec()
+    assert spec.eye_height_min_v == 0.100
+    rows = {r["spec"]: r for r in impl._scorecard(_real_pvt(), spec)}
+    assert rows["eye_h"]["required"] == "> 100 mV", rows["eye_h"]["required"]
+
+
+def test_every_default_limit_prints_the_briefs_own_number():
+    """The defaults ARE the hackathon brief. Each one must render as the number
+    the brief states, so a reader can check them off against it."""
+    lim = impl._limits(sp.EqualizerSpec())
+    assert lim["peaking"].startswith("3 - 12 dB")
+    assert lim["fpeak"] == "1.25 - 2.5 GHz"
+    assert lim["hd3"] == "< -30 dBc"
+    assert lim["noise"] == "< 1.5 mVrms"
+    assert lim["power"] == "< 15 mW"
+    assert lim["area"] == "< 0.05 mm2"
+    assert lim["eye_h"] == "> 100 mV"
+    assert lim["eye_w"] == "> 0.4 UI"

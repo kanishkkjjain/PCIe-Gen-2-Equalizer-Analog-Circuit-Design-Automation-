@@ -320,7 +320,15 @@ def _fmt(x: float, unit: str = "", sig: int = 3) -> str:
         # bug this helper exists to prevent.
         import math
         dec = max(0, sig - 1 - math.floor(math.log10(a)))
-        t = f"{x:.{min(dec, 12)}f}".rstrip("0").rstrip(".") or "0"
+        t = f"{x:.{min(dec, 12)}f}"
+        # Strip trailing zeros ONLY after a decimal point. Stripping them
+        # unconditionally ate the zeros of every round integer -- 100 printed
+        # as "1", 1000 as "1", 250 as "25" -- so the brief's own 100 mV eye
+        # height was stated as a 1 mV requirement, a hundredfold understatement
+        # of the limit in the one place a reader checks it against the brief.
+        if "." in t:
+            t = t.rstrip("0").rstrip(".")
+        t = t or "0"
     return f"{t} {unit}".strip()
 
 

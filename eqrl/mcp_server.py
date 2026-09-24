@@ -925,6 +925,18 @@ def _artifacts(params: dict, spec: sp.EqualizerSpec, sim,
         if acr.get("ok") and dat.exists():
             d = np.loadtxt(dat)
             f, ctle = d[:, 0], d[:, 1]
+            # REFERENCE TO THE EQUALISER INPUT, exactly as `Simulator.ac` does
+            # before it measures peaking and f_peak. Without this the curve
+            # still carries the channel's loss while the TITLE reports the
+            # referenced measurement, so the picture contradicts its own
+            # caption: one verified design drew a 3.5 dB bump at 0.71 GHz
+            # under a title reading 8.19 dB at 1.89 GHz, and a reader would
+            # have concluded it missed the f_peak window it actually met.
+            # wrdata repeats the x column per expression, so col 5 is the
+            # input trace. Without a channel it is the 0 dB drive and this
+            # subtraction changes nothing.
+            if d.shape[1] >= 6:
+                ctle = ctle - d[:, 5]
             fig, ax = plt.subplots(figsize=(7, 4.2))
             ax.semilogx(f, ctle, lw=1.8, color="#2b6cb0", label="CTLE output")
             ax.axvspan(spec.fpeak_lo, spec.fpeak_hi, color="#48bb78",
@@ -933,6 +945,17 @@ def _artifacts(params: dict, spec: sp.EqualizerSpec, sim,
                        label=f"Nyquist {spec.nyquist/1e9:.1f} GHz")
             ax.set_xlabel("frequency (Hz)")
             ax.set_ylabel("gain (dB)")
+            # AUTOSCALE MAKES THIS PLOT USELESS. The response falls off a cliff
+            # past ~10 GHz -- one run reached -800 dB -- and matplotlib then
+            # fits all 800 dB on the axis, squashing the peaking the plot
+            # exists to show into a flat line at the top. Frame the decade
+            # that matters instead: DC out to twice Nyquist.
+            band = f <= 2.0 * spec.nyquist
+            if band.any():
+                lo, hi = float(ctle[band].min()), float(ctle[band].max())
+                pad = max(2.0, 0.15 * (hi - lo))
+                ax.set_xlim(float(f.min()), 2.0 * spec.nyquist)
+                ax.set_ylim(lo - pad, hi + pad)
             # The SAME requirement text the scorecard prints. These were two
             # different format strings and therefore disagreed: the plot said
             # "need 6-10" where the table said 5.5 - 10.5.

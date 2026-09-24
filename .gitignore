@@ -21,6 +21,9 @@ spinit
 # exception `docs/figures/` would be silently dropped from every commit, which
 # is how this repo nearly lost the trained policy checkpoint once already.
 !docs/figures/*.png
+# Same reasoning for the presentation's staged figures: they are what gets
+# handed to the deck builder, so they are source, not output.
+!docs/presentation/figures/*.png
 *.svg
 *.pdf
 

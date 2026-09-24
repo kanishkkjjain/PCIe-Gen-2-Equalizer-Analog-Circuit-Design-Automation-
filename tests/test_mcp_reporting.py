@@ -361,3 +361,48 @@ def test_every_default_limit_prints_the_briefs_own_number():
     assert lim["area"] == "< 0.05 mm2"
     assert lim["eye_h"] == "> 100 mV"
     assert lim["eye_w"] == "> 0.4 UI"
+
+
+# --------------------------------------------------------------------------
+# the AC plot must agree with the number printed above it
+# --------------------------------------------------------------------------
+@pytest.mark.needs_pdk
+def test_the_ac_plot_shows_the_peak_its_title_claims(tmp_path):
+    """The report page draws a curve and titles it with a measurement.
+
+    `Simulator.ac` references the trace to the EQUALISER INPUT before it
+    measures peaking and f_peak, because with a channel in front the raw trace
+    carries the channel's loss too. The plot once drew the raw column. The
+    result was a page showing a 3.5 dB bump at 0.71 GHz under a title reading
+    8.19 dB at 1.89 GHz -- a reader would have concluded the design missed the
+    f_peak window it had actually met.
+
+    So: run one AC, and check the curve the plot would draw peaks where the
+    measurement says it does.
+    """
+    import numpy as np
+    from eqrl import netlist as nl, pdk
+    from eqrl.spice import MeasCond, Simulator
+    from eqrl.mcp_server import build_spec
+
+    spec = build_spec()
+    sim = Simulator(str(tmp_path), use_channel=True, timeout=600,
+                    meas=MeasCond.from_spec(spec))
+    p = nl.CtleParams(**nl.denorm([0.5] * len(nl.PARAM_NAMES)))
+    acr = sim.ac(p, pdk.typical_corner())
+    if not acr.get("ok"):
+        pytest.skip(f"ac did not run: {acr.get('note')}")
+
+    d = np.loadtxt(Path(sim.workdir) / "ac.dat")
+    f, ctle = d[:, 0], d[:, 1]
+    if d.shape[1] >= 6:                       # what the plot does
+        ctle = ctle - d[:, 5]
+
+    f_plot = float(f[int(np.argmax(ctle))])
+    pk_plot = float(ctle.max() - ctle[0])
+    assert f_plot == pytest.approx(acr["f_peak"], rel=0.02), (
+        f"plot peaks at {f_plot/1e9:.3f} GHz, title says "
+        f"{acr['f_peak']/1e9:.3f} GHz")
+    assert pk_plot == pytest.approx(acr["peaking_db"], abs=0.1), (
+        f"plot shows {pk_plot:.2f} dB of peaking, title says "
+        f"{acr['peaking_db']:.2f} dB")

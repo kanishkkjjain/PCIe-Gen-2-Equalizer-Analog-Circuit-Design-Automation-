@@ -1,0 +1,3444 @@
+{
+  "created": 1790253652.2144668,
+  "git_sha": "a4c6680",
+  "method": "policy",
+  "k": 8,
+  "deploy_seed": 999,
+  "m_specs": 10,
+  "n_per_spec": 8,
+  "specs": [
+    {
+      "spec": 0,
+      "n_proposals": 8,
+      "diversity_l2": 0.07757568284930429,
+      "propose_s": 16.585277372003475,
+      "first_success_rank": 1,
+      "n_passing": 8,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 8,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 12.71021003900023
+      },
+      "spec_fields": {
+        "peaking_min_db": 6.394125087901362,
+        "peaking_max_db": 11.394125087901362,
+        "peaking_target_db": 8.894125087901362,
+        "fpeak_lo": 1186124315.4125059,
+        "fpeak_hi": 2570858234.7595882,
+        "hd3_max_db": -27.997319377767766,
+        "power_max_w": 0.005053308922295909,
+        "eye_height_min_v": 0.12313471925720441,
+        "eye_width_min_ui": 0.37126723126665184
+      },
+      "proposals": [
+        {
+          "source": 0,
+          "u": [
+            0.2487078234553337,
+            0.0,
+            0.6191810632887864,
+            0.8396265803430321,
+            0.5288380824173697,
+            0.7108392148769958,
+            0.482960207387805,
+            1.0,
+            0.34116354995792864,
+            0.4590497780082087,
+            0.0
+          ],
+          "rollout_m_min": 0.23937657837876306,
+          "start_m_min": -1.0026203196365462,
+          "solved_at_start": false,
+          "predicted_m_min": 0.23937657837876306,
+          "predicted_binding": "power",
+          "predicted_reward": 0.985777881859448,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.09422530669889044
+            ],
+            "margins": {
+              "peaking": 0.3062065984197277,
+              "fpeak": 0.22584395472521654,
+              "hd3": 0.42847700049409393,
+              "noise": 0.36874889588200294,
+              "power": 0.232893167703115,
+              "area": 0.9934854423504893,
+              "eye_h": 0.32364114409156697,
+              "eye_w": 0.09422530669889044
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 1,
+          "u": [
+            0.2511391304433346,
+            0.0,
+            0.6279379558115834,
+            0.8182573577914478,
+            0.5134084133575567,
+            0.7040877886142147,
+            0.48865477461367846,
+            1.0,
+            0.3012879199014431,
+            0.4883724311439591,
+            0.0
+          ],
+          "rollout_m_min": 0.23332210769434739,
+          "start_m_min": -1.0026203196365462,
+          "solved_at_start": false,
+          "predicted_m_min": 0.23332210769434739,
+          "predicted_binding": "power",
+          "predicted_reward": 0.983185411304482,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.13631089541807853
+            ],
+            "margins": {
+              "peaking": 0.1605197984197277,
+              "fpeak": 0.22584395472521654,
+              "hd3": 0.4448471680410509,
+              "noise": 0.3710564443572607,
+              "power": 0.2240589957404563,
+              "area": 0.9935812760039813,
+              "eye_h": 0.4894381354227159,
+              "eye_w": 0.13631089541807853
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 2,
+          "u": [
+            0.22628207877278328,
+            0.0,
+            0.6182555554266655,
+            0.8242544577051045,
+            0.5268911209101685,
+            0.7157760977537868,
+            0.5076780039817095,
+            1.0,
+            0.30421954757919667,
+            0.4492078339753943,
+            0.0
+          ],
+          "rollout_m_min": 0.23500591448375396,
+          "start_m_min": -1.0026203196365462,
+          "solved_at_start": false,
+          "predicted_m_min": 0.23500591448375396,
+          "predicted_binding": "power",
+          "predicted_reward": 0.9900216718933229,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.09422530669889044
+            ],
+            "margins": {
+              "peaking": 0.27493449441972756,
+              "fpeak": 0.22584395472521654,
+              "hd3": 0.4044940538331483,
+              "noise": 0.3780236173111714,
+              "power": 0.23088472132549118,
+              "area": 0.9934876209486923,
+              "eye_h": 0.39628422054440665,
+              "eye_w": 0.09422530669889044
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 3,
+          "u": [
+            0.31112698558717966,
+            0.0,
+            0.6225381268020356,
+            0.8308495384235026,
+            0.5287316732252845,
+            0.6999030685077918,
+            0.4966650139540434,
+            1.0,
+            0.3130703814459419,
+            0.4370537116265195,
+            0.0
+          ],
+          "rollout_m_min": 0.26413442586287356,
+          "start_m_min": -1.0026203196365462,
+          "solved_at_start": false,
+          "predicted_m_min": 0.26413442586287356,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9891435774542555,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.05213971797970235
+            ],
+            "margins": {
+              "peaking": 0.2868375455802724,
+              "fpeak": 0.2899969438004655,
+              "hd3": 0.40584013641910976,
+              "noise": 0.3737358575648728,
+              "power": 0.26715644007818584,
+              "area": 0.9934414154020831,
+              "eye_h": 0.37272668947194826,
+              "eye_w": 0.05213971797970235
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 4,
+          "u": [
+            0.2847456866875291,
+            0.0,
+            0.6344847178849959,
+            0.8255027416134577,
+            0.520691315844179,
+            0.6945025486897243,
+            0.49460703507065773,
+            1.0,
+            0.29988940308256207,
+            0.45779468905677,
+            0.0
+          ],
+          "rollout_m_min": 0.2732111196325391,
+          "start_m_min": -1.0026203196365462,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2732111196325391,
+          "predicted_binding": "power",
+          "predicted_reward": 0.9950876578133935,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.13631089541807853
+            ],
+            "margins": {
+              "peaking": 0.3134781224197276,
+              "fpeak": 0.22584395472521654,
+              "hd3": 0.40569301265787056,
+              "noise": 0.3721459916145491,
+              "power": 0.2647365801036556,
+              "area": 0.9934902565708118,
+              "eye_h": 0.4266735713105674,
+              "eye_w": 0.13631089541807853
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 5,
+          "u": [
+            0.27531779929995537,
+            0.0,
+            0.625400821940937,
+            0.8217445247400643,
+            0.531845047339321,
+            0.6972947636644853,
+            0.5238553639501333,
+            1.0,
+            0.3035976287574893,
+            0.45900779334626074,
+            0.0
+          ],
+          "rollout_m_min": 0.2602760166064488,
+          "start_m_min": -1.0026203196365462,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2602760166064488,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9917610950594424,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.09422530669889044
+            ],
+            "margins": {
+              "peaking": 0.3420650195802722,
+              "fpeak": 0.22584395472521654,
+              "hd3": 0.41438964121519545,
+              "noise": 0.3878649507860398,
+              "power": 0.2572862538760451,
+              "area": 0.993216733373358,
+              "eye_h": 0.43197127108959926,
+              "eye_w": 0.09422530669889044
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 6,
+          "u": [
+            0.24304790422320366,
+            0.0,
+            0.631712211558559,
+            0.8174510128855796,
+            0.5297835932257482,
+            0.7048977272610677,
+            0.5385654829442501,
+            1.0,
+            0.29746000041639564,
+            0.45644791867381806,
+            0.0
+          ],
+          "rollout_m_min": 0.23840276025241838,
+          "start_m_min": -1.0026203196365462,
+          "solved_at_start": false,
+          "predicted_m_min": 0.23840276025241838,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9935828504512466,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.13631089541807853
+            ],
+            "margins": {
+              "peaking": 0.2870253604197277,
+              "fpeak": 0.22584395472521654,
+              "hd3": 0.3792457934268781,
+              "noise": 0.3874997119391127,
+              "power": 0.24709067691998754,
+              "area": 0.9932133262133298,
+              "eye_h": 0.42909316569302364,
+              "eye_w": 0.13631089541807853
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 7,
+          "u": [
+            0.25358873698860407,
+            0.0,
+            0.6619870913570849,
+            0.8546768174100758,
+            0.5018378926585325,
+            0.6683201337258828,
+            0.41433300636708736,
+            1.0,
+            0.2521667902256748,
+            0.44825471752121027,
+            0.0
+          ],
+          "rollout_m_min": 0.2262118607849166,
+          "start_m_min": -1.0026203196365462,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2262118607849166,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9954491270407211,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.09422530669889044
+            ],
+            "margins": {
+              "peaking": 0.35714976441972757,
+              "fpeak": 0.22584395472521654,
+              "hd3": 0.43024331850834685,
+              "noise": 0.33185643962553535,
+              "power": 0.3228805417173278,
+              "area": 0.994057949406469,
+              "eye_h": 0.3606742519348154,
+              "eye_w": 0.09422530669889044
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        }
+      ]
+    },
+    {
+      "spec": 1,
+      "n_proposals": 8,
+      "diversity_l2": 0.23368046473263832,
+      "propose_s": 19.082775878996472,
+      "first_success_rank": 2,
+      "n_passing": 1,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 3,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 13.177731774001586
+      },
+      "spec_fields": {
+        "peaking_min_db": 5.556143523302461,
+        "peaking_max_db": 10.556143523302461,
+        "peaking_target_db": 8.056143523302461,
+        "fpeak_lo": 1555471559.8454251,
+        "fpeak_hi": 2152618618.047843,
+        "hd3_max_db": -29.540800783716783,
+        "power_max_w": 0.010344764174846427,
+        "eye_height_min_v": 0.09590505474292557,
+        "eye_width_min_ui": 0.4457432114514167
+      },
+      "proposals": [
+        {
+          "source": 0,
+          "u": [
+            0.30710098147392273,
+            0.0,
+            0.443069335289134,
+            0.67962191534316,
+            0.6215128894479768,
+            0.7758951339278471,
+            0.6824117535725236,
+            0.9912216924130917,
+            0.534045466141907,
+            0.5219908859653669,
+            0.0
+          ],
+          "rollout_m_min": 0.07643885962024162,
+          "start_m_min": -0.38383932134445226,
+          "solved_at_start": false,
+          "predicted_m_min": 0.07643885962024162,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9815535996198591,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 1,
+          "u": [
+            0.2352197142317891,
+            0.0,
+            0.5073228389204687,
+            0.6940380709813332,
+            0.5699682987112374,
+            0.6936395380548536,
+            0.35881306644296274,
+            0.9555063821608201,
+            0.40785253272777555,
+            0.5219105923970501,
+            0.0
+          ],
+          "rollout_m_min": 0.040886668890809115,
+          "start_m_min": -0.38383932134445226,
+          "solved_at_start": false,
+          "predicted_m_min": 0.040886668890809115,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9864604133928156,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.05161444517274693
+            ],
+            "margins": {
+              "peaking": 0.19175950133950792,
+              "fpeak": 0.053958835955033105,
+              "hd3": 0.37788755285854175,
+              "noise": 0.571380859408692,
+              "power": 0.6104136129270602,
+              "area": 0.99390200924271,
+              "eye_h": 0.9035861547064791,
+              "eye_w": 0.05161444517274693
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 2,
+          "u": [
+            0.22472409764304757,
+            0.0,
+            0.5256159222166261,
+            0.7341423518475501,
+            0.5483722126161502,
+            0.6684247086163712,
+            0.3585769231431186,
+            0.9397190071176738,
+            0.4030505814954093,
+            0.5543538909478384,
+            0.009982885792851448
+          ],
+          "rollout_m_min": 0.08836468893723728,
+          "start_m_min": -0.38383932134445226,
+          "solved_at_start": false,
+          "predicted_m_min": 0.08836468893723728,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.995593215061928,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 3,
+          "u": [
+            0.24563559726811945,
+            0.0,
+            0.5027463317213787,
+            0.6902232407694107,
+            0.5828472192449318,
+            0.6728308277529184,
+            0.3321205675601959,
+            0.9674318064935505,
+            0.3926573685967749,
+            0.4931710776945847,
+            0.001025342964567244
+          ],
+          "rollout_m_min": 0.057833914912912884,
+          "start_m_min": -0.38383932134445226,
+          "solved_at_start": false,
+          "predicted_m_min": 0.057833914912912884,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9939274738997619,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": false,
+            "brief_specs_passed": 7,
+            "failed": [
+              "fpeak"
+            ],
+            "binding": [
+              "fpeak",
+              -0.09480656241671476
+            ],
+            "margins": {
+              "peaking": 0.3174613673395079,
+              "fpeak": -0.09480656241671476,
+              "hd3": 0.36523363931614017,
+              "noise": 0.5886018661099528,
+              "power": 0.6413101993158693,
+              "area": 0.9938995184423135,
+              "eye_h": 0.8623809803745037,
+              "eye_w": 0.016560630333655367
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": false,
+          "screen_missed": true
+        },
+        {
+          "source": 4,
+          "u": [
+            0.19284203625284135,
+            0.0,
+            0.5113014585925939,
+            0.7309642538995837,
+            0.5527257286818986,
+            0.6629644677382064,
+            0.47530162893235683,
+            0.9877394838258624,
+            0.3956044252627915,
+            0.5560569067092883,
+            0.0
+          ],
+          "rollout_m_min": 0.05617632657448976,
+          "start_m_min": -0.38383932134445226,
+          "solved_at_start": false,
+          "predicted_m_min": 0.05617632657448976,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9936026643789387,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 5,
+          "u": [
+            0.2315475046634674,
+            0.0021593626588582993,
+            0.4854591814631804,
+            0.6688635982674902,
+            0.5628888463185923,
+            0.6989963102027875,
+            0.5405011205002666,
+            1.0,
+            0.41951209089173136,
+            0.5411816034538942,
+            0.0
+          ],
+          "rollout_m_min": 0.07151796792424013,
+          "start_m_min": -0.38383932134445226,
+          "solved_at_start": false,
+          "predicted_m_min": 0.07151796792424013,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9664803725708131,
+          "screen_eye_width_ui": 0.5,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": false,
+            "brief_specs_passed": 7,
+            "failed": [
+              "fpeak"
+            ],
+            "binding": [
+              "fpeak",
+              -0.15112322955054563
+            ],
+            "margins": {
+              "peaking": 0.06854135933950775,
+              "fpeak": -0.15112322955054563,
+              "hd3": 0.007046172825204905,
+              "noise": 0.5650756016193177,
+              "power": 0.5934370248645675,
+              "area": 0.9927384339298579,
+              "eye_h": 0.9307049669731688,
+              "eye_w": 0.12172207485093006
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": false,
+          "screen_missed": true
+        },
+        {
+          "source": 6,
+          "u": [
+            0.2405064315535128,
+            0.0,
+            0.5108986852986945,
+            0.740125456951501,
+            0.5532762153822751,
+            0.6722382903903824,
+            0.4417581798043102,
+            0.9845274882391095,
+            0.4031192806215411,
+            0.5412359559050101,
+            0.0
+          ],
+          "rollout_m_min": 0.06073281892026246,
+          "start_m_min": -0.38383932134445226,
+          "solved_at_start": false,
+          "predicted_m_min": 0.06073281892026246,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9855080758925189,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 7,
+          "u": [
+            0.34483107924461365,
+            0.0,
+            0.4138131094927176,
+            0.6392853417302837,
+            0.6572304526859717,
+            0.8128451447341692,
+            0.7095570974051952,
+            0.9727999996393919,
+            0.5470373196659064,
+            0.47305939719810064,
+            0.0
+          ],
+          "rollout_m_min": 0.08370252077989823,
+          "start_m_min": -0.38383932134445226,
+          "solved_at_start": false,
+          "predicted_m_min": 0.08370252077989823,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.977121723846321,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        }
+      ]
+    },
+    {
+      "spec": 2,
+      "n_proposals": 8,
+      "diversity_l2": 0.08788677173406398,
+      "propose_s": 19.65052836799805,
+      "first_success_rank": 1,
+      "n_passing": 8,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 8,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 13.75983335100318
+      },
+      "spec_fields": {
+        "peaking_min_db": 4.912343886837882,
+        "peaking_max_db": 9.912343886837881,
+        "peaking_target_db": 7.412343886837882,
+        "fpeak_lo": 1244402981.569341,
+        "fpeak_hi": 2033032346.534494,
+        "hd3_max_db": -32.50384983214684,
+        "power_max_w": 0.006515219958822828,
+        "eye_height_min_v": 0.11100613356701704,
+        "eye_width_min_ui": 0.42419199709554234
+      },
+      "proposals": [
+        {
+          "source": 0,
+          "u": [
+            0.2478052917867899,
+            0.0,
+            0.6067330248151885,
+            0.7578692698865411,
+            0.5290851689764093,
+            0.6242492327752416,
+            0.225804649759084,
+            1.0,
+            0.34528669567233083,
+            0.4717120528294044,
+            0.0
+          ],
+          "rollout_m_min": 0.18139527817955098,
+          "start_m_min": -0.21781031826162373,
+          "solved_at_start": false,
+          "predicted_m_min": 0.18139527817955098,
+          "predicted_binding": "hd3",
+          "predicted_reward": 0.9824878138394265,
+          "screen_eye_width_ui": 0.484375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.14187679945999174
+            ],
+            "margins": {
+              "peaking": 0.19575769263242349,
+              "fpeak": 0.18510306998388806,
+              "hd3": 0.18667543481736132,
+              "noise": 0.5236579441465173,
+              "power": 0.5117669671777689,
+              "area": 0.995038885934795,
+              "eye_h": 0.5684699484241634,
+              "eye_w": 0.14187679945999174
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 1,
+          "u": [
+            0.24738283685292117,
+            0.0,
+            0.6240584435836392,
+            0.7904254955486608,
+            0.5172591795102488,
+            0.6180920661014397,
+            0.24433480285370024,
+            1.0,
+            0.35987099842903336,
+            0.44804392057268794,
+            0.0
+          ],
+          "rollout_m_min": 0.1779457888140647,
+          "start_m_min": -0.21781031826162373,
+          "solved_at_start": false,
+          "predicted_m_min": 0.1779457888140647,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9906833013759188,
+          "screen_eye_width_ui": 0.484375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.11592120772056029
+            ],
+            "margins": {
+              "peaking": 0.26278245263242367,
+              "fpeak": 0.11592120772056029,
+              "hd3": 0.18836962689426198,
+              "noise": 0.47503482656486334,
+              "power": 0.5326650490323378,
+              "area": 0.9949897207657161,
+              "eye_h": 0.39671254156551944,
+              "eye_w": 0.14187679945999174
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 2,
+          "u": [
+            0.24335420783609152,
+            0.0,
+            0.6386841629828306,
+            0.8108227357282517,
+            0.512563041947389,
+            0.6272351403191578,
+            0.33401278041128535,
+            1.0,
+            0.3135680905325724,
+            0.5170947376245904,
+            0.015954450949720922
+          ],
+          "rollout_m_min": 0.19125771513380538,
+          "start_m_min": -0.21781031826162373,
+          "solved_at_start": false,
+          "predicted_m_min": 0.19125771513380538,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9973897145378956,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.06820732852708905
+            ],
+            "margins": {
+              "peaking": 0.33469108936757624,
+              "fpeak": 0.11592120772056029,
+              "hd3": 0.28172729534284685,
+              "noise": 0.42683219594328853,
+              "power": 0.47703739527842165,
+              "area": 0.9942363010330627,
+              "eye_h": 0.48992343112419107,
+              "eye_w": 0.06820732852708905
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 3,
+          "u": [
+            0.2526319990865886,
+            0.0,
+            0.6288711415800246,
+            0.7876694466816475,
+            0.5341751388163101,
+            0.6251359349286076,
+            0.22315847966820002,
+            1.0,
+            0.3131045630799061,
+            0.44550970244019206,
+            0.010053819976747036
+          ],
+          "rollout_m_min": 0.17786325587900462,
+          "start_m_min": -0.21781031826162373,
+          "solved_at_start": false,
+          "predicted_m_min": 0.17786325587900462,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9950969258004343,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.06820732852708905
+            ],
+            "margins": {
+              "peaking": 0.2854320813675763,
+              "fpeak": 0.11592120772056029,
+              "hd3": 0.1746522246461741,
+              "noise": 0.5046788603441814,
+              "power": 0.5271475376931665,
+              "area": 0.9949846263986302,
+              "eye_h": 0.4559082334338257,
+              "eye_w": 0.06820732852708905
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 4,
+          "u": [
+            0.2599170773755759,
+            0.0,
+            0.6325045839148553,
+            0.7960185133400587,
+            0.5135403695870917,
+            0.6305662060791519,
+            0.2994655391667038,
+            1.0,
+            0.32447765131662964,
+            0.485713595298891,
+            0.0
+          ],
+          "rollout_m_min": 0.1885742138717662,
+          "start_m_min": -0.21781031826162373,
+          "solved_at_start": false,
+          "predicted_m_min": 0.1885742138717662,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9938714267765626,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.04328413073485064
+            ],
+            "margins": {
+              "peaking": 0.3063495546324236,
+              "fpeak": 0.04328413073485064,
+              "hd3": 0.23194163095087683,
+              "noise": 0.44957098096727177,
+              "power": 0.4954581087399031,
+              "area": 0.994600090218647,
+              "eye_h": 0.568258509741718,
+              "eye_w": 0.1050420639935404
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 5,
+          "u": [
+            0.2506220508366823,
+            0.0,
+            0.6253206009241732,
+            0.7788970617824448,
+            0.524691700365467,
+            0.6201027411904079,
+            0.27762287110090256,
+            1.0,
+            0.3304990962279415,
+            0.5059353021279248,
+            0.0
+          ],
+          "rollout_m_min": 0.16569778432791826,
+          "start_m_min": -0.21781031826162373,
+          "solved_at_start": false,
+          "predicted_m_min": 0.16569778432791826,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9880605529748602,
+          "screen_eye_width_ui": 0.484375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.11592120772056029
+            ],
+            "margins": {
+              "peaking": 0.2674882386324237,
+              "fpeak": 0.11592120772056029,
+              "hd3": 0.22878530564627067,
+              "noise": 0.4881971744154017,
+              "power": 0.4936392445918167,
+              "area": 0.9945886448479212,
+              "eye_h": 0.6020409347370526,
+              "eye_w": 0.14187679945999174
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 6,
+          "u": [
+            0.2568029452813789,
+            0.0,
+            0.6226688235728981,
+            0.8147348516634879,
+            0.5273818257386591,
+            0.6284478781914231,
+            0.2919365253765136,
+            1.0,
+            0.33320273561556024,
+            0.4952956929992224,
+            0.012846021330915391
+          ],
+          "rollout_m_min": 0.20179313832870757,
+          "start_m_min": -0.21781031826162373,
+          "solved_at_start": false,
+          "predicted_m_min": 0.20179313832870757,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9814979455599511,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.03137259306063771
+            ],
+            "margins": {
+              "peaking": 0.1706866873675761,
+              "fpeak": 0.11592120772056029,
+              "hd3": 0.287740222131697,
+              "noise": 0.45028170269789597,
+              "power": 0.4903206152689923,
+              "area": 0.9944265626988521,
+              "eye_h": 0.42570056380671756,
+              "eye_w": 0.03137259306063771
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 7,
+          "u": [
+            0.21106067206710577,
+            0.0,
+            0.5873081852878423,
+            0.736469036039452,
+            0.5415756924898159,
+            0.6403346988541898,
+            0.3298045548144728,
+            1.0,
+            0.3522203177345371,
+            0.45134910848720844,
+            0.0
+          ],
+          "rollout_m_min": 0.1429682428062718,
+          "start_m_min": -0.21781031826162373,
+          "solved_at_start": false,
+          "predicted_m_min": 0.1429682428062718,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9857001532483619,
+          "screen_eye_width_ui": 0.5,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "hd3",
+              0.16094171035711574
+            ],
+            "margins": {
+              "peaking": 0.2370959846324235,
+              "fpeak": 0.18510306998388806,
+              "hd3": 0.16094171035711574,
+              "noise": 0.5236953214003919,
+              "power": 0.5023941600605963,
+              "area": 0.9943755782871886,
+              "eye_h": 0.5560142095839294,
+              "eye_w": 0.1787115349264431
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        }
+      ]
+    },
+    {
+      "spec": 3,
+      "n_proposals": 8,
+      "diversity_l2": 0.19432923294609258,
+      "propose_s": 20.281732021998323,
+      "first_success_rank": 1,
+      "n_passing": 8,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 8,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 13.971001013000205
+      },
+      "spec_fields": {
+        "peaking_min_db": 3.2933837178249075,
+        "peaking_max_db": 8.293383717824907,
+        "peaking_target_db": 5.7933837178249075,
+        "fpeak_lo": 1316403223.0292761,
+        "fpeak_hi": 2324381601.020026,
+        "hd3_max_db": -30.44944141837192,
+        "power_max_w": 0.011058372329098662,
+        "eye_height_min_v": 0.08089207630710793,
+        "eye_width_min_ui": 0.4054180504066117
+      },
+      "proposals": [
+        {
+          "source": 0,
+          "u": [
+            0.1973857693374157,
+            0.0,
+            0.4656146740327984,
+            0.6643457046779787,
+            0.555543882889135,
+            0.705032343422546,
+            0.5438042893074453,
+            0.9113011712571676,
+            0.5777788100895858,
+            0.5067015364839035,
+            0.0
+          ],
+          "rollout_m_min": 0.20948002614066147,
+          "start_m_min": -0.14912224216454778,
+          "solved_at_start": false,
+          "predicted_m_min": 0.20948002614066147,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9874075853031893,
+          "screen_eye_width_ui": 0.515625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.18101070514470718
+            ],
+            "margins": {
+              "peaking": 0.33680178596498145,
+              "fpeak": 0.18101070514470718,
+              "hd3": 0.30241545606224196,
+              "noise": 0.550639082533714,
+              "power": 0.6288970313287968,
+              "area": 0.9930343608872896,
+              "eye_h": 0.8033731662177235,
+              "eye_w": 0.2718353301804319
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 1,
+          "u": [
+            0.19835988339036703,
+            0.0,
+            0.6173618282502447,
+            0.8089999779663032,
+            0.4568755658114536,
+            0.6184341705804867,
+            0.44313353672623634,
+            0.906216653146788,
+            0.3876804436223036,
+            0.4606561566688624,
+            0.0
+          ],
+          "rollout_m_min": 0.2046793438479089,
+          "start_m_min": -0.14912224216454778,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2046793438479089,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9834364304451888,
+          "screen_eye_width_ui": 0.484375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.18101070514470718
+            ],
+            "margins": {
+              "peaking": 0.25775022716498147,
+              "fpeak": 0.18101070514470718,
+              "hd3": 0.30577032136757853,
+              "noise": 0.3274133629403108,
+              "power": 0.7177896703850297,
+              "area": 0.9942961637912267,
+              "eye_h": 0.5556217782042869,
+              "eye_w": 0.19475440107858755
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 2,
+          "u": [
+            0.1827030066633597,
+            0.0,
+            0.5776639236448262,
+            0.772166506929787,
+            0.4578390993414654,
+            0.6055039092018445,
+            0.5358547123032622,
+            0.9363104964533192,
+            0.42042862645037604,
+            0.4541059151597592,
+            0.0
+          ],
+          "rollout_m_min": 0.22506136835219695,
+          "start_m_min": -0.14912224216454778,
+          "solved_at_start": false,
+          "predicted_m_min": 0.22506136835219695,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9943151873777375,
+          "screen_eye_width_ui": 0.5,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.18101070514470718
+            ],
+            "margins": {
+              "peaking": 0.36210294035501833,
+              "fpeak": 0.18101070514470718,
+              "hd3": 0.3304523040507361,
+              "noise": 0.3668193083236241,
+              "power": 0.7259421359845805,
+              "area": 0.9937205129610561,
+              "eye_h": 0.5841870551509117,
+              "eye_w": 0.2332948656295097
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 3,
+          "u": [
+            0.18430556321982294,
+            0.0,
+            0.6097827937066485,
+            0.8024264461896365,
+            0.4548550187614022,
+            0.5889114729645838,
+            0.40389921562746167,
+            0.9267319248421187,
+            0.38122560029303787,
+            0.42913924702590245,
+            0.01839149370789528
+          ],
+          "rollout_m_min": 0.20611289840776004,
+          "start_m_min": -0.14912224216454778,
+          "solved_at_start": false,
+          "predicted_m_min": 0.20611289840776004,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9858438588183734,
+          "screen_eye_width_ui": 0.484375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.18101070514470718
+            ],
+            "margins": {
+              "peaking": 0.2614204783649816,
+              "fpeak": 0.18101070514470718,
+              "hd3": 0.30612248690565796,
+              "noise": 0.3443991876389265,
+              "power": 0.7457695476031101,
+              "area": 0.9945832657826228,
+              "eye_h": 0.4243710497992958,
+              "eye_w": 0.19475440107858755
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 4,
+          "u": [
+            0.16658403538167477,
+            0.0,
+            0.5001948452865634,
+            0.7212237247335708,
+            0.5083079057516737,
+            0.6665215486711998,
+            0.5637196365278214,
+            0.9493626440772857,
+            0.5357678885703361,
+            0.4461938962413269,
+            0.0
+          ],
+          "rollout_m_min": 0.20000889445852407,
+          "start_m_min": -0.14912224216454778,
+          "solved_at_start": false,
+          "predicted_m_min": 0.20000889445852407,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9811834877285397,
+          "screen_eye_width_ui": 0.515625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.18101070514470718
+            ],
+            "margins": {
+              "peaking": 0.2863791719649814,
+              "fpeak": 0.18101070514470718,
+              "hd3": 0.3366000138947882,
+              "noise": 0.4530507249602208,
+              "power": 0.6849969329723298,
+              "area": 0.9934515319900754,
+              "eye_h": 0.5477400701266063,
+              "eye_w": 0.2718353301804319
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 5,
+          "u": [
+            0.2393596388719743,
+            0.0,
+            0.657078622012881,
+            0.8293945287191292,
+            0.442846895545183,
+            0.5919809368872405,
+            0.42661736358422786,
+            0.8718512419392425,
+            0.36010809916486397,
+            0.48430118288526225,
+            0.0
+          ],
+          "rollout_m_min": 0.22817287155422936,
+          "start_m_min": -0.14912224216454778,
+          "solved_at_start": false,
+          "predicted_m_min": 0.22817287155422936,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9961564174679073,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.09781019030115407
+            ],
+            "margins": {
+              "peaking": 0.33376669756498156,
+              "fpeak": 0.09781019030115407,
+              "hd3": 0.29329276095785933,
+              "noise": 0.29391110321902375,
+              "power": 0.7262549035327391,
+              "area": 0.9942373808627782,
+              "eye_h": 0.5130296152364995,
+              "eye_w": 0.15621393652766535
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 6,
+          "u": [
+            0.20762802474200726,
+            0.0,
+            0.6060009049562667,
+            0.8200806376012025,
+            0.4475157124692781,
+            0.585815047757252,
+            0.513298355974257,
+            0.9314518639249797,
+            0.3894240412992811,
+            0.492961586111066,
+            0.008663625456392765
+          ],
+          "rollout_m_min": 0.21482269769706158,
+          "start_m_min": -0.14912224216454778,
+          "solved_at_start": false,
+          "predicted_m_min": 0.21482269769706158,
+          "predicted_binding": "peaking",
+          "predicted_reward": 0.9800172857173755,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.15621393652766535
+            ],
+            "margins": {
+              "peaking": 0.1954751717649815,
+              "fpeak": 0.18101070514470718,
+              "hd3": 0.42935777770886185,
+              "noise": 0.30467804346360317,
+              "power": 0.7233870131184738,
+              "area": 0.9935252534426584,
+              "eye_h": 0.5270327174077739,
+              "eye_w": 0.15621393652766535
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 7,
+          "u": [
+            0.20455588384072598,
+            0.0,
+            0.611866377441578,
+            0.799086316681931,
+            0.4441829569117839,
+            0.6155519591695805,
+            0.4579746696399525,
+            0.9993295821724529,
+            0.3674513477963781,
+            0.44505041219965,
+            0.0
+          ],
+          "rollout_m_min": 0.22191476117365574,
+          "start_m_min": -0.14912224216454778,
+          "solved_at_start": false,
+          "predicted_m_min": 0.22191476117365574,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9979713764235171,
+          "screen_eye_width_ui": 0.5,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.08087494017731231
+            ],
+            "margins": {
+              "peaking": 0.3230161704350186,
+              "fpeak": 0.08087494017731231,
+              "hd3": 0.33711004788712134,
+              "noise": 0.3181324124072032,
+              "power": 0.7247167024762202,
+              "area": 0.9942571917834654,
+              "eye_h": 0.7810049766560478,
+              "eye_w": 0.2332948656295097
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        }
+      ]
+    },
+    {
+      "spec": 4,
+      "n_proposals": 8,
+      "diversity_l2": 0.3119293840519935,
+      "propose_s": 23.70966693599985,
+      "first_success_rank": 1,
+      "n_passing": 8,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 8,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 15.855907737000962
+      },
+      "spec_fields": {
+        "peaking_min_db": 5.327495954674319,
+        "peaking_max_db": 10.327495954674319,
+        "peaking_target_db": 7.827495954674319,
+        "fpeak_lo": 1125553335.380556,
+        "fpeak_hi": 2324787786.097642,
+        "hd3_max_db": -27.982581607378062,
+        "power_max_w": 0.014328017307402841,
+        "eye_height_min_v": 0.06958812170468195,
+        "eye_width_min_ui": 0.4359688410072873
+      },
+      "proposals": [
+        {
+          "source": 0,
+          "u": [
+            0.18531071974575752,
+            0.0,
+            0.675048496835176,
+            0.8571423937748578,
+            0.47933571834157296,
+            0.5798665867754018,
+            0.45136089134030044,
+            0.9137634159997106,
+            0.30179900638912005,
+            0.38252151013149793,
+            0.0
+          ],
+          "rollout_m_min": 0.25079280239122875,
+          "start_m_min": -0.2825918003403814,
+          "solved_at_start": false,
+          "predicted_m_min": 0.25079280239122875,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9861815321399235,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.0035120835451796168
+            ],
+            "margins": {
+              "peaking": 0.28113121093486376,
+              "fpeak": 0.17533561889730004,
+              "hd3": 0.335997696222823,
+              "noise": 0.31505331265821734,
+              "power": 0.819839476417557,
+              "area": 0.9940590012790012,
+              "eye_h": 0.4554945377184314,
+              "eye_w": 0.0035120835451796168
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 1,
+          "u": [
+            0.2668066695332527,
+            0.0006486580241471529,
+            0.4657714320628532,
+            0.6530818037637901,
+            0.6369231758771285,
+            0.749926866903784,
+            0.6985835488885641,
+            0.9284114066059771,
+            0.5584080539775467,
+            0.4375753365529972,
+            0.0
+          ],
+          "rollout_m_min": 0.25912883723613334,
+          "start_m_min": -0.2825918003403814,
+          "solved_at_start": false,
+          "predicted_m_min": 0.25912883723613334,
+          "predicted_binding": "peaking",
+          "predicted_reward": 0.9849300107420228,
+          "screen_eye_width_ui": 0.484375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.11103123535359172
+            ],
+            "margins": {
+              "peaking": 0.2971428129348638,
+              "fpeak": 0.24135434438726483,
+              "hd3": 0.28111566232233975,
+              "noise": 0.6137538477791914,
+              "power": 0.6985989193516136,
+              "area": 0.991114386276977,
+              "eye_h": 1.0514995634721223,
+              "eye_w": 0.11103123535359172
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 2,
+          "u": [
+            0.3017590492963791,
+            0.0,
+            0.4296809791403451,
+            0.6300704999077525,
+            0.6645215699581251,
+            0.7834898437707445,
+            0.7506653359159827,
+            0.9715766703840415,
+            0.5660796886441684,
+            0.4648936390949684,
+            0.0
+          ],
+          "rollout_m_min": 0.26965415919658253,
+          "start_m_min": -0.2825918003403814,
+          "solved_at_start": false,
+          "predicted_m_min": 0.26965415919658253,
+          "predicted_binding": "peaking",
+          "predicted_reward": 0.9860523461103311,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.07519151808412101
+            ],
+            "margins": {
+              "peaking": 0.2062657449348638,
+              "fpeak": 0.2717488443588113,
+              "hd3": 0.3462524513331896,
+              "noise": 0.6403653769472605,
+              "power": 0.6608029222934441,
+              "area": 0.9901684655876143,
+              "eye_h": 1.387088617004929,
+              "eye_w": 0.07519151808412101
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 3,
+          "u": [
+            0.1977449581027031,
+            0.0,
+            0.559139453834165,
+            0.7738777183178273,
+            0.5216042572764501,
+            0.6389660704283735,
+            0.5835566520690918,
+            0.9496291464557941,
+            0.5016577024144506,
+            0.35757108219697054,
+            0.0
+          ],
+          "rollout_m_min": 0.27468473776955904,
+          "start_m_min": -0.2825918003403814,
+          "solved_at_start": false,
+          "predicted_m_min": 0.27468473776955904,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9903052772435207,
+          "screen_eye_width_ui": 0.5,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.1468709526230624
+            ],
+            "margins": {
+              "peaking": 0.3734766710651362,
+              "fpeak": 0.24135434438726483,
+              "hd3": 0.3414781252561755,
+              "noise": 0.4236342144807285,
+              "power": 0.7929220466207118,
+              "area": 0.9932709312368817,
+              "eye_h": 0.42335935499658545,
+              "eye_w": 0.1468709526230624
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 4,
+          "u": [
+            0.18288460932672024,
+            0.0,
+            0.5461124372950383,
+            0.747916395142248,
+            0.5333571141717777,
+            0.6551715526132604,
+            0.6496817879378796,
+            0.9591146910635359,
+            0.5042734196541285,
+            0.36698204838468607,
+            0.0
+          ],
+          "rollout_m_min": 0.25441420602702586,
+          "start_m_min": -0.2825918003403814,
+          "solved_at_start": false,
+          "predicted_m_min": 0.25441420602702586,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9959677835511771,
+          "screen_eye_width_ui": 0.515625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.18271066989253312
+            ],
+            "margins": {
+              "peaking": 0.2918889110651362,
+              "fpeak": 0.24135434438726483,
+              "hd3": 0.32073999254538194,
+              "noise": 0.455335451131973,
+              "power": 0.7818073615541521,
+              "area": 0.9928331154659654,
+              "eye_h": 0.5237864268254957,
+              "eye_w": 0.18271066989253312
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 5,
+          "u": [
+            0.2121146097779274,
+            0.0,
+            0.6679698961224734,
+            0.8328571080994253,
+            0.48724152007063926,
+            0.5947761465780197,
+            0.5004985085688531,
+            0.8618096671954333,
+            0.3143714730759537,
+            0.3894481812094609,
+            0.0
+          ],
+          "rollout_m_min": 0.2694976431876094,
+          "start_m_min": -0.2825918003403814,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2694976431876094,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9899861842032784,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.03935180081465032
+            ],
+            "margins": {
+              "peaking": 0.35365774293486396,
+              "fpeak": 0.24135434438726483,
+              "hd3": 0.27488868225943675,
+              "noise": 0.34632126406691127,
+              "power": 0.8111994114773758,
+              "area": 0.993822002109281,
+              "eye_h": 0.46594511832306923,
+              "eye_w": 0.03935180081465032
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 6,
+          "u": [
+            0.22287384420633316,
+            0.0,
+            0.486582854325194,
+            0.7034398269090262,
+            0.5913545252887353,
+            0.7351583297698518,
+            0.7273666667024372,
+            0.9865126538453693,
+            0.562427275734154,
+            0.40292833373679693,
+            0.0
+          ],
+          "rollout_m_min": 0.2496272588236935,
+          "start_m_min": -0.2825918003403814,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2496272588236935,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9870364354059863,
+          "screen_eye_width_ui": 0.5,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.1468709526230624
+            ],
+            "margins": {
+              "peaking": 0.30982641093486407,
+              "fpeak": 0.24135434438726483,
+              "hd3": 0.35449731072772,
+              "noise": 0.5321080895311492,
+              "power": 0.7192691205138485,
+              "area": 0.9917431143973356,
+              "eye_h": 0.8423310776686659,
+              "eye_w": 0.1468709526230624
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 7,
+          "u": [
+            0.17911262763664126,
+            0.0,
+            0.651634863256719,
+            0.8183384316573311,
+            0.48679321604224346,
+            0.5831692101185901,
+            0.4615047901534126,
+            0.9261167012155056,
+            0.32951216717636345,
+            0.325835797710185,
+            0.0
+          ],
+          "rollout_m_min": 0.2423838111435457,
+          "start_m_min": -0.2825918003403814,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2423838111435457,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9967148066373903,
+          "screen_eye_width_ui": 0.484375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.11103123535359172
+            ],
+            "margins": {
+              "peaking": 0.41273187106513626,
+              "fpeak": 0.24135434438726483,
+              "hd3": 0.24784730136825042,
+              "noise": 0.36463785850256547,
+              "power": 0.8282895918384426,
+              "area": 0.9942239972670527,
+              "eye_h": 0.4030871520175799,
+              "eye_w": 0.11103123535359172
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        }
+      ]
+    },
+    {
+      "spec": 5,
+      "n_proposals": 8,
+      "diversity_l2": 0.1515332371942256,
+      "propose_s": 19.86603853700217,
+      "first_success_rank": null,
+      "n_passing": 0,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 0,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 14.531618490000255
+      },
+      "spec_fields": {
+        "peaking_min_db": 5.636377462120372,
+        "peaking_max_db": 10.636377462120372,
+        "peaking_target_db": 8.136377462120372,
+        "fpeak_lo": 1455413702.0837631,
+        "fpeak_hi": 2765871211.684474,
+        "hd3_max_db": -31.511368444620132,
+        "power_max_w": 0.005051879050241419,
+        "eye_height_min_v": 0.1036503483313935,
+        "eye_width_min_ui": 0.4771822497205934
+      },
+      "proposals": [
+        {
+          "source": 0,
+          "u": [
+            0.24680867476854473,
+            0.0,
+            0.6153919396074733,
+            0.8504028189211331,
+            0.47278488454083134,
+            0.65830252552405,
+            0.373158568283543,
+            1.0,
+            0.3525070952383256,
+            0.40103833557078994,
+            0.0063520618714392185
+          ],
+          "rollout_m_min": 0.1609867762751935,
+          "start_m_min": -1.0261770861307258,
+          "solved_at_start": false,
+          "predicted_m_min": 0.1609867762751935,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9952648826683266,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 1,
+          "u": [
+            0.28156691417098045,
+            0.0,
+            0.5101770768433588,
+            0.7724168423894971,
+            0.5266638968654458,
+            0.7428938951343298,
+            0.5675850212574005,
+            1.0,
+            0.5197975294796204,
+            0.41320385854489083,
+            0.0
+          ],
+          "rollout_m_min": 0.2030591435976449,
+          "start_m_min": -1.0261770861307258,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2030591435976449,
+          "predicted_binding": "power",
+          "predicted_reward": 0.98680589620793,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 2,
+          "u": [
+            0.22714542387984693,
+            0.0,
+            0.5837657339198293,
+            0.8433527804311544,
+            0.48296191865790905,
+            0.6983564435504377,
+            0.5430321712628938,
+            1.0,
+            0.3805522941184616,
+            0.38949899934961374,
+            0.0
+          ],
+          "rollout_m_min": 0.19788859056860558,
+          "start_m_min": -1.0261770861307258,
+          "solved_at_start": false,
+          "predicted_m_min": 0.19788859056860558,
+          "predicted_binding": "peaking",
+          "predicted_reward": 0.9780911534826773,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 3,
+          "u": [
+            0.3256528633646667,
+            0.0,
+            0.5219411131020414,
+            0.7696833994571298,
+            0.5284268957669862,
+            0.7394272051751614,
+            0.5744035337120295,
+            0.993166830856353,
+            0.5418789099567956,
+            0.39758441737650807,
+            0.0
+          ],
+          "rollout_m_min": 0.21683925005656846,
+          "start_m_min": -1.0261770861307258,
+          "solved_at_start": false,
+          "predicted_m_min": 0.21683925005656846,
+          "predicted_binding": "power",
+          "predicted_reward": 0.9926266488373786,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 4,
+          "u": [
+            0.28752975165843964,
+            0.0,
+            0.5171254089128005,
+            0.7788501300249427,
+            0.5264436171031572,
+            0.7416326031088829,
+            0.6208323428872973,
+            1.0,
+            0.5396215779838538,
+            0.40401372919588263,
+            0.0
+          ],
+          "rollout_m_min": 0.20537134851342065,
+          "start_m_min": -1.0261770861307258,
+          "solved_at_start": false,
+          "predicted_m_min": 0.20537134851342065,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.987021352626236,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 5,
+          "u": [
+            0.28591929748654366,
+            0.0,
+            0.5268659582853096,
+            0.7698117208067506,
+            0.5242205994776465,
+            0.7337946072220802,
+            0.6144202777650207,
+            1.0,
+            0.5234231929426467,
+            0.41370479303442786,
+            0.0
+          ],
+          "rollout_m_min": 0.19517760785251953,
+          "start_m_min": -1.0261770861307258,
+          "solved_at_start": false,
+          "predicted_m_min": 0.19517760785251953,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9968826082991016,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 6,
+          "u": [
+            0.28136591613292694,
+            0.0,
+            0.5129812561117822,
+            0.7756797943595976,
+            0.5250542053594269,
+            0.7559208683669567,
+            0.5893794819712639,
+            1.0,
+            0.5543531653602993,
+            0.3947905618770319,
+            0.0
+          ],
+          "rollout_m_min": 0.1833416214044299,
+          "start_m_min": -1.0261770861307258,
+          "solved_at_start": false,
+          "predicted_m_min": 0.1833416214044299,
+          "predicted_binding": "power",
+          "predicted_reward": 0.9895553556473855,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 7,
+          "u": [
+            0.2535957582294941,
+            0.0,
+            0.533161292600237,
+            0.8046899803314537,
+            0.5048228927529432,
+            0.7256225645542145,
+            0.5553394146263599,
+            1.0,
+            0.5052380351481414,
+            0.41744895466401155,
+            0.0
+          ],
+          "rollout_m_min": 0.20864065558260247,
+          "start_m_min": -1.0261770861307258,
+          "solved_at_start": false,
+          "predicted_m_min": 0.20864065558260247,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.987065978655286,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        }
+      ]
+    },
+    {
+      "spec": 6,
+      "n_proposals": 8,
+      "diversity_l2": 0.3272303649497815,
+      "propose_s": 19.42612952899799,
+      "first_success_rank": 1,
+      "n_passing": 6,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 6,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 14.15195705700171
+      },
+      "spec_fields": {
+        "peaking_min_db": 7.336757531904144,
+        "peaking_max_db": 12.336757531904144,
+        "peaking_target_db": 9.836757531904144,
+        "fpeak_lo": 1361826062.0174189,
+        "fpeak_hi": 2077538793.7577062,
+        "hd3_max_db": -26.36574939245383,
+        "power_max_w": 0.012796960386778456,
+        "eye_height_min_v": 0.09920451150358578,
+        "eye_width_min_ui": 0.3548095016204579
+      },
+      "proposals": [
+        {
+          "source": 0,
+          "u": [
+            0.24760735593736172,
+            0.0,
+            0.5226660442798727,
+            0.7686800358774513,
+            0.5958368785387862,
+            0.7146786442026496,
+            0.5384111818857491,
+            0.9958750605583191,
+            0.3956659896430945,
+            0.564999456990351,
+            0.0
+          ],
+          "rollout_m_min": 0.18551262272467317,
+          "start_m_min": -0.8218545657680358,
+          "solved_at_start": false,
+          "predicted_m_min": 0.18551262272467317,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.980049089225374,
+          "screen_eye_width_ui": 0.375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.05690517950429646
+            ],
+            "margins": {
+              "peaking": 0.25711599038082866,
+              "fpeak": 0.07428639400238343,
+              "hd3": 0.3290428410307733,
+              "noise": 0.5134376973413658,
+              "power": 0.6502374107038418,
+              "area": 0.992046862266747,
+              "eye_h": 0.725961845243915,
+              "eye_w": 0.05690517950429646
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 1,
+          "u": [
+            0.2912703864276409,
+            0.0,
+            0.596865223932951,
+            0.7725464003583788,
+            0.5685414367063928,
+            0.6733313838485628,
+            0.32217619847506285,
+            0.9976472544949502,
+            0.3091786575169688,
+            0.5252256481108061,
+            0.0
+          ],
+          "rollout_m_min": 0.15745703127085733,
+          "start_m_min": -0.8218545657680358,
+          "solved_at_start": false,
+          "predicted_m_min": 0.15745703127085733,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9775662028225711,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.07428639400238343
+            ],
+            "margins": {
+              "peaking": 0.150551443619171,
+              "fpeak": 0.07428639400238343,
+              "hd3": 0.5567724026001128,
+              "noise": 0.5253962573383902,
+              "power": 0.7014730072973433,
+              "area": 0.9938654758783424,
+              "eye_h": 0.9965388390725107,
+              "eye_w": 0.1449806111296545
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 2,
+          "u": [
+            0.21649048943072557,
+            0.0,
+            0.5475169943905764,
+            0.7590564166153222,
+            0.5774612610868204,
+            0.6884534659329802,
+            0.5414994517341256,
+            1.0,
+            0.3258492624518847,
+            0.5648852896483886,
+            0.0
+          ],
+          "rollout_m_min": 0.17974494553111175,
+          "start_m_min": -0.8218545657680358,
+          "solved_at_start": false,
+          "predicted_m_min": 0.17974494553111175,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9924096502344262,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.07428639400238343
+            ],
+            "margins": {
+              "peaking": 0.274584713619171,
+              "fpeak": 0.07428639400238343,
+              "hd3": 0.27799124109277196,
+              "noise": 0.5081155786817199,
+              "power": 0.6712612704227454,
+              "area": 0.9922498114827756,
+              "eye_h": 0.8878802628167836,
+              "eye_w": 0.10094289531697548
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 3,
+          "u": [
+            0.49684035778045654,
+            0.0,
+            0.4357440846301012,
+            0.6462021035099774,
+            0.7583355147100079,
+            0.9201111309230328,
+            0.7799453884363174,
+            1.0,
+            0.4770168824253058,
+            0.5471319817079502,
+            0.0
+          ],
+          "rollout_m_min": 0.18060212711796614,
+          "start_m_min": -0.8218545657680358,
+          "solved_at_start": false,
+          "predicted_m_min": 0.18060212711796614,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9762478540501339,
+          "screen_eye_width_ui": 0.34375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 4,
+          "u": [
+            0.4962637610733509,
+            0.0,
+            0.43260374127694895,
+            0.6441934977615624,
+            0.75401121822065,
+            0.9200074560940266,
+            0.7652352857403457,
+            1.0,
+            0.4846664382276511,
+            0.5473082400931316,
+            0.0
+          ],
+          "rollout_m_min": 0.19986474338034058,
+          "start_m_min": -0.8218545657680358,
+          "solved_at_start": false,
+          "predicted_m_min": 0.19986474338034058,
+          "predicted_binding": "peaking",
+          "predicted_reward": 0.978316576019503,
+          "screen_eye_width_ui": 0.34375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 5,
+          "u": [
+            0.24547045142389834,
+            0.0,
+            0.5553894473499947,
+            0.7475792050086334,
+            0.5852208526513565,
+            0.684743775986135,
+            0.5242549078539014,
+            1.0,
+            0.3222702270505404,
+            0.5689916312767463,
+            0.0
+          ],
+          "rollout_m_min": 0.16064901584607233,
+          "start_m_min": -0.8218545657680358,
+          "solved_at_start": false,
+          "predicted_m_min": 0.16064901584607233,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9888248865785666,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.07428639400238343
+            ],
+            "margins": {
+              "peaking": 0.2519811056191713,
+              "fpeak": 0.07428639400238343,
+              "hd3": 0.21728847557700118,
+              "noise": 0.5304223673722025,
+              "power": 0.672169572054437,
+              "area": 0.9922078772688793,
+              "eye_h": 0.9773715237528263,
+              "eye_w": 0.1449806111296545
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 6,
+          "u": [
+            0.24065456306561828,
+            0.0,
+            0.5456624433658415,
+            0.7496121750287152,
+            0.5802971209369858,
+            0.6929116048850119,
+            0.5585706738638692,
+            0.9873208676272043,
+            0.3322763763499832,
+            0.5833934475740689,
+            0.0
+          ],
+          "rollout_m_min": 0.16573457547594603,
+          "start_m_min": -0.8218545657680358,
+          "solved_at_start": false,
+          "predicted_m_min": 0.16573457547594603,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9914551575850824,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "fpeak",
+              0.07428639400238343
+            ],
+            "margins": {
+              "peaking": 0.259099541619171,
+              "fpeak": 0.07428639400238343,
+              "hd3": 0.20232290600924557,
+              "noise": 0.5181128791821257,
+              "power": 0.6591210437357495,
+              "area": 0.9920301067168632,
+              "eye_h": 0.9379351869803929,
+              "eye_w": 0.10094289531697548
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 7,
+          "u": [
+            0.45550719276070595,
+            0.0,
+            0.44695049638667633,
+            0.6460947400614991,
+            0.7329346907964933,
+            0.8813061751425266,
+            0.7574511251877993,
+            1.0,
+            0.4964744703975892,
+            0.5117960572315651,
+            0.0
+          ],
+          "rollout_m_min": 0.19958289359370424,
+          "start_m_min": -0.8218545657680358,
+          "solved_at_start": false,
+          "predicted_m_min": 0.19958289359370424,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9878820218444258,
+          "screen_eye_width_ui": 0.375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.05690517950429646
+            ],
+            "margins": {
+              "peaking": 0.12820207838082887,
+              "fpeak": 0.07428639400238343,
+              "hd3": 0.4072897670047282,
+              "noise": 0.6817184596630904,
+              "power": 0.4842175953893364,
+              "area": 0.9880974245672113,
+              "eye_h": 1.1902028920544225,
+              "eye_w": 0.05690517950429646
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        }
+      ]
+    },
+    {
+      "spec": 7,
+      "n_proposals": 8,
+      "diversity_l2": 0.23910584639133478,
+      "propose_s": 20.502822885002388,
+      "first_success_rank": 2,
+      "n_passing": 6,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 6,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 13.73875904599845
+      },
+      "spec_fields": {
+        "peaking_min_db": 6.299759478467127,
+        "peaking_max_db": 11.299759478467127,
+        "peaking_target_db": 8.799759478467127,
+        "fpeak_lo": 1199150253.0125532,
+        "fpeak_hi": 2574966416.065811,
+        "hd3_max_db": -28.943661306174384,
+        "power_max_w": 0.013334285287432832,
+        "eye_height_min_v": 0.08874528081424057,
+        "eye_width_min_ui": 0.42325916194472324
+      },
+      "proposals": [
+        {
+          "source": 0,
+          "u": [
+            0.24463584925979376,
+            0.0,
+            0.6595040408696874,
+            0.8352552578979167,
+            0.49963851089772726,
+            0.6427475948441947,
+            0.49954996653832495,
+            0.9450745157373603,
+            0.2664099618924236,
+            0.3913175236739489,
+            0.0
+          ],
+          "rollout_m_min": 0.2724799991849893,
+          "start_m_min": -0.6341522874628346,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2724799991849893,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9967998540207471,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 1,
+          "u": [
+            0.28732409700751305,
+            0.0,
+            0.5348144457943632,
+            0.7361193771610497,
+            0.5774695131992638,
+            0.7468875503257091,
+            0.6835436180699617,
+            0.9588344817413087,
+            0.5053508443889594,
+            0.41022255994177337,
+            0.0
+          ],
+          "rollout_m_min": 0.26934246372355064,
+          "start_m_min": -0.6341522874628346,
+          "solved_at_start": false,
+          "predicted_m_min": 0.26934246372355064,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9955125583190078,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.10747750349044487
+            ],
+            "margins": {
+              "peaking": 0.2776338003065746,
+              "fpeak": 0.21784003926972698,
+              "hd3": 0.24859402250389243,
+              "noise": 0.4970258380260954,
+              "power": 0.6877286176016973,
+              "area": 0.9921744944312373,
+              "eye_h": 0.643640039917405,
+              "eye_w": 0.10747750349044487
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 2,
+          "u": [
+            0.28728198632597923,
+            0.0024361084797419608,
+            0.5182036464370682,
+            0.7426100850241719,
+            0.5781719427620708,
+            0.754344072760659,
+            0.7311712120426819,
+            0.9620211876127939,
+            0.5490166236778176,
+            0.4094656994639235,
+            0.0
+          ],
+          "rollout_m_min": 0.2951988484319944,
+          "start_m_min": -0.6341522874628346,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2951988484319944,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9924227980602153,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.07056158670743004
+            ],
+            "margins": {
+              "peaking": 0.33327294430657445,
+              "fpeak": 0.21784003926972698,
+              "hd3": 0.29374673299754317,
+              "noise": 0.48985467488946677,
+              "power": 0.6810441648486123,
+              "area": 0.9918901968627067,
+              "eye_h": 0.5460404580519775,
+              "eye_w": 0.07056158670743004
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 3,
+          "u": [
+            0.26658459194004536,
+            0.0,
+            0.5861675301834836,
+            0.7905201248029707,
+            0.5334474634444057,
+            0.702332284869271,
+            0.625836961902678,
+            0.9403436082312907,
+            0.4592695542742884,
+            0.37038148660941894,
+            0.0
+          ],
+          "rollout_m_min": 0.2894502664539719,
+          "start_m_min": -0.6341522874628346,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2894502664539719,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9956284838499578,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.07056158670743004
+            ],
+            "margins": {
+              "peaking": 0.2963645323065746,
+              "fpeak": 0.21784003926972698,
+              "hd3": 0.23080075882113044,
+              "noise": 0.40481572503485186,
+              "power": 0.7338309310552257,
+              "area": 0.9929879814086879,
+              "eye_h": 0.3723755766017202,
+              "eye_w": 0.07056158670743004
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 4,
+          "u": [
+            0.2308552023023367,
+            0.014801936224102974,
+            0.6611322774819924,
+            0.8341028731918423,
+            0.514400151296956,
+            0.6955086820382799,
+            0.6103073242120445,
+            0.9233198122484679,
+            0.2786254570019817,
+            0.3603200372090368,
+            0.0
+          ],
+          "rollout_m_min": 0.2598688259294761,
+          "start_m_min": -0.6341522874628346,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2598688259294761,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9892925431350418,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 5,
+          "u": [
+            0.2277009841054678,
+            0.0,
+            0.6201707981794967,
+            0.8167944803970395,
+            0.5021563243651479,
+            0.6727516442626889,
+            0.6218006777344272,
+            0.9435651696650381,
+            0.3605038823225921,
+            0.3993455252130088,
+            0.0
+          ],
+          "rollout_m_min": 0.26637746081750635,
+          "start_m_min": -0.6341522874628346,
+          "solved_at_start": false,
+          "predicted_m_min": 0.26637746081750635,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9968148957175333,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.03364566992441521
+            ],
+            "margins": {
+              "peaking": 0.28594493430657464,
+              "fpeak": 0.21784003926972698,
+              "hd3": 0.2831450161959238,
+              "noise": 0.3452634265803538,
+              "power": 0.7493415261521316,
+              "area": 0.9931576700661364,
+              "eye_h": 0.5113176105751652,
+              "eye_w": 0.03364566992441521
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 6,
+          "u": [
+            0.3237084522843361,
+            0.0,
+            0.5143536245718493,
+            0.7301577767028002,
+            0.600245478010708,
+            0.7861353444025094,
+            0.7913640653714538,
+            1.0,
+            0.5337761588526344,
+            0.4147450551463562,
+            0.0
+          ],
+          "rollout_m_min": 0.3018141508571395,
+          "start_m_min": -0.6341522874628346,
+          "solved_at_start": false,
+          "predicted_m_min": 0.3018141508571395,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9930239812651691,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.07056158670743004
+            ],
+            "margins": {
+              "peaking": 0.3401191136934255,
+              "fpeak": 0.21784003926972698,
+              "hd3": 0.27729331319981604,
+              "noise": 0.5107981445969352,
+              "power": 0.6489301601779921,
+              "area": 0.9912473347857952,
+              "eye_h": 0.7651415259803124,
+              "eye_w": 0.07056158670743004
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 7,
+          "u": [
+            0.32440054044127464,
+            0.0,
+            0.5043105688214197,
+            0.7230687399531244,
+            0.6101922843670189,
+            0.7757266318515117,
+            0.7415877571329474,
+            0.9968099053949118,
+            0.5417613968384838,
+            0.4303566115049916,
+            0.0
+          ],
+          "rollout_m_min": 0.26855352110959624,
+          "start_m_min": -0.6341522874628346,
+          "solved_at_start": false,
+          "predicted_m_min": 0.26855352110959624,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9893093469562061,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.07056158670743004
+            ],
+            "margins": {
+              "peaking": 0.3067221756934252,
+              "fpeak": 0.21784003926972698,
+              "hd3": 0.30749090919682553,
+              "noise": 0.5326837114795753,
+              "power": 0.6548534697740782,
+              "area": 0.9912789374052099,
+              "eye_h": 0.7249677733757925,
+              "eye_w": 0.07056158670743004
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        }
+      ]
+    },
+    {
+      "spec": 8,
+      "n_proposals": 8,
+      "diversity_l2": 0.1661063227787955,
+      "propose_s": 19.638176697000745,
+      "first_success_rank": null,
+      "n_passing": 0,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 0,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 13.748442441999941
+      },
+      "spec_fields": {
+        "peaking_min_db": 5.544662759356582,
+        "peaking_max_db": 10.544662759356582,
+        "peaking_target_db": 8.044662759356582,
+        "fpeak_lo": 1545586878.2777328,
+        "fpeak_hi": 2680305310.367357,
+        "hd3_max_db": -32.58739246754857,
+        "power_max_w": 0.011613687139960634,
+        "eye_height_min_v": 0.07752972090809072,
+        "eye_width_min_ui": 0.47915194277140305
+      },
+      "proposals": [
+        {
+          "source": 0,
+          "u": [
+            0.2317528884159401,
+            0.0,
+            0.5833290328132457,
+            0.8041471309034142,
+            0.4714659920069584,
+            0.6396326432004571,
+            0.48613312834640965,
+            0.9368716841563582,
+            0.4004086483401632,
+            0.42596773722472514,
+            0.0
+          ],
+          "rollout_m_min": 0.13235816522843324,
+          "start_m_min": -0.4786754222021269,
+          "solved_at_start": false,
+          "predicted_m_min": 0.13235816522843324,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9953579411258293,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 1,
+          "u": [
+            0.24502117931842804,
+            0.0,
+            0.474422898548702,
+            0.7541175484430033,
+            0.5299754032972464,
+            0.7145364582538605,
+            0.6540505979210138,
+            0.9947446729056537,
+            0.5341048147893896,
+            0.4035713244302469,
+            0.0
+          ],
+          "rollout_m_min": 0.14910314042462292,
+          "start_m_min": -0.4786754222021269,
+          "solved_at_start": false,
+          "predicted_m_min": 0.14910314042462292,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9777698509016433,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 2,
+          "u": [
+            0.20410102233290672,
+            0.0,
+            0.4987459492381199,
+            0.7757323779869812,
+            0.4996307065817722,
+            0.7098013553768396,
+            0.6946027608355507,
+            0.9636531798169017,
+            0.5427799061072445,
+            0.39935074328242715,
+            0.0
+          ],
+          "rollout_m_min": 0.17682714940372027,
+          "start_m_min": -0.4786754222021269,
+          "solved_at_start": false,
+          "predicted_m_min": 0.17682714940372027,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9869300931184477,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 3,
+          "u": [
+            0.2604778603417799,
+            0.005564890045206994,
+            0.5002379293414301,
+            0.7749060499254602,
+            0.5035055999984228,
+            0.6785605493932962,
+            0.6022749664261937,
+            0.9809201776515692,
+            0.5363551056144213,
+            0.4020653114494207,
+            0.0
+          ],
+          "rollout_m_min": 0.18401971433365646,
+          "start_m_min": -0.4786754222021269,
+          "solved_at_start": false,
+          "predicted_m_min": 0.18401971433365646,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9878813725678607,
+          "screen_eye_width_ui": 0.46875,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 4,
+          "u": [
+            0.20582082704640925,
+            0.0,
+            0.5712066440005323,
+            0.8084622778469684,
+            0.47276543921961767,
+            0.644753992324695,
+            0.5262457902426831,
+            0.9195831554534379,
+            0.3980361141221518,
+            0.42073241249455984,
+            0.004244504030793905
+          ],
+          "rollout_m_min": 0.16520276785938473,
+          "start_m_min": -0.4786754222021269,
+          "solved_at_start": false,
+          "predicted_m_min": 0.16520276785938473,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9916288835679947,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 5,
+          "u": [
+            0.21440296806395054,
+            0.0,
+            0.5525216382788962,
+            0.7993336845893401,
+            0.47158582155734385,
+            0.6601120112463832,
+            0.5988450166769326,
+            0.9347102929561003,
+            0.4463891949636316,
+            0.44356505666657264,
+            0.0
+          ],
+          "rollout_m_min": 0.17021405509962836,
+          "start_m_min": -0.4786754222021269,
+          "solved_at_start": false,
+          "predicted_m_min": 0.17021405509962836,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9980861816429153,
+          "screen_eye_width_ui": 0.453125,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 6,
+          "u": [
+            0.2381816830020398,
+            0.01094718452077359,
+            0.5999543122575155,
+            0.8291397969942528,
+            0.467106754506492,
+            0.6566050712717697,
+            0.5513226115144789,
+            0.9032564130611718,
+            0.3849767706488645,
+            0.4432294929356585,
+            0.005277877673506737
+          ],
+          "rollout_m_min": 0.1493359664654527,
+          "start_m_min": -0.4786754222021269,
+          "solved_at_start": false,
+          "predicted_m_min": 0.1493359664654527,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9953614146462489,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 7,
+          "u": [
+            0.21971988212317228,
+            0.0,
+            0.5741152832611001,
+            0.8086512484360474,
+            0.46527403088893826,
+            0.6431856531416997,
+            0.5044224105076864,
+            0.9690795755013824,
+            0.36483666385909674,
+            0.4073027243212136,
+            0.00048006055294536054
+          ],
+          "rollout_m_min": 0.1783559415657503,
+          "start_m_min": -0.4786754222021269,
+          "solved_at_start": false,
+          "predicted_m_min": 0.1783559415657503,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9973135463319122,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        }
+      ]
+    },
+    {
+      "spec": 9,
+      "n_proposals": 8,
+      "diversity_l2": 0.1053119740839311,
+      "propose_s": 20.0594020009994,
+      "first_success_rank": 1,
+      "n_passing": 2,
+      "screen": {
+        "n_in": 8,
+        "n_kept": 2,
+        "corners": [
+          "sf_1.710V_0C",
+          "sf_1.890V_0C"
+        ],
+        "evaluations": 16,
+        "launches": 32,
+        "wall_s": 13.467269063999993
+      },
+      "spec_fields": {
+        "peaking_min_db": 7.066471412752856,
+        "peaking_max_db": 12.066471412752856,
+        "peaking_target_db": 9.566471412752856,
+        "fpeak_lo": 1120178924.8499727,
+        "fpeak_hi": 2051778288.941524,
+        "hd3_max_db": -30.678070277414122,
+        "power_max_w": 0.014313270970266946,
+        "eye_height_min_v": 0.08641532954976523,
+        "eye_width_min_ui": 0.4127343508506596
+      },
+      "proposals": [
+        {
+          "source": 0,
+          "u": [
+            0.18700604885816574,
+            0.0,
+            0.5266797573129023,
+            0.7379239997380476,
+            0.5969430942329534,
+            0.6685727844151244,
+            0.5181610891595483,
+            0.952786116710871,
+            0.40604531524157284,
+            0.5037251494432139,
+            0.0
+          ],
+          "rollout_m_min": 0.2438682162171386,
+          "start_m_min": -0.7008682399938084,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2438682162171386,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9930579345771914,
+          "screen_eye_width_ui": 0.4375,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.06000384774927874
+            ],
+            "margins": {
+              "peaking": 0.270809213449429,
+              "fpeak": 0.151246169309515,
+              "hd3": 0.3579309530730264,
+              "noise": 0.5456636861094849,
+              "power": 0.73943239055926,
+              "area": 0.992371804796117,
+              "eye_h": 0.5089635737014206,
+              "eye_w": 0.06000384774927874
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        },
+        {
+          "source": 1,
+          "u": [
+            0.22692805610131472,
+            0.0,
+            0.5980071768279029,
+            0.7846489281355,
+            0.5869392338915684,
+            0.6453674985232338,
+            0.36099602351896465,
+            0.9274774959150306,
+            0.32093002709014473,
+            0.4970501947173188,
+            0.0
+          ],
+          "rollout_m_min": 0.2484745651433446,
+          "start_m_min": -0.7008682399938084,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2484745651433446,
+          "predicted_binding": "peaking",
+          "predicted_reward": 0.9837731338915606,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 2,
+          "u": [
+            0.21257024281658232,
+            0.0,
+            0.5854756120241089,
+            0.7798185181008714,
+            0.5844448291006454,
+            0.6338174568509258,
+            0.3766937495674938,
+            0.9175123304594308,
+            0.3237640279767955,
+            0.5362117629192807,
+            0.006932353833690286
+          ],
+          "rollout_m_min": 0.22757542846651735,
+          "start_m_min": -0.7008682399938084,
+          "solved_at_start": false,
+          "predicted_m_min": 0.22757542846651735,
+          "predicted_binding": "eye_w",
+          "predicted_reward": 0.9846850964615748,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 3,
+          "u": [
+            0.21119045792147517,
+            0.0,
+            0.574131775938238,
+            0.7554041952816599,
+            0.5873537112617822,
+            0.6340962457607076,
+            0.38504721503704786,
+            0.9342351324986736,
+            0.31791512858042625,
+            0.4799270886651511,
+            0.0039040041156113148
+          ],
+          "rollout_m_min": 0.2448573085534084,
+          "start_m_min": -0.7008682399938084,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2448573085534084,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9936342778835611,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 4,
+          "u": [
+            0.20279899588786066,
+            0.0,
+            0.584305259573537,
+            0.7644432691003724,
+            0.5813286256286272,
+            0.6202462535720825,
+            0.40413105534389615,
+            0.9445497798398207,
+            0.2844363332915971,
+            0.5387149123198623,
+            0.0
+          ],
+          "rollout_m_min": 0.2293502773076176,
+          "start_m_min": -0.7008682399938084,
+          "solved_at_start": false,
+          "predicted_m_min": 0.2293502773076176,
+          "predicted_binding": "eye_w",
+          "predicted_reward": 0.9944465356985962,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 5,
+          "u": [
+            0.248905336484313,
+            0.0,
+            0.5953256912178202,
+            0.7902655901697992,
+            0.5660668459729248,
+            0.6433793930473313,
+            0.3849972770549357,
+            0.9158695125617157,
+            0.3418098054026639,
+            0.5468932772128182,
+            0.0
+          ],
+          "rollout_m_min": 0.24929829054574199,
+          "start_m_min": -0.7008682399938084,
+          "solved_at_start": false,
+          "predicted_m_min": 0.24929829054574199,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9936874501712489,
+          "screen_eye_width_ui": 0.40625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 6,
+          "u": [
+            0.23373853298835456,
+            0.0,
+            0.5792140949631883,
+            0.7684113119311926,
+            0.5931325196995356,
+            0.6395104806133587,
+            0.41959765390492976,
+            0.9436954171433172,
+            0.3094767104849605,
+            0.5141671005185499,
+            0.0
+          ],
+          "rollout_m_min": 0.24261693155021882,
+          "start_m_min": -0.7008682399938084,
+          "solved_at_start": false,
+          "predicted_m_min": 0.24261693155021882,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9832361859087347,
+          "screen_eye_width_ui": 0.390625,
+          "screen_pass": false,
+          "real_pass": false,
+          "pvt": null
+        },
+        {
+          "source": 7,
+          "u": [
+            0.20170260418672115,
+            0.0,
+            0.5736598951405338,
+            0.75571240943005,
+            0.5784132237438069,
+            0.6158010198405519,
+            0.3444571103900671,
+            0.9660316524095833,
+            0.3117060315926945,
+            0.45500393235853787,
+            0.0
+          ],
+          "rollout_m_min": 0.22985237152757867,
+          "start_m_min": -0.7008682399938084,
+          "solved_at_start": false,
+          "predicted_m_min": 0.22985237152757867,
+          "predicted_binding": "fpeak",
+          "predicted_reward": 0.9911047030306999,
+          "screen_eye_width_ui": 0.421875,
+          "screen_pass": true,
+          "pvt": {
+            "all_pass_everywhere": true,
+            "brief_specs_passed": 8,
+            "failed": [],
+            "binding": [
+              "eye_w",
+              0.022146567472518783
+            ],
+            "margins": {
+              "peaking": 0.3270566754494286,
+              "fpeak": 0.17681813158186752,
+              "hd3": 0.3055264819321257,
+              "noise": 0.5427681650065627,
+              "power": 0.784548304408822,
+              "area": 0.9937613439325295,
+              "eye_h": 0.6002094522591638,
+              "eye_w": 0.022146567472518783
+            },
+            "n_corners": 20,
+            "launches": 40
+          },
+          "real_pass": true,
+          "screen_missed": false
+        }
+      ]
+    }
+  ]
+}

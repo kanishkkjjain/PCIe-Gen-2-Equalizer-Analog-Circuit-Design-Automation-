@@ -93,6 +93,14 @@ Two consequences:
 - **`tap_pct = 0` is not zero.** The GmF tail device floors at 0.5 µm minimum
   width, so it always carries 5 µA. Anything at or below 0.5 % is the *same
   circuit*, delivering 2.6 % correction.
+
+  **CORRECTION (measured later).** That holds for `Wtail = 60 µm`, which is the
+  `FIXED_START` constant these sweeps used — it is **not** what the real runtime
+  start uses. With `START_WTAIL_UM = 150 µm` the tail width does not floor
+  (0.625 µm at tap 0.25 %), so the tap current keeps scaling down and the
+  circuits are *not* identical. Only `Wgf` floors in the real flow. The "+2.3 %
+  from lowering the bound" figure below inherits the same caveat and was never
+  re-measured under the real start.
 - The useful range of the parameter is squeezed between 0 and ~1 %, so it is a
   poor knob for a search to hold.
 

@@ -111,6 +111,31 @@ diagrams" frequently shows the caller nothing. The page does not depend on the
 host. If writing it fails the design is still returned, with `report_error`
 set -- a report must never cost a result.
 
+## Where the design starts from
+
+Both searches begin at a hand-derived design rather than at random, and the
+server derives it with **PhysFit** -- the closed-form derivation with every
+device estimate taken from the fitted model instead of ngspice. Measured, that
+is the same coverage as the derivation the policy was trained against, **8 of
+10 specifications**, with 7 of 10 solved at the first proposal, and it costs
+~0.2 s per spec against ~1.2 s (`results/solve_rate_physfit.json`,
+`docs/systematic-starting-point.md`).
+
+Every result says which derivation produced it, in `start_point`. If the single
+`.op` that measures the threshold voltage could not run, `start_point` says so
+and names the constant that was used instead -- a design derived from a guessed
+threshold must not read identically to one derived from a measured one.
+
+```
+"EQRL_START": "physics"     # back to the derivation the policy was trained on
+```
+
+is accepted in the same `env` block as `PDK_ROOT`. The choice is applied once,
+before either proposer runs, through the seam in `eqrl/start.py` rather than by
+patching module globals -- the policy path and the CEM fallback **must** begin
+from the same design, and a monkeypatch cannot reach `deploy_policy`, which the
+server imports only once a request arrives.
+
 ## What it will not do
 
 These are enforced in `eqrl/mcp_server.py`, not asked for in a prompt:
@@ -122,6 +147,8 @@ These are enforced in `eqrl/mcp_server.py`, not asked for in a prompt:
 - **The method and the envelope check are always reported**, so an answer can
   never look more authoritative than it is.
 - **Margins are printed as measured.** Nothing is rounded toward passing.
+- **The starting derivation is reported**, including when its one SPICE
+  measurement fell back to a stored constant.
 
 Roughly 20 % of specifications are not solved by either method — see the README.
 When that happens the server says so rather than returning a design that does

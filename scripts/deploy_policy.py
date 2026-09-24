@@ -41,7 +41,7 @@ from eqrl import netlist as nl, pdk, specs as sp
 from eqrl.cache import EvalLog, git_sha, write_atomic
 from eqrl.env_goal import GoalSpace, check_meas_compatible
 from eqrl.netlist import PARAM_NAMES
-from eqrl.physics import analytic_start_u
+from eqrl import start as _start      # late-bound: see eqrl/start.py
 from eqrl.spice import MeasCond, Simulator
 from eqrl.surrogate import load_latest
 
@@ -93,8 +93,8 @@ def start_for(spec, sur, corners):
     """
     cfs = [{"process": c.process, "vdd": c.vdd, "temp": c.temp, "rc": c.rc}
            for c in corners]
-    return np.asarray(analytic_start_u(spec, sur.fit, surrogate=sur,
-                                       corners_cf=cfs), float)
+    return np.asarray(_start.analytic_start_u(spec, sur.fit, surrogate=sur,
+                                              corners_cf=cfs), float)
 
 
 def run_policy(model, sur, obj, spec, budget: int, max_steps: int) -> dict:

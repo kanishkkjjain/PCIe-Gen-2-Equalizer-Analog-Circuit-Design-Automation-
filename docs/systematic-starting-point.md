@@ -159,6 +159,45 @@ per-proposal rate, which needs every proposal checked. Raw:
 Seven of ten solved at rank 1. At 0.2 s per reset this is cheap enough to run
 **inside** RL training, which the SPICE version at 19.8 s categorically was not.
 
+## What the MCP server now uses
+
+The PhysFit derivation is the server's default start, selected through
+`eqrl/start.py` rather than by monkeypatching. Two things made a seam necessary
+rather than a nicety:
+
+- `patch()` reaches `deploy_policy` through `sys.modules.get(...)`, and the MCP
+  server imports that module **inside** `design_equalizer`. An import-time
+  patch would therefore land on the policy path and miss the CEM fallback,
+  leaving the two searches starting from different designs -- which
+  `deploy_policy.start_for` exists specifically to prevent.
+- `patch()` also rebound `env_goal.analytic_start_u`. Once `env_goal` went
+  through the seam that name stopped existing, so a patch that still set it
+  would have silently done nothing while the run reported the new start.
+
+The seam is resolved per call, so there is no window in which two callers
+disagree. `EQRL_START=physics` restores the derivation the saved policy was
+trained against, and every result reports which one ran in `start_point`.
+
+The `tap_pct = 1.55` in `start_physfit.derive` is a constant **by design** and
+not an oversight: step 13 of the table above reads the post-cursor off a
+single-pulse transient, and a transient is SPICE, which is the one thing that
+file exists to avoid. 1.55 is what that measurement returned for the brief's
+own spec, and the search moves it from there.
+
+Measured through the MCP tool with the PhysFit start in force, three requests
+end to end:
+
+| request | result | method | wall |
+|---|---|---|---|
+| the brief's own spec | **passes**, 10/10 at all 20 corners | policy | 50.5 s |
+| all seven settable limits given | **passes**, 10/10 at all 20 corners | policy | 44.9 s |
+| 12 dB peaking, outside the trained range | routed to CEM, reported `all_pass: false` on `equalises` | CEM | 55.9 s |
+
+Both passing runs sit inside the committed 28-102 s range, so the start change
+costs no time at the server. The third is the case that matters most for
+honesty: an out-of-range request still got a real 20-corner verification and
+was **not** reported as a pass.
+
 ## The two specifications nothing solves
 
 `spec5` and `spec8` are unsolved by the shipped start, the SPICE derivation and

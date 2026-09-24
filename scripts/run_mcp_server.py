@@ -314,7 +314,8 @@ def _render(r: dict) -> str:
     L = [f"{'PASSES' if r['all_pass'] else 'DOES NOT PASS'} "
          f"-- {r.get('specs_passed', 'no verification completed')}",
          f"method: {r.get('method') or r.get('method_attempted')}   "
-         f"in trained envelope: {r.get('in_envelope')}"]
+         f"in trained envelope: {r.get('in_envelope')}   "
+         f"start: {r.get('start_point', '?')}"]
     if r.get("budget_exceeded"):
         L.append(f"TIME BUDGET EXCEEDED -- {r.get('reason', '')}")
     if r.get("outside_trained_range"):

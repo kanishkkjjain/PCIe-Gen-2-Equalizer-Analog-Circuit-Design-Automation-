@@ -109,27 +109,33 @@ def derive(spec, corner=None):
     return list(u)
 
 
+def start_u(spec, fit, corner_fields=None, tap_pct=None, n_grid=None,
+            tail_margin_v=0.15, surrogate=None, corners_cf=None,
+            n_calib=3) -> list:
+    """Drop-in for `physics.analytic_start_u`, same signature.
+
+    `fit` is accepted and unused: this derivation measures every device value
+    with ngspice, which is the whole difference between it and
+    `start_physfit`. The argument stays so the two are interchangeable.
+    """
+    from eqrl.start import corner_from
+    return derive(spec, corner_from(corner_fields, corners_cf))
+
+
 def patch():
-    """Replace physics.analytic_start_u everywhere it is imported from."""
+    """Select this derivation. Kept so the committed measurement scripts run.
+
+    New code should call `eqrl.start.use("systematic")`. `physics` is still
+    rebound because train_policy, collect_data and check_surrogate import the
+    function directly inside their own bodies rather than through the seam.
+    """
     from eqrl import physics as ph
-    def _new(spec, fit, corner_fields=None, tap_pct=None, n_grid=None,
-             tail_margin_v=0.15, surrogate=None, corners_cf=None, n_calib=3):
-        cf = corner_fields or (corners_cf[0] if corners_cf else None)
-        corner = pdk.typical_corner()
-        if cf:
-            for c in pdk.pvt_grid("spec"):
-                if (c.process == cf.get("process")
-                        and abs(c.vdd - cf.get("vdd", c.vdd)) < 1e-6):
-                    corner = c; break
-        return derive(spec, corner)
-    ph.analytic_start_u = _new
-    # both of these did `from eqrl.physics import analytic_start_u`, so the
-    # name is bound in THEIR module namespace -- patching physics alone does
-    # nothing. Patch every binding.
-    import eqrl.env_goal as eg
-    eg.analytic_start_u = _new
-    import sys
-    dp = sys.modules.get("deploy_policy")
-    if dp is not None:
-        dp.analytic_start_u = _new
-    return _new
+    from eqrl import start
+
+    start.use("systematic")
+    # `deploy_policy` no longer needs rebinding -- it reads the seam, which
+    # the line above already set. `physics` still does: train_policy,
+    # collect_data and check_surrogate import the function directly inside
+    # their own bodies rather than through the seam.
+    ph.analytic_start_u = start_u
+    return start_u

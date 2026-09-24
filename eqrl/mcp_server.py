@@ -31,6 +31,7 @@ live in code here, not in a prompt:
 from __future__ import annotations
 
 import dataclasses
+import os
 import sys
 import time
 from pathlib import Path
@@ -43,6 +44,7 @@ for _p in (str(ROOT), str(ROOT / "scripts")):
         sys.path.insert(0, _p)
 
 from eqrl import netlist as nl, pdk, specs as sp
+from eqrl import start as _start_impls
 
 #: Root for per-call artifact directories. Returned as paths as well as inline
 #: images, so the result is still usable from a host that cannot render images.
@@ -101,6 +103,23 @@ PARAM_UNITS = {
 #: How many designs to propose before screening. Eight is what the shipped
 #: measurement used, and the coverage curve is flat past seven.
 N_PROPOSALS = 8
+
+#: Which starting-point derivation the search begins from. `physfit` derives it
+#: from the fitted device model alone -- measured at the same 8/10 coverage as
+#: the shipped `physics` derivation, with 7 of 10 solved at the first proposal,
+#: and ~6x cheaper to compute (`results/solve_rate_physfit.json`).
+#:
+#: Set EQRL_START=physics to go back to the derivation the saved policy was
+#: trained against. Same convention as PDK_ROOT / SKY130_LIB / EQRL_TRIMLIB.
+#:
+#: Validated HERE rather than at the first request: a typo in a host's env
+#: block would otherwise start a server that looks healthy, registers its
+#: tools, and then fails on the first design call ~45 s in.
+START_IMPL = os.environ.get("EQRL_START", "physfit")
+if START_IMPL not in _start_impls.IMPLEMENTATIONS:
+    raise ValueError(
+        f"EQRL_START={START_IMPL!r} is not a starting point; expected one of "
+        f"{', '.join(_start_impls.IMPLEMENTATIONS)}")
 
 
 # --------------------------------------------------------------------------
@@ -413,6 +432,27 @@ def achievable_check(spec: sp.EqualizerSpec) -> dict:
                      "are compared against measured achievability instead.")}
 
 
+def _start_point_note() -> str:
+    """Which derivation produced the starting design, and whether it guessed.
+
+    `start_physfit` measures the threshold voltage with one .op and falls back
+    to a stored constant if that cannot run. The fallback is a reasonable
+    number, not a broken one -- but a design derived from a guessed threshold
+    must not read identically to one derived from a measured threshold, so it
+    is said out loud here rather than left in a log nobody reads.
+    """
+    from eqrl import start
+    name = start.current()
+    if name != "physfit":
+        return name
+    from eqrl import start_physfit
+    missed = start_physfit.vt_fallback_corners()
+    if not missed:
+        return name
+    return (f"{name} (Vt not measured at {len(missed)} corner(s); "
+            f"fell back to {start_physfit.VT_FALLBACK} V)")
+
+
 def _budget_result(best, attempts, elapsed, budget, env) -> dict:
     """What to return when the time budget runs out.
 
@@ -521,6 +561,7 @@ def design_equalizer(peaking_db: float | None = None,
     a pass means twenty corners were simulated and a truncated run did not
     finish them.
     """
+    from eqrl import start
     from eqrl.spice import MeasCond, Simulator
     from eqrl.surrogate import load_latest
     from best_of_n import (SCREEN_CORNERS, propose_policy,
@@ -528,6 +569,13 @@ def design_equalizer(peaking_db: float | None = None,
     from deploy_policy import verify
 
     _require_spawn_safe_caller()
+    # Before either proposer, and through the seam rather than a monkeypatch,
+    # so the policy path and the CEM fallback provably begin from the SAME
+    # design -- `deploy_policy.start_for` is built on that guarantee.
+    start.use(START_IMPL)
+    if START_IMPL == "physfit" and "EQRL_START_WORK" not in os.environ:
+        from eqrl import start_physfit
+        start_physfit.WORK_DIR = str(OUT_ROOT / "start")   # not a bare /tmp path
     t0 = time.perf_counter()
     asked = {"peaking_db": peaking_db, "fpeak_lo_ghz": fpeak_lo_ghz,
              "fpeak_hi_ghz": fpeak_hi_ghz, "hd3_max_db": hd3_max_db,
@@ -629,6 +677,7 @@ def design_equalizer(peaking_db: float | None = None,
                 # matters most.
                 "in_envelope": env["in_envelope"],
                 "outside_trained_range": env["outside"],
+                "start_point": _start_point_note(),
                 # which method was tried, even though none of them won: the
                 # top-level `method` is None when nothing is found, and a
                 # caller must still be able to see the request was routed to
@@ -647,6 +696,7 @@ def design_equalizer(peaking_db: float | None = None,
         # THE claim, and it is only ever True when 20 corners were simulated.
         "all_pass": bool(pvt["all_pass_everywhere"]),
         "method": winning_method,
+        "start_point": _start_point_note(),
         "in_envelope": env["in_envelope"],
         "outside_trained_range": env["outside"],
         "sized_parameters": {k: float(params[k]) for k in nl.PARAM_NAMES},
@@ -759,7 +809,9 @@ def _report_html(result: dict, spec: sp.EqualizerSpec, out_dir: Path) -> Path:
   {'PASSES' if ok else 'DOES NOT PASS'} &mdash; {html.escape(str(result.get('specs_passed', '')))}
 </div>
 <p class=meta>Designed by <b>{html.escape(str(result.get('method', '?')))}</b>,
-   {html.escape(env)}. Wall clock {result.get('wall_s', '?')} s.</p>
+   {html.escape(env)}, from a
+   <b>{html.escape(str(result.get('start_point', '?')))}</b> starting point.
+   Wall clock {result.get('wall_s', '?')} s.</p>
 
 <h2>Scorecard</h2>
 <p class=meta>Every condition <code>all_pass</code> depends on. The two marked

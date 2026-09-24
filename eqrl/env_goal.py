@@ -39,7 +39,7 @@ import numpy as np
 from . import pdk
 from . import specs as sp
 from .netlist import PARAM_NAMES
-from .physics import analytic_start_u
+from . import start as _start        # late-bound: see eqrl/start.py
 from .spice import MeasCond
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -423,7 +423,7 @@ if _HAVE_GYM:
                 # afterwards, so grid resolution buys nothing here.
                 # calibrated against the surrogate over all four corners --
                 # open loop the start missed the f_peak band at 9 of 10 goals
-                u0 = np.asarray(analytic_start_u(
+                u0 = np.asarray(_start.analytic_start_u(
                     self._spec, self.sur.fit,
                     surrogate=self.sur, corners_cf=self.cfs), float)
                 u0 = u0 + self._rng.normal(0, self.start_noise, N_U)

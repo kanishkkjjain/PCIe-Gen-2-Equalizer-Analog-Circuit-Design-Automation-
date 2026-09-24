@@ -1,0 +1,69 @@
+{
+ "start": "physfit",
+ "solved": 8,
+ "n_specs": 10,
+ "verifications": 27,
+ "wall_s": 466.2,
+ "specs": [
+  {
+   "spec": 0,
+   "rank": 1,
+   "verifications": 1,
+   "propose_s": 0.85
+  },
+  {
+   "spec": 1,
+   "rank": 4,
+   "verifications": 4,
+   "propose_s": 0.22
+  },
+  {
+   "spec": 2,
+   "rank": 1,
+   "verifications": 1,
+   "propose_s": 0.27
+  },
+  {
+   "spec": 3,
+   "rank": 1,
+   "verifications": 1,
+   "propose_s": 0.23
+  },
+  {
+   "spec": 4,
+   "rank": 1,
+   "verifications": 1,
+   "propose_s": 0.21
+  },
+  {
+   "spec": 5,
+   "rank": null,
+   "verifications": 8,
+   "propose_s": 0.22
+  },
+  {
+   "spec": 6,
+   "rank": 1,
+   "verifications": 1,
+   "propose_s": 0.25
+  },
+  {
+   "spec": 7,
+   "rank": 1,
+   "verifications": 1,
+   "propose_s": 0.23
+  },
+  {
+   "spec": 8,
+   "rank": null,
+   "verifications": 8,
+   "propose_s": 0.24
+  },
+  {
+   "spec": 9,
+   "rank": 1,
+   "verifications": 1,
+   "propose_s": 0.24
+  }
+ ]
+}

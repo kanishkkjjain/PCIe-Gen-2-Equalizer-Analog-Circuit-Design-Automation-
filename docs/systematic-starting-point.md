@@ -127,6 +127,66 @@ answer is genuine saved compute, but it is a cost saving, not a capability.
 **So: better engineering, same capability.** The search was already finding its
 way from the weaker start. The 8/10 plateau was never a starting-point problem.
 
+## The SPICE-free version (`eqrl/start_physfit.py`)
+
+The cost above is removed by taking every device estimate from `PhysFit`
+instead of ngspice. Same derivation, one `.op` for `Vt` cached module-wide, and
+`PhysFit`'s own fitted calibration (`k_pk = 1.677`, `k_f = 1.428`) in place of
+the hand-tuned over-ask -- for a 7.5 dB target that asks 12.6 dB against the
+14 dB found empirically, so both routes measure the same effect.
+
+Building it turned up the likely root cause of why the SPICE version started so
+much worse. The gm/ID chain demanded `Itail = 1694 uA`, which leaves only
+**+0.0745 V** of tail headroom even at the widest tail -- against the 0.15 V the
+shipped start insists on, and *worse* than the +0.082 V the project measured as
+putting 56 % of starts out of saturation. An RL perturbation from there lands in
+triode, where the reward clips and the policy has no gradient. Capping `Itail`
+at what the tail can sustain (1088 uA) restores +0.150 V exactly. **Headroom is
+a hard constraint; peaking has a 3-12 dB window to land in.**
+
+| | start cost | solved |
+|---|---|---|
+| checkpoint 7 (shipped) | 1.2 s | 8/10 |
+| systematic (SPICE `.op`) | 19.8 s | 8/10 |
+| **physfit (SPICE-free)** | **0.2 s** | **8/10** |
+
+Measured by `scripts/measure_start_fast.py`, which stops at the first proposal
+passing all 20 corners rather than verifying all eight -- 27 verifications and
+7.8 minutes against ~80 and 25. It reports coverage and rank but **not** the
+per-proposal rate, which needs every proposal checked. Raw:
+`results/solve_rate_physfit.json`.
+
+Seven of ten solved at rank 1. At 0.2 s per reset this is cheap enough to run
+**inside** RL training, which the SPICE version at 19.8 s categorically was not.
+
+## The two specifications nothing solves
+
+`spec5` and `spec8` are unsolved by the shipped start, the SPICE derivation and
+the PhysFit derivation alike. Both fail on **eye width**, and both are rejected
+at the 2-corner screen without ever reaching full verification.
+
+```
+                        spec5              spec8
+peaking          5.64 - 10.64 dB    5.54 - 10.54 dB
+f_peak          1.455 - 2.766 GHz  1.546 - 2.680 GHz
+hd3                  < -31.51 dBc       < -32.59 dBc
+noise                < 1.500 mVrms      < 1.500 mVrms
+power                < 5.052 mW         < 11.614 mW
+area                 < 0.050 mm2        < 0.050 mm2
+eye height           > 103.7 mV         > 77.5 mV
+eye width            > 0.4772 UI        > 0.4792 UI   <-- binding
+best reached           0.4375 UI          0.4531 UI
+short by                    9.1 %              5.7 %
+```
+
+For scale, the brief's own specification asks for **0.4000 UI**. These two ask
+for ~0.478, close to 20 % more, and `spec5` additionally caps power at 5.05 mW
+-- a third of the brief's 15 mW -- so it cannot buy the eye with current.
+
+Nothing about a starting point closes a 5.7-9.1 % eye-width gap. This is the
+`h2` limit from `findings-ctle-dfe.md`: one DFE tap cannot cancel the second
+post-cursor, and the CTLE trades the first against it.
+
 ## Known cost, and how to remove it
 
 The derivation spends about **30 `.op` runs per specification** — measuring

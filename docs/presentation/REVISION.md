@@ -16,7 +16,8 @@ first version. That section is the spine of the new deck.
   `04 · INSIDE EACH PART — THE RL AGENT`), updated to the new section names.
 - The divider-slide treatment.
 - Speaker notes on every slide, 60–120 words, in the same voice.
-- All ten images in `figures/`. Every one is still used.
+- The images in `figures/` — nine of the ten carry over unchanged. See
+  **Figures** below for the one exception and why.
 - The rules from the original instructions: ~15 words of body text per slide,
   one idea per slide, a visual on every slide, every number glossed.
 

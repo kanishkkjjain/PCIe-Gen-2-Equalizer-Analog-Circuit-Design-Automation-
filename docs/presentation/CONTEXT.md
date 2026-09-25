@@ -106,7 +106,73 @@ bit is 200 ps and Nyquist is 2.5 GHz.
 
 ## 2. The circuit
 
-### 2.1 Architecture
+### 2.0 Signalling: data rate, NRZ and Nyquist
+
+**NRZ** — non-return-to-zero. The simplest possible line code: each bit slot
+holds one of two voltage levels, high for a 1, low for a 0, and the line does
+not return to a rest level in between. One symbol carries one bit.
+
+**Data rate** — 5 Gb/s, so one bit slot, the **Unit Interval (UI)**, is
+`1 / 5 GHz = 200 ps`.
+
+**Nyquist frequency** — **half the data rate, 2.5 GHz**. The fastest pattern
+NRZ can produce is alternating `1010…`, which takes **two** bit slots to
+complete one full cycle. So the highest fundamental the line ever carries is
+`5 GHz / 2 = 2.5 GHz`. Everything above it is edge detail, not new symbols.
+
+That single number is why the brief specifies what it does: the channel has to
+be usable up to 2.5 GHz, and the equalizer's boost has to peak near it.
+
+### 2.1 The channel is bandlimited and lossy
+
+A copper trace is a low-pass filter. Series resistance rises with frequency
+(skin effect) and the dielectric absorbs more as frequency climbs, so the fast
+content of a signal is attenuated far more than the slow content.
+
+Measured on the project's own channel model — 7 inch of FR4, 40 ladder sections
+per leg, 1.2 ns delay, 50 Ω per leg, 100 Ω differential termination
+(`netlist.channel_netlist`, loss from `physics.channel_H`):
+
+| frequency | loss |
+|---|---|
+| DC | −6.1 dB |
+| 1 GHz | −10.3 dB |
+| **2.5 GHz (Nyquist)** | **−16.8 dB** |
+| 5 GHz | −22.1 dB |
+
+**The equalizer has to make up ~10.7 dB between DC and Nyquist.** Set that
+against the brief's required peaking of **3–12 dB** — the specification is
+sized to this channel, not chosen arbitrarily.
+
+### 2.2 What that does in time: ISI
+
+A filter that removes high frequencies cannot keep a sharp edge. Send one
+isolated bit and what arrives is not a 200 ps rectangle but a smeared hump that
+is **still there when the next bit arrives**.
+
+Measured through this channel (`scripts/make_channel_figures.py`, and matching
+the independent measurement in `docs/findings-ctle-dfe.md` §2):
+
+| sampled at | fraction of the cursor |
+|---|---|
+| the cursor (its own slot) | 1.000 |
+| **+1 UI (the next bit's slot)** | **+0.373** |
+| +2 UI | +0.155 |
+
+So **37 % of every bit is still sitting in the following bit's slot**, added to
+whatever that bit is sending. With random data those leftovers pile up
+constructively and destructively at random, and the eye closes. That is
+**intersymbol interference**.
+
+Two different jobs follow from this, and the architecture has one block for
+each:
+
+- the loss is **frequency-shaped** → undo it with a filter shaped the opposite
+  way → **the CTLE**
+- what is left is a **known** amount of a **known, already-decided** bit →
+  subtract it → **the DFE tap**
+
+### 2.3 Architecture
 
 Fixed by the brief and not changed anywhere in the project:
 
@@ -120,7 +186,7 @@ The topology follows the open reference design
 `github.com/muhammadaldacher/SERDES-Design-of-RX-Decision-Feedback-Equalizer`
 (a 1-tap DFE for NRZ over FR4). **Credit it on the slide.**
 
-### 2.2 What each block is for, in plain language
+### 2.4 What each block is for, in plain language
 
 **The channel** loses high frequencies. Fast edges arrive smeared, so each bit
 bleeds into the ones after it. That smearing is what closes the eye.
@@ -146,7 +212,7 @@ Subtracting that copy cancels the tail the previous bit left behind.
 **The slicer** decides 1 or 0 at the sampling instant. Its decision is what
 feeds back through the tap.
 
-### 2.3 The 11 design variables
+### 2.5 The 11 design variables
 
 These are the framework's entire output. Everything else about the circuit is
 fixed.
@@ -167,11 +233,118 @@ fixed.
 
 Source: `eqrl/netlist.py::PARAM_BOUNDS`.
 
-### 2.4 The schematic is real, and checked
+### 2.6 The schematic is real, and checked
 
 `netlists/eq_core.sch` opens in xschem, and a test netlists it with xschem and
 diffs the connectivity against the netlist the framework actually simulates.
 The picture and the circuit cannot drift apart.
+
+### 2.7 The specification does not pick one circuit
+
+This is the point the whole sizing problem turns on, and it deserves its own
+slide.
+
+A specification is a set of **inequalities** — boost between 3 and 12 dB, power
+under 15 mW, eye wider than 0.4 UI. Inequalities do not have a unique solution.
+Many completely different sizings satisfy the same set:
+
+- a wide device at low current, or a narrow device at high current — same gm,
+  different bandwidth, different area
+- a big `RL` with a small `gm`, or the reverse — same DC gain, poles in
+  different places
+- more CTLE boost with a smaller tap, or less boost with a bigger tap
+
+They are not equally good. They sit in different **basins** — regions of the
+11-dimensional space with different amounts of room around them before a
+constraint is violated.
+
+**So the starting point is not a convenience, it is a decision.** It picks
+which basin the search explores, and an 11-dimensional space is far too large
+for the search to discover a better basin on its own. That is why the next
+section is a derivation and not a default.
+
+### 2.8 The design procedure
+
+The starting design is **derived**, per specification, before any search runs.
+Three stages, in dependency order — the DFE can only be sized once the two
+in front of it exist.
+
+**Length assumptions, taken up front for every device:**
+
+| | |
+|---|---|
+| tail devices | **L = 500 nm** — long, for output resistance and matching |
+| everything else | **L = 200 nm** — near-minimum, for speed |
+
+> **For the speaker's notes only.** The netlist actually uses **180 nm**
+> (`L = 0.18` in `eqrl/start_physfit.py`, and the schematic image reads
+> `0.18`). 200 nm on the slide is a round number for discussion. If anyone
+> reads the schematic and asks, the answer is "180, near-minimum". The 500 nm
+> tail is exact (`netlist.L_TAIL`).
+
+---
+
+#### Column 1 — CTLE
+
+| # | step | |
+|---|---|---|
+| 1 | `f_target` = centre of the required peak band | where the boost must sit |
+| 2 | place the output pole **above** it: `f_p2 = 2.13 × f_target` | so the boost completes before the roll-off starts |
+| 3 | `RL = 1 / (2π · f_p2 · Cout)` | the load that puts the pole there |
+| 4 | over-ask: `k = 10^(peaking_dB × 1.677 / 20)` | the closed form reads high by a measured factor |
+| 5 | **`gm = k / RL`** | this is what pins **DC gain at 0 dB** |
+| 6 | `Rs = 2(k − 1) / gm` | degeneration for that boost |
+| 7 | `Cs = k / (2π · Rs · f_p1)`, `f_p1 = 0.8 × f_target` | puts the zero below the pole |
+| 8 | `Vov = (Vcm − 0.1 − Vt) / 2` | from the input common-mode range budget |
+| 9 | **Vt and Vov characterised from SPICE** → `Vgs ≈ Vt + Vov`; then **gm/ID picks the branch current and the tail current** | |
+| 10 | **gm/ID gives the widths** — the diff pair and the tail MOSFET | |
+
+Steps 1–7 are pure algebra on the transfer function. Steps 8–10 are the
+standard gm/ID sizing flow, anchored on a threshold voltage measured once in
+SPICE rather than taken from a datasheet.
+
+Source: `eqrl/start_physfit.py::derive`.
+
+---
+
+#### Column 2 — Summer
+
+| # | step | why |
+|---|---|---|
+| 1 | `Wg1 = 100 × W_min = 42 µm` | the tap device is `Wg1 × tap%`; at the smallest tap (1 %) it must still clear the PDK's 0.42 µm minimum width |
+| 2 | `Ig1 = 1 mA` | free — nothing downstream is sensitive to it |
+| 3 | `Rsum = VDD / Ig1 = 1.8 kΩ` | half the current flows in each leg, so `(Ig1/2) · Rsum = VDD/2` — the output common mode lands at **mid-supply**, which is where the comparator wants it |
+
+---
+
+#### Column 3 — DFE
+
+Sized **last**, and **measured** rather than calculated.
+
+| # | step |
+|---|---|
+| 1 | CTLE and Summer are already designed |
+| 2 | **feed a single pulse** through that path |
+| 3 | **read the ISI one UI after the cursor** — that residue is exactly what the tap must cancel |
+| 4 | that reading **sets the tap coefficient** |
+| 5 | every device value follows from it |
+
+```
+I_tap  = Ig1   × tap %
+W_pair = Wg1   × tap %          (floored at the PDK's 0.42 µm)
+W_tail = Wtail × I_tap / Itail
+```
+
+**So the entire DFE stage collapses to one variable.** Current, pair width and
+tail width are not three independent choices — they are three consequences of
+the tap coefficient. Sizing them separately would let the tap weight and the
+bias point drift apart.
+
+Reference values for the notes: after the channel the post-cursor is **+0.373**
+of the cursor; by the time it reaches the summing node with 7.4 dB of CTLE
+boost it is down to **+0.090**, and that remainder is what the tap removes.
+
+Source: `eqrl/netlist.py` lines 297, 307, 289.
 
 ---
 
@@ -599,6 +772,9 @@ All in `figures/` beside this file. **Use every one of them.**
 
 | file | what it shows | goes on |
 |---|---|---|
+| `06a_pulse_spreading.png` | **NEW** — one isolated bit driven through the real channel model: clean 200 ps rectangle in, smeared hump out, with the cursor and the +1 UI / +2 UI post-cursors marked and the 37 % annotated. Channel delay removed so the two traces line up | §2, ISI slide |
+| `06b_isi.png` | **NEW, supplied** — textbook ISI figure: individual pulse responses spreading and summing into a received waveform, with transmitter and receiver sampling points | §2, ISI slide |
+| `06c_circuit_implementation.png` | **NEW, supplied** — the annotated schematic: CTLE, Gm1 stage, GmF stage, summing node, clocked comparator, D flip-flop, RX clock | §2, circuit-implementation slide |
 | `02a_schematic_full.png` | The complete equalizer schematic, both stages, exported from the real xschem file | §2, full-bleed |
 | `02b_ctle_stage.png` | Stage 1 only — the CTLE differential pair with `Rs ‖ Cs` degeneration | §2, CTLE slide |
 | `02c_summing_stage.png` | Stage 2 only — the summing stage with `Gm1` main path and `GmF` tap | §2, DFE slide |

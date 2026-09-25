@@ -266,13 +266,13 @@ copies and asking for 8 would buy nothing. Seeds are fixed, so it is
 reproducible.
 
 **24. How well the agent does.**
-Two numbers: **56.2 %** of proposals survive 20-corner verification; **1.2 s**
-to produce 8. One line of gloss under each.
+Two numbers: **56.2 %** of proposals survive 20-corner verification; **0.26 s**
+to produce all 8. One line of gloss under each.
 *Notes:* distinguish the two rates clearly — one roll of the dice works about
 half the time; eight rolls and keep the best is what gets to 8 of 10.
 
 **25. When the request is outside what it learned.**
-Short comparison table: agent 56.2 % / 1.2 s / in-range only; search 32.5 % /
+Short comparison table: agent 56.2 % / 0.26 s / in-range only; search 32.5 % /
 ~20 s / anywhere. Bottom line: *both together → 9 of 10.*
 *Notes:* why a search has no trained range; that the framework checks each
 request field by field and says which method answered; and that the two succeed

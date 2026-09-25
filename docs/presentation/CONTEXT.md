@@ -241,12 +241,13 @@ what it needs in order to get what it wants.
 solved by the very first proposal** it produces.
 Source: `results/solve_rate_physfit.json`, `eqrl/start_physfit.py`.
 
-### 4.2 The dataset
+### 4.2 The dataset PhysFit learns from
 
 **Job:** measure enough real circuits that a model can learn the gap between
 hand calculation and SPICE.
 
 - **1,500 designs**, each simulated at 4 corners → **5,993 measurement rows**.
+- Cost, paid once: 1,500 × 4.42 s = **1 h 50 min** of ngspice.
 - **14,753 SPICE evaluations** logged over the project in total.
 - Sampled from three places, deliberately: spread over the whole space (so the
   model learns where circuits *fail*), clustered around known-good designs, and
@@ -256,31 +257,63 @@ hand calculation and SPICE.
 
 Source: `models/surrogate/.../config.json`, `eqrl/cache.py`.
 
-### 4.3 The surrogate network
+### 4.3 PhysFit — the fast evaluator
 
-**Job:** predict what SPICE would say, fast enough to be called hundreds of
+**Job:** say what ngspice would say, fast enough to be called hundreds of
 thousands of times.
 
-**It is not a black box.** The prediction is
+> **Naming.** This deck uses **PhysFit** for the whole fast evaluator: the
+> closed-form circuit equations *together with* the neural correction trained
+> on top of them. (In the codebase `PhysFit` is the device-model layer and
+> `Surrogate` the network; they are one block as far as the system is
+> concerned.)
+
+#### What it is
 
 ```
-prediction  =  hand calculation  ×  bounded learned correction
+PhysFit prediction  =  hand calculation  ×  bounded learned correction
 ```
 
-The network never predicts the circuit from scratch. It predicts a *multiplier*
-on the closed-form answer, and that multiplier is **capped at ×7.4**. Before
-training the correction is exactly 1.0, so the model *starts* as the hand
-calculation and can only be nudged from there. In practice the learned
-corrections sit around **×1.8**.
+**It is not a black box.** The network never predicts the circuit from
+scratch — it predicts a *multiplier* on the closed-form answer, and that
+multiplier is **capped at ×7.4**. Before training the correction is exactly
+1.0, so the model *starts* as the hand calculation and can only be nudged from
+there. In practice the learned corrections sit around **×1.8**. This is why it
+cannot drift away from physics: it is not free to.
 
-This is why the model cannot drift away from physics: it is not free to.
+#### What it predicts
 
-- 32 input features, all physically meaningful (gm, Cout, pole and zero
-  positions, computed pulse-response cursors, supply, temperature, process).
-- **5 networks trained independently** — where they disagree, the prediction is
-  uncertain, and that is usable information.
+**15 outputs per design, per corner.**
 
-**Metrics — how good is it?**
+| kind | count | what |
+|---|---|---|
+| physics × correction | **5** | peaking, peak frequency, DC gain, power, input-referred noise |
+| predicted directly | **9** | Nyquist gain, HD3, eye height, eye width, eye improvement, input eye openness, gm of the CTLE pair, gm of the summer, output common mode |
+| pass/fail flag | **1** | is every device biased in saturation |
+
+#### How it is built and trained
+
+| | |
+|---|---|
+| inputs | **32 features**, all physically meaningful — gm, Cout, pole and zero positions, computed pulse-response cursors, supply, temperature, process |
+| shape | 32 → **128 → 128** (SiLU) → three output heads |
+| ensemble | **5 networks trained independently**; where they disagree, the prediction is uncertain, and that is usable information |
+| training | 3,000 epochs, **25 % of the data held out** and never trained on |
+
+Source: `eqrl/surrogate.py`, `models/surrogate/.../config.json`.
+
+#### Metric 1 — how much time it saves
+
+This is the number the whole architecture rests on. **Same design, same four
+corners, measured both ways:**
+
+| | per design | |
+|---|---|---|
+| ngspice | **4,420 ms** | `results/baseline.json` |
+| PhysFit | **0.77 ms** | measured, 200 repetitions |
+| | **≈ 5,700× faster** | |
+
+#### Metric 2 — how good is it?
 
 *Does it agree with SPICE about pass/fail?* On 375 held-out designs:
 
@@ -314,23 +347,77 @@ is met.
 - **20 steps per episode**, each a small adjustment to all 11 knobs. The agent
   steers; it does not answer in one shot.
 - 120,000 training steps, learning rate 3e-4.
-- Reward is the **worst** of the ten margins, never the average — a design is
-  only as good as its weakest condition, at its worst corner.
+
+#### The cost function
+
+Two stages, and the second is the important one.
+
+1. **Each condition is scored on its own**, not as a hard pass/fail but as a
+   soft ramp: full marks inside the requirement, falling off smoothly outside
+   it. A smooth score gives the agent a direction to move in even while it is
+   still failing — a bare pass/fail would be flat everywhere and teach nothing.
+2. **The reward is the WORST of those scores, across every corner.** Never the
+   average.
+
+> Averaging is the trap. A design that is superb on nine conditions and fails
+> the tenth would score well on an average and is worthless in reality. Taking
+> the minimum means the agent can only improve its reward by fixing whatever is
+> currently worst — which is exactly what a circuit designer does.
+
+A **bonus is added when a design passes everything**, so the agent is pulled
+past "nearly meets spec" rather than settling just short of it.
+
+#### The choices, and why
+
+| choice | why |
+|---|---|
+| **SAC**, not PPO | SAC keeps a deliberately random policy. We need 8 *different* candidates from one start; a near-deterministic agent returns 8 copies and best-of-8 buys nothing. |
+| **Goal-conditioned** — the spec is an input | One trained agent serves any specification in range. The alternative is retraining per request, which defeats the purpose. |
+| **20 small steps**, not one shot | The agent steers toward a design. One-shot regression from spec to 11 numbers has no way to react to what it has produced so far. |
+| **Worst-margin reward** | See above — a design is only as good as its weakest condition at its worst corner. |
+| **Start from the physics design**, not random | An 11-dimensional space is far too large to find the working region blind. |
 
 **Deliberately random.** The policy samples from a distribution rather than
 returning a fixed answer, so running it 8 times from the same start gives 8
-genuinely different designs. A deterministic agent would return 8 identical
-copies and asking for 8 would buy nothing. The seeds are fixed, so the 8 are
-reproducible.
+genuinely different designs. The seeds are fixed, so the 8 are reproducible.
 
-**Metrics:** **56.2 % of proposals (45 of 80) survive full 20-corner
-verification**; **8 of 10 unseen specifications solved**; **1.2 s to produce 8
-proposals**, because proposing touches no simulator at all.
-Source: `results/best_of_n_policy.json`.
+#### How it was trained — and what that would have cost in ngspice
+
+Training runs **entirely inside PhysFit**. The simulator is never called.
+
+| | |
+|---|---|
+| as actually run | **120,000 steps in 50 minutes** |
+| if ngspice were in the loop | 120,000 × 4.42 s = **6.1 days** of simulation alone |
+
+*And 6.1 days is the optimistic figure — it counts only the simulation, not the
+learning on top of it.* Training the agent at all is only possible because the
+evaluator is ~5,700× faster than the simulator.
+
+During training, the share of specifications the agent could satisfy rose
+**0.88 → 0.96 → 1.0** between 10k and 110k steps. (Measured against PhysFit, in
+training — the real-SPICE number is the 56.2 % below.)
+Source: `results/policy_train_eval.json`.
+
+#### Metrics
+
+**56.2 % of proposals (45 of 80) survive full 20-corner verification**; **8 of
+10 unseen specifications solved**; **0.26 s to produce all 8 proposals**,
+because proposing touches no simulator at all — it runs entirely inside
+PhysFit.
+Source: `results/best_of_n_policy.json`; the timing measured directly (§7.2).
 
 ### 4.5 The fallback search
 
-**Job:** answer requests that fall outside the range the policy was trained on.
+**Job:** answer requests that fall outside the range the agent was trained on.
+
+> **Say this precisely.** The range being checked is the span of
+> *specifications* the RL agent saw during training — peaking 5–10 dB, peak
+> frequency 1.1–1.6 / 2.0–2.8 GHz, HD3 −34 to −26 dBc, power 3–15 mW, eye
+> height 60–130 mV, eye width 0.35–0.50 UI. It is a limit on **what you can
+> ask for**, not on which circuits PhysFit can evaluate. PhysFit will happily
+> evaluate a design for any request; it is the *agent* that has only been
+> taught to aim at targets inside that box.
 
 Every incoming request is checked field by field against that range. Outside
 it, the policy would still answer — networks always answer — but the answer
@@ -529,7 +616,72 @@ readable. `02b` and `02c` are the readable halves.
 
 ---
 
-## 7. Vocabulary, for writing the speaker notes
+## 7. Speed, and why it decides the architecture
+
+This section is the backbone of the revised deck. §1 uses it to state the
+problem; §3 uses it to explain the system; §4 uses it to justify PhysFit.
+
+### 7.1 What one ngspice evaluation costs
+
+**4.42 seconds** for one design at 4 corners.
+Source: `results/baseline.json` — 95 candidates, 760 ngspice launches, 420.3 s
+wall. That is 8 launches per design, two per corner.
+
+And that is the **fast** path already: trimmed per-corner model libraries make
+these evaluations **22.4× faster** than loading the full SKY130 library each
+time. 4.42 s is what the cost looks like *after* optimisation.
+
+Multiply it out:
+
+| | designs | ngspice time |
+|---|---|---|
+| one design, 4 corners | 1 | 4.42 s |
+| one design, all 20 corners | 1 | ~22 s |
+| the RL agent's training budget | 120,000 | **6.1 days** |
+| a 3-point grid over 11 knobs | 177,147 | **217.7 hours** |
+| a 5-point grid over 11 knobs | 48,800,000 | **6.8 years** |
+
+*The brief asks for "fewer search spaces" and "lowest design time". These are
+the numbers that make that the central problem rather than a nice-to-have.*
+
+### 7.2 The per-phase budget of one request
+
+Measured directly, timing each phase through the same functions the framework
+calls. Three independent runs:
+
+| phase | run 1 | run 2 | run 3 |
+|---|---|---|---|
+| LLM + MCP layer (parse, envelope check) | 0.3 ms | 0.1 ms | 0.1 ms |
+| Start point (calculations + one SPICE operating point) | 0.64 s | 0.61 s | 0.58 s |
+| PhysFit ⇄ RL loop — all 8 candidates | 0.26 s | 0.23 s | 0.23 s |
+| **everything before verification** | **0.90 s** | **0.84 s** | **0.81 s** |
+| ngspice eye screen + 20-corner verification | 53.4 s | 52.2 s | 52.2 s |
+| **ngspice share of the run** | **98.3 %** | **98.4 %** | **98.5 %** |
+
+> These runs verified sequentially, so their totals are larger than the
+> **36.9 s production median** (§5.2), which runs the corners in parallel.
+> Parallelism changes only the ngspice part — the 0.9 s before it is the same
+> either way. Against the production median: **~0.9 s of thinking, ~36 s of
+> simulating, about 97 % of the run in ngspice.**
+
+**This is the sentence the system-overview slide has to land:** the searching,
+the learning and the reasoning together cost under a second. Essentially all
+the wall-clock time is the one thing we refuse to approximate — the final
+verdict in a real simulator.
+
+### 7.3 Training the agent: why PhysFit is not optional
+
+| | |
+|---|---|
+| training as actually run, inside PhysFit | **120,000 steps in 50 minutes** |
+| the same training with ngspice in the loop | **6.1 days** — simulation only |
+| building the dataset PhysFit learned from | 1 h 50 min, **paid once** |
+
+Source: `results/policy_train_eval.json`, and 120,000 × 4.42 s.
+
+---
+
+## 8. Vocabulary, for writing the speaker notes
 
 Short plain-language glosses. Use them when a term first appears.
 
